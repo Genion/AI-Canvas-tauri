@@ -623,6 +623,7 @@ export interface AppConfig {
   comfyMemoryPolicy?: ComfyMemoryPolicy; // 本地服务任务结束后的资源策略，默认保留智能缓存
   dreaminaAuth?: DreaminaAuthData; // 即梦登录态
   baseDataDir?: string;       // 用户自定义文件保存根目录，保存结构为 {baseDataDir}/{projectId}/**
+  volcengineBillingPath?: string; // 火山方舟账本数据库所在目录；文件名固定为 volcengine-usage.sqlite
   generalModels?: GeneralModelConfig[]; // 用户自建通用模型
   sidebarFloating?: boolean;  // 侧边栏是否悬浮显示（半隐于窗口边缘），默认 false
   windowGlassFrame?: boolean; // 是否显示主窗口玻璃外框，默认 true

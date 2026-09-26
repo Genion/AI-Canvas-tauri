@@ -906,9 +906,13 @@ async function resumeCustomProtocol(task: PendingTask): Promise<void> {
 
 async function resumeVolcengine(task: PendingTask): Promise<void> {
   const { nodeId, taskId } = task;
+  const { findBillingRunByTask, updateBillingRun } = await import('./billing/volcengineBillingService');
+  const { quoteVolcengineVideo } = await import('./billing/volcenginePricing');
+  const run = await findBillingRunByTask(taskId, task.projectId).catch(() => null);
   const providerConfig = resolveProviderTaskConfig(task, 'volcengine', VOLCENGINE_BASE_URL);
   if (!providerConfig) {
-    await handleResumeError(task, new Error('任务恢复失败：缺少 API 配置'));
+    await updateBillingRun(run, { status: 'unknown', errorMessage: '缺少 API 配置，任务待恢复查询' });
+    useAppStore.getState().updateNodeDataTransient(nodeId, { status: 'error', error: '缺少方舟 API 配置，任务 ID 已保留' });
     return;
   }
   const { apiKey, baseUrl } = providerConfig;
@@ -916,9 +920,12 @@ async function resumeVolcengine(task: PendingTask): Promise<void> {
   const label = (node?.data as BaseNodeData | undefined)?.label || '';
 
   const signal = registerNodePolling(nodeId);
+  let remoteFailed = false;
+  let remoteCancelled = false;
+  let remoteSucceeded = false;
 
   try {
-    const { url } = await pollTask<Record<string, unknown>, { url: string }>({
+    const { url, completionTokens } = await pollTask<Record<string, unknown>, { url: string; completionTokens?: number }>({
       fetchState: async () => {
         const resp = await fetch(`${baseUrl}/contents/generations/tasks/${taskId}`, {
           headers: { Authorization: `Bearer ${apiKey}` },
@@ -931,14 +938,17 @@ async function resumeVolcengine(task: PendingTask): Promise<void> {
         if (status === 'succeeded') {
           const content = raw.content as Record<string, unknown> | undefined;
           const videoUrl = content?.video_url as string | undefined;
-          if (videoUrl) return { url: videoUrl };
+          const usage = raw.usage as Record<string, unknown> | undefined;
+          if (videoUrl) return { url: videoUrl, completionTokens: typeof usage?.completion_tokens === 'number' ? usage.completion_tokens : undefined };
           throw new Error('任务完成但未返回视频地址');
         }
         return null;
       },
       isFailed: (raw) => {
         const status = raw.status as string;
-        if (status === 'failed') {
+        if (status === 'failed' || status === 'cancelled') {
+          remoteFailed = true;
+          remoteCancelled = status === 'cancelled';
           const err = raw.error as { message?: string } | undefined;
           return `任务失败: ${err?.message || status}`;
         }
@@ -948,10 +958,32 @@ async function resumeVolcengine(task: PendingTask): Promise<void> {
       onFetchError: 'continue',
       signal,
     });
+    if (run) {
+      const input = JSON.parse(run.inputJson) as { durationSeconds?: number; resolution?: string; ratio?: string; referenceType?: string };
+      const quote = completionTokens === undefined ? null : quoteVolcengineVideo({
+        modelId: run.modelId, durationSeconds: input.durationSeconds ?? -1,
+        resolution: input.resolution ?? '720p', ratio: input.ratio ?? '16:9',
+        inputVideoSeconds: input.referenceType === 'video-reference' ? 1 : undefined,
+        completionTokens,
+      });
+      await updateBillingRun(run, { status: 'succeeded', finishedAt: Date.now(),
+        calculatedMicros: quote?.amountMicros ?? null, amountConfidence: quote?.amountMicros == null ? 'unknown' : 'usage',
+        inputJson: JSON.stringify({ ...input, completionTokens: completionTokens ?? null }) });
+    }
+    remoteSucceeded = true;
     await applyNodeResult(nodeId, url, label);
     removePendingTask(nodeId);
   } catch (err) {
-    await handleResumeError(task, err);
+    if (!remoteSucceeded) await updateBillingRun(run, {
+      status: remoteCancelled ? 'cancelled' : remoteFailed ? 'failed' : 'unknown', finishedAt: Date.now(),
+      calculatedMicros: remoteFailed ? 0 : null, amountConfidence: remoteFailed ? 'calculated' : 'unknown',
+      errorMessage: err instanceof Error ? err.message : '恢复查询失败',
+    });
+    if (remoteFailed) {
+      await handleResumeError(task, err);
+    } else {
+      useAppStore.getState().updateNodeDataTransient(nodeId, { status: 'error', error: '方舟任务状态暂无法确认，可重启后继续查询' });
+    }
   } finally {
     cleanupNodePolling(nodeId);
   }

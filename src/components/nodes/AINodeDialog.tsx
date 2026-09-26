@@ -2,6 +2,7 @@
  * AINodeDialog AI 生成弹窗 — 点击节点后弹出的浮动面板，包含 Prompt 输入、模型选择、参数配置、生成按钮
  */
 import { lazy, memo, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Icon } from '@iconify/react';
 // 生成中的流光边框：仅在生成时按需加载
 const BorderBeam = lazy(() => import('border-beam').then((m) => ({ default: m.BorderBeam })));
 const PromptPolishPanel = lazy(() => import('./shared/PromptPolishPanel'));
@@ -24,6 +25,9 @@ import {
 } from '../../services/imageBatchService';
 import { createCharacterDirectionGrid } from '../../services/onnxService';
 import PromptPanel from './shared/PromptPanel';
+import VolcengineCostEstimate from './shared/VolcengineCostEstimate';
+import ModalOverlay from '../shared/ModalOverlay';
+const VolcengineBillingSettings = lazy(() => import('../settings/VolcengineBillingSettings'));
 import type { MentionEditorHandle } from './shared/MentionEditor';
 import ConnectedNodesPreview from './shared/ConnectedNodesPreview';
 import { findMediaModelOption } from './shared/defaultModels';
@@ -79,6 +83,7 @@ function AINodeDialog() {
   const previewRef = useRef<HTMLDivElement>(null);
   const cancellingNodeIdsRef = useRef(new Set<string>());
   const [isExpanded, setIsExpanded] = useState(false);
+  const [billingOpen, setBillingOpen] = useState(false);
   const [polishTarget, setPolishTarget] = useState<{ nodeId: string; projectId: string | null } | null>(null);
   const polishOpen = isExpanded && polishTarget?.nodeId === activeNodeId && polishTarget?.projectId === currentProjectId;
   const closePolish = useCallback(() => {
@@ -285,6 +290,10 @@ function AINodeDialog() {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        if (billingOpen) {
+          setBillingOpen(false);
+          return;
+        }
         // 先让顶层 UI Kit 下拉处理 Escape，保留当前节点参数弹窗。
         if (document.querySelector('[data-ui-select-portal]')) return;
         e.stopPropagation();
@@ -301,7 +310,7 @@ function AINodeDialog() {
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [handleCloseNodeDialog, isExpanded, polishOpen, closePolish]);
+  }, [billingOpen, handleCloseNodeDialog, isExpanded, polishOpen, closePolish]);
 
   // All hooks must be called before any early return
   const onPromptChange = useCallback(
@@ -1171,6 +1180,7 @@ function AINodeDialog() {
           selectedModel={data.model}
           selectedProvider={data.provider}
           selectedWorkflowId={data.workflowId}
+          costEstimate={<VolcengineCostEstimate data={data} onOpenRecords={() => setBillingOpen(true)} />}
           animationAction={data.animationAction ?? 'idle'}
           onAnimationActionChange={onAnimationActionChange}
           animationFrames={data.animationFrames ?? 8}
@@ -1241,6 +1251,23 @@ function AINodeDialog() {
           </Suspense>
         )}
       </div>
+      <ModalOverlay
+        isOpen={billingOpen}
+        onClose={() => setBillingOpen(false)}
+        ariaLabel="火山方舟用量记录"
+        className="h-[min(860px,calc(100dvh-24px))] w-[min(1120px,calc(100vw-24px))]"
+        zIndex={270}
+        closeOnBackdrop={false}
+      >
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-canvas-border px-5 py-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <Icon icon="lucide:receipt-text" width="19" className="shrink-0 text-canvas-text-secondary" />
+            <h2 className="truncate text-base font-semibold text-canvas-text">火山方舟用量记录</h2>
+          </div>
+          <button type="button" className="ui-icon-btn ui-icon-btn--sm" aria-label="关闭用量记录" title="关闭" onClick={() => setBillingOpen(false)}><Icon icon="lucide:x" /></button>
+        </div>
+        {billingOpen && <Suspense fallback={<div className="p-5 text-sm text-canvas-text-secondary">正在加载用量记录…</div>}><VolcengineBillingSettings /></Suspense>}
+      </ModalOverlay>
     </>
   );
 }

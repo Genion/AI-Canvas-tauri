@@ -2,7 +2,7 @@
  * PromptPanel 提示词面板 — AI 生成节点的核心输入面板，集成模型选择器、提示词编辑器、质量/比例/视频参数、生成按钮、/ 指令菜单
  */
 import Select from '../../shared/Select';
-import { lazy, Suspense, useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { lazy, Suspense, useState, useRef, useCallback, useEffect, useMemo, type ReactNode } from 'react';
 import { useReducedMotion } from 'framer-motion';
 const MetalFx = lazy(() => import('./PolishMetalFx'));
 // 与参考徽标相同的全填充金属遮罩，宽度随中文标签自适应。
@@ -356,6 +356,7 @@ interface PromptPanelProps {
   selectedModel?: string;
   selectedProvider?: string;
   selectedWorkflowId?: string;
+  costEstimate?: ReactNode;
   runninghubModelParameters?: Record<string, string>;
   onRunninghubModelParametersChange?: (values: Record<string, string>) => void;
   workflowInputs?: Record<string, string>;
@@ -434,6 +435,7 @@ export default function PromptPanel({
   selectedModel,
   selectedProvider,
   selectedWorkflowId,
+  costEstimate,
   workflowInputs,
   onWorkflowInputsChange,
   runninghubModelParameters,
@@ -872,6 +874,7 @@ export default function PromptPanel({
           onWorkflowSelect={onWorkflowSelect}
           workflows={workflows}
         />
+        {costEstimate}
 
         {referenceInputId && onWorkflowInputsChange ? (
           <CharacterVoiceSelector

@@ -68,6 +68,8 @@ import {
 } from './videoRequestResolver';
 import { getAsset } from './providers/volcengineAssetLibrary';
 import { readAppSecret } from '../providerSecretService';
+import { quoteVolcengineVideo } from '../billing/volcenginePricing';
+import { createBillingRun, updateBillingRun } from '../billing/volcengineBillingService';
 
 async function mapSequentially<T, R>(
   items: readonly T[],
@@ -844,6 +846,12 @@ async function generateVolcengineVideo(
   externalSignal?: AbortSignal,
 ): Promise<{ url: string }> {
   const nodeId = params.nodeId;
+  let billingRun: Awaited<ReturnType<typeof createBillingRun>> = null;
+  let submittedTaskId: string | undefined;
+  let requestSent = false;
+  let remoteFailed = false;
+  let remoteCancelled = false;
+  let keepPending = false;
   const nodeSignal = nodeId ? registerNodePolling(nodeId) : undefined;
   const signal = nodeSignal && externalSignal
     ? AbortSignal.any([nodeSignal, externalSignal])
@@ -874,9 +882,28 @@ async function generateVolcengineVideo(
       preserveFrameRoles,
       params,
     );
+    const durationSeconds = Number(requestBody.duration ?? -1);
+    const resolution = String(requestBody.resolution ?? '720p');
+    const ratio = String(requestBody.ratio ?? '16:9');
+    const hasInputVideo = references.some((item) => item.kind === 'video');
+    const quote = quoteVolcengineVideo({
+      modelId: modelName, durationSeconds, resolution, ratio,
+      fps: params.videoFps, inputVideoSeconds: hasInputVideo ? 1 : undefined,
+    });
+    billingRun = await createBillingRun({
+      nodeId, modelType: 'video', modelId: modelName, prompt,
+      details: {
+        referenceType: hasInputVideo ? 'video-reference'
+          : references.some((item) => item.role === 'first_frame' || item.role === 'last_frame') ? 'frame-reference'
+            : references.length ? 'multimodal-reference' : 'text-to-video',
+        referenceCount: references.length,
+        durationSeconds, resolution, ratio, fps: params.videoFps ?? null,
+      }, quote,
+    });
 
     // 提交任务
     const apiUrl = `${baseUrl}/contents/generations/tasks`;
+    requestSent = true;
     const submitResp = await corsSafeFetch(apiUrl, {
       method: 'POST',
       headers: {
@@ -888,6 +915,7 @@ async function generateVolcengineVideo(
     });
 
     if (!submitResp.ok) {
+      remoteFailed = true;
       const errBody = await submitResp.text().catch(() => '');
       let errorMsg = `提交失败 (${submitResp.status})`;
       try {
@@ -904,6 +932,8 @@ async function generateVolcengineVideo(
     if (!taskId) {
       throw new Error('火山方舟视频生成提交失败: 未返回任务 ID');
     }
+    submittedTaskId = taskId;
+    billingRun = await updateBillingRun(billingRun, { status: 'running', taskId });
 
     // 回填 taskId
     if (nodeId) {
@@ -911,7 +941,7 @@ async function generateVolcengineVideo(
     }
 
     // 轮询
-    return await pollTask<Record<string, unknown>, { url: string }>({
+    const completed = await pollTask<Record<string, unknown>, { url: string; completionTokens?: number }>({
       fetchState: async () => {
         const pollResp = await corsSafeFetch(`${baseUrl}/contents/generations/tasks/${taskId}`, {
           headers: { Authorization: `Bearer ${apiKey}` },
@@ -925,7 +955,8 @@ async function generateVolcengineVideo(
         if (status === 'succeeded') {
           const c = raw.content as Record<string, unknown> | undefined;
           const videoUrl = c?.video_url as string | undefined;
-          if (videoUrl) return { url: videoUrl };
+          const usage = raw.usage as Record<string, unknown> | undefined;
+          if (videoUrl) return { url: videoUrl, completionTokens: typeof usage?.completion_tokens === 'number' ? usage.completion_tokens : undefined };
           throw new Error('任务完成但未返回视频地址');
         }
         return null;
@@ -933,6 +964,8 @@ async function generateVolcengineVideo(
       isFailed: (raw) => {
         const status = raw.status as string;
         if (status === 'failed' || status === 'cancelled') {
+          remoteFailed = true;
+          remoteCancelled = status === 'cancelled';
           const err = raw.error as { message?: string } | undefined;
           return `任务失败: ${err?.message || status}`;
         }
@@ -942,10 +975,31 @@ async function generateVolcengineVideo(
       signal,
     });
 
+    const measured = completed.completionTokens === undefined ? null : quoteVolcengineVideo({
+      modelId: modelName, durationSeconds, resolution, ratio,
+      inputVideoSeconds: hasInputVideo ? 1 : undefined,
+      completionTokens: completed.completionTokens,
+    }).amountMicros;
+    billingRun = await updateBillingRun(billingRun, {
+      status: 'succeeded', finishedAt: Date.now(), calculatedMicros: measured,
+      amountConfidence: measured === null ? 'unknown' : 'usage',
+      inputJson: JSON.stringify({ ...JSON.parse(billingRun?.inputJson || '{}'), completionTokens: completed.completionTokens ?? null }),
+    });
+    return { url: completed.url };
+
+  } catch (error) {
+    await updateBillingRun(billingRun, {
+      status: remoteCancelled ? 'cancelled' : remoteFailed || !requestSent ? 'failed' : 'unknown', finishedAt: Date.now(),
+      calculatedMicros: remoteFailed || !requestSent ? 0 : null,
+      amountConfidence: remoteFailed || !requestSent ? 'calculated' : 'unknown',
+      errorMessage: error instanceof Error ? error.message.slice(0, 500) : '视频请求失败',
+    });
+    keepPending = Boolean(submittedTaskId && !remoteFailed);
+    throw error;
   } finally {
     if (nodeId) {
       cleanupNodePolling(nodeId);
-      removePendingTask(nodeId);
+      if (!keepPending) removePendingTask(nodeId);
     }
   }
 }
