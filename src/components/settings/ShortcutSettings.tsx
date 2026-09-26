@@ -20,6 +20,7 @@ function getShortcutList(): { action: string; key: string }[] {
     { action: '复制节点', key: `${mod} + C` },
     { action: '粘贴节点', key: `${mod} + V` },
     { action: '删除节点', key: del },
+    { action: '重命名节点', key: 'F2' },
     { action: '分组 / 取消分组', key: `${mod} + G` },
     { action: '创建生成节点（文本 / 图像 / 视频 / 音频 / 全景 / 动画）', key: '1–6' },
     { action: '创建源节点（文本 / 图像 / 视频 / 音频 / Markdown）', key: `${alt} + 1–5` },

@@ -1,7 +1,45 @@
-export const CONNECTED_PREVIEW_THUMB_SIZE = 38;
+export const CONNECTED_PREVIEW_THUMB_SIZE = 48;
 export const CONNECTED_PREVIEW_GAP = 6;
 export const CONNECTED_PREVIEW_LONG_PRESS_MS = 500;
 export const CONNECTED_PREVIEW_MOVE_THRESHOLD_PX = 8;
+
+interface PreviewNodeRef {
+  id: string;
+  type?: string;
+  parentId?: string;
+}
+
+interface PreviewEdgeRef {
+  id: string;
+  source: string;
+  target: string;
+}
+
+export function getConnectedPreviewEdgeIds(
+  nodes: readonly PreviewNodeRef[],
+  edges: readonly PreviewEdgeRef[],
+  targetId: string,
+): Map<string, string[]> {
+  const target = nodes.find((node) => node.id === targetId);
+  const targetIds = new Set([targetId, ...(target?.parentId ? [target.parentId] : [])]);
+  const byId = new Map(nodes.map((node) => [node.id, node]));
+  const edgeIdsBySource = new Map<string, string[]>();
+
+  for (const edge of edges) {
+    if (!targetIds.has(edge.target)) continue;
+    const source = byId.get(edge.source);
+    const sourceIds = source?.type === 'group'
+      ? nodes.filter((node) => node.parentId === source.id).map((node) => node.id)
+      : [edge.source];
+    for (const sourceId of sourceIds) {
+      const ids = edgeIdsBySource.get(sourceId) ?? [];
+      ids.push(edge.id);
+      edgeIdsBySource.set(sourceId, ids);
+    }
+  }
+
+  return edgeIdsBySource;
+}
 
 export function calculateDockOffset(
   index: number,

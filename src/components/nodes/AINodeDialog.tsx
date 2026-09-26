@@ -1049,7 +1049,7 @@ function AINodeDialog() {
           className="ai-dialog-preview-float"
           style={dialogPosition ? {
             left: `${dialogPosition.x}px`,
-            top: `${dialogPosition.y + dialogOffsetY - 42}px`,
+            top: `${dialogPosition.y + dialogOffsetY - 58}px`,
             transform: 'translateX(-50%)',
           } : undefined}
         >

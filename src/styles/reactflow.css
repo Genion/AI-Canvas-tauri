@@ -281,6 +281,51 @@
   pointer-events: none;
 }
 
+/* 多选时由画布浮层统一承载连接入口。 */
+.canvas-drawing-root.is-multi-selected .react-flow__node.selected .gooey-btn-wrapper {
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.canvas-drawing-root.is-multi-selected .react-flow__node.selected .node-handle {
+  pointer-events: none;
+}
+
+.canvas-drawing-root .canvas-selection-connect-handle {
+  position: fixed;
+  z-index: 30;
+  width: 40px;
+  height: 40px;
+  transform: translate(-50%, -50%);
+  touch-action: none;
+}
+
+.canvas-selection-connect-handle .canvas-selection-connect-gooey {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.canvas-selection-connect-preview {
+  position: fixed;
+  inset: 0;
+  z-index: 29;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.canvas-selection-connect-preview path {
+  fill: none;
+  stroke: var(--canvas-edge);
+  stroke-width: 1.5;
+}
+
 /* Per-type handle colors (applied via handle-source class on visible handles) */
 /* .handle-text {
   background: #6366f1 !important;

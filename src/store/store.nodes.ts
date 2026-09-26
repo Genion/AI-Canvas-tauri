@@ -57,6 +57,51 @@ export function isCanvasConnectionValid(connection: {
   return true;
 }
 
+const BATCH_CONNECTABLE_TYPES = new Set([
+  'ai-text', 'source-text', 'ai-image', 'source-image', 'ai-video', 'source-video',
+  'ai-audio', 'source-audio', 'ai-animation', 'ai-panorama', 'ai-markdown',
+  'ai-storyboard', 'ai-shotlist', 'ai-director',
+]);
+
+export function isBatchConnectableNode(node: Node<BaseNodeData>): boolean {
+  return BATCH_CONNECTABLE_TYPES.has(node.type ?? '')
+    && node.data.hiddenByCharacterLibrary !== true
+    && node.hidden !== true;
+}
+
+function resolveBatchSources(
+  state: AppState,
+  sourceIds: readonly string[],
+  projectId: string | null,
+  targetId?: string,
+): Node<BaseNodeData>[] | null {
+  if (state.currentProjectId !== projectId) return null;
+  const ids = new Set(sourceIds);
+  if (ids.size < 2 || ids.size !== sourceIds.length || (targetId && ids.has(targetId))) return null;
+  const byId = new Map(state.nodes.map((node) => [node.id, node]));
+  const sources = sourceIds.map((id) => byId.get(id));
+  if (sources.some((node) => !node || !isBatchConnectableNode(node)
+    || (node.parentId && byId.get(node.parentId)?.data.groupCollapsed === true))) return null;
+  return sources as Node<BaseNodeData>[];
+}
+
+function newBatchEdges(
+  sources: readonly Node<BaseNodeData>[],
+  targetId: string,
+  existingEdges: readonly Edge[],
+): Edge[] {
+  const existing = new Set(existingEdges
+    .filter((edge) => edge.target === targetId)
+    .map((edge) => edge.source));
+  return sources.filter((source) => !existing.has(source.id)).map((source) => ({
+    id: `edge-${generateId()}`,
+    source: source.id,
+    sourceHandle: 'right',
+    target: targetId,
+    targetHandle: 'left',
+  }));
+}
+
 function normalizeCanvasConnection(connection: Connection): Connection | null {
   if (!isCanvasConnectionValid(connection)) return null;
   const draggedFromInput = connection.sourceHandle === 'left' && connection.targetHandle === 'right';
@@ -396,6 +441,8 @@ export interface NodeSlice {
   /** 原子批量删除多个节点（一次 commitToHistory，一次退场动画） */
   deleteNodesBatch: (nodeIds: string[]) => void;
   onConnect: (connection: Connection) => void;
+  connectSelectedNodes: (sourceIds: string[], targetId: string, projectId: string | null) => number;
+  addNodeFromSelection: (node: Node<BaseNodeData>, sourceIds: string[], projectId: string | null) => boolean;
   onNodesChange: (changes: NodeChange<Node<BaseNodeData>>[]) => void;
   onEdgesChange: (changes: EdgeChange[]) => void;
   clearGroupedSelection: () => void;
@@ -1192,6 +1239,37 @@ export const createNodeSlice: StateCreator<AppState, [], [], NodeSlice> = (set, 
       ...normalized,
     };
     set((state) => ({ edges: [...state.edges, edge] }));
+  },
+
+  connectSelectedNodes: (sourceIds, targetId, projectId) => {
+    const state = get();
+    const sources = resolveBatchSources(state, sourceIds, projectId, targetId);
+    const target = state.nodes.find((node) => node.id === targetId);
+    if (!sources || !target || !isBatchConnectableNode(target)
+      || (target.parentId && state.nodes.find((node) => node.id === target.parentId)?.data.groupCollapsed === true)) return 0;
+    const nextEdges = newBatchEdges(sources, targetId, state.edges);
+    if (nextEdges.length === 0) return 0;
+    state.commitToHistory();
+    set((current) => ({ edges: [...current.edges, ...nextEdges] }));
+    return nextEdges.length;
+  },
+
+  addNodeFromSelection: (node, sourceIds, projectId) => {
+    const state = get();
+    const sources = resolveBatchSources(state, sourceIds, projectId, node.id);
+    if (!sources || !isBatchConnectableNode(node) || state.nodes.some((item) => item.id === node.id)) return false;
+    const nextEdges = newBatchEdges(sources, node.id, state.edges);
+    state.commitToHistory();
+    set((current) => {
+      const displayId = getNextDisplayId(current.nodes);
+      const settings = current.projects.find((project) => project.id === current.currentProjectId)?.settings;
+      const data = applyProjectDefaultsToNodeData(node.data, settings);
+      return {
+        ...insertNodeInGroup(current, prepareNodeForInsertion(node, data, displayId)),
+        edges: [...current.edges, ...nextEdges],
+      };
+    });
+    return true;
   },
 
   onNodesChange: (changes) => {

@@ -11,14 +11,19 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { useShallow } from 'zustand/react/shallow';
+import closeCircleIcon from '../../../assets/close-circle.svg';
 import { useAppStore } from '../../../store/useAppStore';
 import type { BaseNodeData, StoryboardCellOverride } from '../../../types';
 import { useT } from '../../../i18n';
 import FullscreenOverlay from '../../shared/FullscreenOverlay';
 import {
   calculateDockOffset,
+  CONNECTED_PREVIEW_THUMB_SIZE,
   createConnectedPreviewLongPressController,
+  getConnectedPreviewEdgeIds,
 } from './connectedNodesPreviewInteractions';
+
+const IMAGE_HOVER_PREVIEW_DELAY_MS = 500;
 
 const IS_TAURI = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 function localAssetUrl(filePath?: string): string | undefined {
@@ -69,6 +74,7 @@ export default function ConnectedNodesPreview({
     useShallow((s) => ({ nodes: s.nodes, edges: s.edges })),
   );
   const hoveredMentionNodeId = useAppStore((s) => s.hoveredMentionNodeId);
+  const currentProjectId = useAppStore((s) => s.currentProjectId);
   const [fullscreenPreview, setFullscreenPreview] = useState<FullscreenPreviewItem | null>(null);
   const [suppressClickNodeId, setSuppressClickNodeId] = useState<string | null>(null);
   const closeFullscreenPreview = useCallback(() => {
@@ -80,6 +86,33 @@ export default function ConnectedNodesPreview({
   const [sbPopupId, setSbPopupId] = useState<string | null>(null);
   const [sbThumbRect, setSbThumbRect] = useState<DOMRect | null>(null);
   const sbCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const imageHoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hoveredImageElement = useRef<HTMLElement | null>(null);
+  const [imageHoverPreview, setImageHoverPreview] = useState<{
+    id: string;
+    rect: DOMRect;
+  } | null>(null);
+
+  const clearImageHoverPreview = useCallback(() => {
+    if (imageHoverTimer.current !== null) clearTimeout(imageHoverTimer.current);
+    imageHoverTimer.current = null;
+    hoveredImageElement.current = null;
+    setImageHoverPreview(null);
+  }, []);
+
+  const startImageHoverPreview = useCallback((element: HTMLElement, id: string) => {
+    clearImageHoverPreview();
+    hoveredImageElement.current = element;
+    imageHoverTimer.current = setTimeout(() => {
+      imageHoverTimer.current = null;
+      if (hoveredImageElement.current !== element || !element.isConnected) return;
+      setImageHoverPreview({ id, rect: element.getBoundingClientRect() });
+    }, IMAGE_HOVER_PREVIEW_DELAY_MS);
+  }, [clearImageHoverPreview]);
+
+  useEffect(() => () => {
+    if (imageHoverTimer.current !== null) clearTimeout(imageHoverTimer.current);
+  }, []);
 
   const clearPopupDelayed = useCallback(() => {
     sbCloseTimer.current = setTimeout(() => setSbPopupId(null), 120);
@@ -91,22 +124,9 @@ export default function ConnectedNodesPreview({
 
   const connectedNodes = useMemo(() => {
     if (!nodeId) return [];
-    const me = nodes.find((n) => n.id === nodeId);
-    const rawSourceIds = new Set(edges.filter((e) => e.target === nodeId).map((e) => e.source));
-    if (me?.parentId) {
-      edges.filter((e) => e.target === me.parentId).forEach((e) => rawSourceIds.add(e.source));
-    }
-    const sourceIds = new Set<string>();
-    for (const sid of rawSourceIds) {
-      const sn = nodes.find((n) => n.id === sid);
-      if (sn?.type === 'group') {
-        nodes.filter((n) => n.parentId === sid).forEach((c) => sourceIds.add(c.id));
-      } else {
-        sourceIds.add(sid);
-      }
-    }
+    const edgeIdsBySource = getConnectedPreviewEdgeIds(nodes, edges, nodeId);
     return nodes
-      .filter((n) => n.id !== nodeId && n.type !== 'group' && sourceIds.has(n.id))
+      .filter((n) => n.id !== nodeId && n.type !== 'group' && edgeIdsBySource.has(n.id))
       .map((n) => {
         const data = n.data as BaseNodeData;
         // 分镜表没有 output/媒体，落到 text 分支就只剩一个「T」，和文本节点分不开
@@ -184,6 +204,7 @@ export default function ConnectedNodesPreview({
 
         return {
           id: n.id,
+          edgeIds: edgeIdsBySource.get(n.id) ?? [],
           label: data.label || t('节点'),
           displayId: data.displayId,
           outputType,
@@ -219,6 +240,17 @@ export default function ConnectedNodesPreview({
 
   const handleClick = (nodeId: string, label: string) => {
     onInsertMention?.(`@{${nodeId}:${label}}`);
+  };
+
+  const handleDisconnect = (edgeIds: string[]) => {
+    const state = useAppStore.getState();
+    if (state.currentProjectId !== currentProjectId || !nodeId) return;
+    const liveEdgeIds = new Set(state.edges.map((edge) => edge.id));
+    const removals = edgeIds.filter((id) => liveEdgeIds.has(id)).map((id) => ({
+      type: 'remove' as const,
+      id,
+    }));
+    if (removals.length > 0) state.onEdgesChange(removals);
   };
 
   const externalIndex = hoveredMentionNodeId
@@ -261,40 +293,24 @@ export default function ConnectedNodesPreview({
             : t('点击引用');
 
           return (
-          <motion.button
+          <motion.div
             key={node.id}
-            type="button"
             className={`connected-node-thumb ${!node.hasOutput ? 'thumb-idle' : ''} thumb-${node.outputType}${isStoryboard ? ' thumb-storyboard' : ''}${isShotlist ? ' thumb-shotlist' : ''}${isExpandedEmphasis ? ' origin-bottom' : ''}`}
-            data-tooltip={`${tooltipLabel} — ${tooltipAction}`}
-            data-tooltip-label={`${tooltipLabel} —`}
-            data-tooltip-action={tooltipAction}
-            onClick={() => {
-              if (suppressClickNodeId === node.id) {
-                setSuppressClickNodeId(null);
-                return;
-              }
-              handleClick(node.id, node.label);
-            }}
             onHoverStart={() => onHoverStart(idx)}
             onHoverEnd={onHoverEnd}
-            onPointerDown={(event) => {
-              if (!canFullscreen) return;
-              if (longPressController.start(node, event)) {
-                event.currentTarget.setPointerCapture(event.pointerId);
+            onMouseEnter={(e) => {
+              if (isStoryboard && node.sbCells) {
+                cancelCloseTimer();
+                setSbPopupId(node.id);
+                setSbThumbRect(e.currentTarget.getBoundingClientRect());
+              } else if (node.outputType === 'image' && node.thumbnailUrl) {
+                startImageHoverPreview(e.currentTarget, node.id);
               }
             }}
-            onPointerMove={(event) => longPressController.move(event)}
-            onPointerUp={(event) => {
-              longPressController.end(event.pointerId);
-              window.setTimeout(() => {
-                setSuppressClickNodeId((current) => current === node.id ? null : current);
-              }, 0);
+            onMouseLeave={() => {
+              clearImageHoverPreview();
+              if (isStoryboard) clearPopupDelayed();
             }}
-            onPointerCancel={(event) => longPressController.end(event.pointerId)}
-            onLostPointerCapture={longPressController.cancel}
-            onContextMenu={(event) => { if (canFullscreen) event.preventDefault(); }}
-            onMouseEnter={(e) => { if (isStoryboard) { cancelCloseTimer(); setSbPopupId(node.id); setSbThumbRect(e.currentTarget.getBoundingClientRect()); } }}
-            onMouseLeave={() => { if (isStoryboard) clearPopupDelayed(); }}
             animate={{
               scale, x, y: isHovered && !isExpandedEmphasis ? -4 : 0,
               opacity: isHovered ? 1 : 0.85,
@@ -304,6 +320,38 @@ export default function ConnectedNodesPreview({
             whileTap={{ scale: scale * 0.92 }}
             transition={{ type: 'spring', stiffness: 350, damping: 20, mass: 0.7 }}
           >
+            <button
+              type="button"
+              className="connected-node-action"
+              data-tooltip={node.outputType === 'image' && node.thumbnailUrl && !node.sbCells ? undefined : `${tooltipLabel} — ${tooltipAction}`}
+              data-tooltip-label={node.outputType === 'image' && node.thumbnailUrl && !node.sbCells ? undefined : `${tooltipLabel} —`}
+              data-tooltip-action={node.outputType === 'image' && node.thumbnailUrl && !node.sbCells ? undefined : tooltipAction}
+              aria-label={`${tooltipLabel} — ${tooltipAction}`}
+              onClick={() => {
+                if (suppressClickNodeId === node.id) {
+                  setSuppressClickNodeId(null);
+                  return;
+                }
+                handleClick(node.id, node.label);
+              }}
+              onPointerDown={(event) => {
+                clearImageHoverPreview();
+                if (!canFullscreen) return;
+                if (longPressController.start(node, event)) {
+                  event.currentTarget.setPointerCapture(event.pointerId);
+                }
+              }}
+              onPointerMove={(event) => longPressController.move(event)}
+              onPointerUp={(event) => {
+                longPressController.end(event.pointerId);
+                window.setTimeout(() => {
+                  setSuppressClickNodeId((current) => current === node.id ? null : current);
+                }, 0);
+              }}
+              onPointerCancel={(event) => longPressController.end(event.pointerId)}
+              onLostPointerCapture={longPressController.cancel}
+              onContextMenu={(event) => { if (canFullscreen) event.preventDefault(); }}
+            >
             {/* 缩略图内容 */}
             {node.outputType === 'image' && node.thumbnailUrl ? (
               <img src={node.thumbnailUrl} alt={node.label} className="thumb-img" loading="lazy" />
@@ -331,9 +379,64 @@ export default function ConnectedNodesPreview({
             {node.status === 'loading' && (
               <div className="thumb-loading"><span className="thumb-spinner" /></div>
             )}
-          </motion.button>
+            </button>
+            <motion.button
+              type="button"
+              className="connected-node-disconnect"
+              aria-label={`${t('断开上游连线')}：${node.label}`}
+              animate={{ scale: 1 / scale }}
+              transition={{ type: 'spring', stiffness: 350, damping: 20, mass: 0.7 }}
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                clearImageHoverPreview();
+                cancelCloseTimer();
+                setSbPopupId(null);
+                handleDisconnect(node.edgeIds);
+              }}
+            >
+              <img src={closeCircleIcon} alt="" aria-hidden="true" />
+            </motion.button>
+          </motion.div>
         )})}
         </div>
+      )}
+
+      {createPortal(
+        <AnimatePresence>
+          {fullscreenPreview === null && imageHoverPreview && (() => {
+            const previewNode = connectedNodes.find((node) => node.id === imageHoverPreview.id);
+            if (!previewNode?.thumbnailUrl) return null;
+            const { rect } = imageHoverPreview;
+            const width = Math.max(32, Math.min(264, window.innerWidth - 24, rect.top - 20));
+            const center = Math.min(
+              Math.max(rect.left + rect.width / 2, width / 2 + 12),
+              window.innerWidth - width / 2 - 12,
+            );
+            return (
+              <div
+                className="connected-image-preview-anchor"
+                style={{ left: center, top: rect.top - 8, width, height: width }}
+              >
+                <motion.div
+                  key={previewNode.id}
+                  className="connected-image-preview"
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 4 }}
+                  transition={{ duration: 0.15 }}
+                >
+                  <img
+                    src={previewNode.mediaUrl || previewNode.thumbnailUrl}
+                    alt={previewNode.label}
+                  />
+                </motion.div>
+              </div>
+            );
+          })()}
+        </AnimatePresence>,
+        document.body,
       )}
 
       {/* 宫格弹出浮层 — Portal 到 body */}
@@ -475,15 +578,33 @@ export default function ConnectedNodesPreview({
         .connected-nodes-strip::-webkit-scrollbar-thumb { background: var(--theme-border); border-radius: 8px; }
         .connected-node-thumb {
           flex-shrink: 0;
-          width: 38px; height: 38px;
+          width: ${CONNECTED_PREVIEW_THUMB_SIZE}px; height: ${CONNECTED_PREVIEW_THUMB_SIZE}px;
           border-radius: 8px;
           border: 2px solid rgba(195,195,202,0.33);
           background: var(--theme-surface);
-          cursor: var(--cursor-pointer, pointer);
-          display: flex; align-items: center; justify-content: center;
           overflow: hidden; position: relative; padding: 0;
         }
-        .connected-node-thumb[data-tooltip]:hover { overflow: visible; }
+        .connected-node-action {
+          display: flex; align-items: center; justify-content: center;
+          width: 100%; height: 100%; padding: 0; border: 0;
+          background: transparent;
+          cursor: var(--cursor-pointer, pointer);
+        }
+        .connected-node-disconnect {
+          position: absolute; top: 1px; right: 1px; z-index: 3;
+          display: flex; align-items: center; justify-content: center;
+          width: 20px; height: 20px; padding: 0;
+          border: 0; border-radius: 4px;
+          background: transparent;
+          cursor: var(--cursor-pointer, pointer);
+          opacity: 0; pointer-events: none;
+          transform-origin: top right;
+        }
+        .connected-node-thumb:hover .connected-node-disconnect,
+        .connected-node-thumb:focus-within .connected-node-disconnect {
+          opacity: 1; pointer-events: auto;
+        }
+        .connected-node-disconnect img { width: 18px; height: 18px; display: block; }
         .connected-node-thumb.thumb-storyboard { border-color: rgba(244,114,182,0.45); }
         /* 分镜表：沿用节点自身的琥珀色，和文本节点区分开 */
         .connected-node-thumb.thumb-shotlist {
@@ -492,6 +613,22 @@ export default function ConnectedNodesPreview({
         }
         .thumb-img {
           width: 100%; height: 100%; object-fit: cover; border-radius: 6px;
+        }
+        .connected-image-preview-anchor {
+          position: fixed;
+          z-index: 10050;
+          transform: translate(-50%, -100%);
+          pointer-events: none;
+        }
+        .connected-image-preview {
+          width: 100%; height: 100%;
+          border-radius: 8px;
+          overflow: hidden;
+          box-shadow: 0 8px 24px var(--black-alpha-50);
+        }
+        .connected-image-preview img {
+          display: block;
+          width: 100%; height: 100%; object-fit: cover;
         }
         .thumb-video-wrap {
           position: relative; width: 100%; height: 100%;

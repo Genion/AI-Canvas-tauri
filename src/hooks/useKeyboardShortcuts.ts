@@ -205,6 +205,23 @@ export function useKeyboardShortcuts() {
 
       if (isEditing) return;
 
+      // F2: rename the single selected node through the shared NodeLabel editor.
+      if (e.key === 'F2' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+        const state = useAppStore.getState();
+        if (state.selectedNodeIds.length === 1) {
+          const selectedId = state.selectedNodeIds[0];
+          const nodeElement = Array.from(document.querySelectorAll<HTMLElement>('.react-flow__node'))
+            .find((element) => element.dataset.id === selectedId);
+          const labelElement = nodeElement?.querySelector<HTMLElement>('.node-label-text');
+          if (labelElement) {
+            e.preventDefault();
+            e.stopPropagation();
+            labelElement.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true, view: window }));
+            return;
+          }
+        }
+      }
+
       // 1–7: 创建内容节点；Alt+1–5: 创建源节点。节点左上角落在当前鼠标位置。
       const digitMatch = /^(?:Digit|Numpad)([1-7])$/.exec(e.code);
       if (digitMatch && !e.repeat && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
