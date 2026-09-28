@@ -94,7 +94,14 @@ const CONNECTION_MENU_MAP: Record<string, ConnectionMenuOption[]> = {
     { label: '生成图像', type: 'ai-image' },
     { label: '生成视频', type: 'ai-video' },
   ],
-  'ai-video': [],
+  'ai-video': [
+    { label: '生成文本', type: 'ai-text' },
+    { label: '生成视频', type: 'ai-video' },
+  ],
+  'source-video': [
+    { label: '生成文本', type: 'ai-text' },
+    { label: '生成视频', type: 'ai-video' },
+  ],
   'ai-audio': [
     { label: '生成文本', type: 'ai-text' },
     { label: '生成音频', type: 'ai-audio' },

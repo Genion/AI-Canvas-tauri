@@ -589,13 +589,19 @@ describe('batch canvas history', () => {
   });
 
   it('offers upstream node types when a connection starts from an input handle', () => {
-    expect(getConnectionMenuOptions('ai-video', 'output')).toEqual([]);
     expect(getConnectionMenuOptions('ai-video', 'input').map((option) => option.type)).toEqual([
       'ai-text',
       'ai-image',
       'ai-storyboard',
       'ai-director',
+      'ai-video',
     ]);
+  });
+
+  it('offers text and video targets from generated and imported video nodes', () => {
+    const targets = getConnectionMenuOptions('ai-video', 'output');
+    expect(targets.map((option) => option.type)).toEqual(['ai-text', 'ai-video']);
+    expect(getConnectionMenuOptions('source-video', 'output')).toEqual(targets);
   });
 
   it('offers downstream node types from library reference images', () => {
