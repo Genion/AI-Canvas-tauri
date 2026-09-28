@@ -108,6 +108,7 @@ export default function App() {
     useShallow((state) => ({
       settings: state.settingsOpen,
       nodeDialog: state.activeNodeId !== null,
+      nodeDialogResetKey: JSON.stringify([state.currentProjectId, state.activeNodeId]),
       workflows: state.workflowPanelOpen,
       assets: state.assetsPanelOpen,
       characters: state.characterLibraryOpen || state.characterActionLibraryOpen,
@@ -513,7 +514,7 @@ export default function App() {
             {mountSettings && <SettingsPanel />}
           </Suspense>
         </LazyLoadBoundary>
-        <LazyLoadBoundary label="节点编辑器">
+        <LazyLoadBoundary label="节点编辑器" resetKey={featureVisibility.nodeDialogResetKey}>
           <Suspense fallback={<LazyLoadFallback label="节点编辑器" />}>
             {mountNodeDialog && <AINodeDialog />}
           </Suspense>

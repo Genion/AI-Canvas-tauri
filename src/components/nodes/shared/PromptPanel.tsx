@@ -2,6 +2,7 @@
  * PromptPanel 提示词面板 — AI 生成节点的核心输入面板，集成模型选择器、提示词编辑器、质量/比例/视频参数、生成按钮、/ 指令菜单
  */
 import Select from '../../shared/Select';
+import LazyLoadBoundary from '../../shared/LazyLoadBoundary';
 import { lazy, Suspense, useState, useRef, useCallback, useEffect, useMemo, type ReactNode } from 'react';
 import { useReducedMotion } from 'framer-motion';
 const MetalFx = lazy(() => import('./PolishMetalFx'));
@@ -802,9 +803,11 @@ export default function PromptPanel({
       onClick={handleSubmitClick}
     >
       {isGenerating && !performanceMode ? (
-        <Suspense fallback={null}>
-          <ThinkingOrb state="composing" size={20} aria-label={t('生成中')} />
-        </Suspense>
+        <LazyLoadBoundary label="生成按钮动画" errorFallback={<span aria-label={t('生成中')}>…</span>}>
+          <Suspense fallback={null}>
+            <ThinkingOrb state="composing" size={20} aria-label={t('生成中')} />
+          </Suspense>
+        </LazyLoadBoundary>
       ) : (
         <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <line x1="12" y1="19" x2="12" y2="5" />
@@ -841,7 +844,7 @@ export default function PromptPanel({
         />
       {polishButton && (
         <div className="prompt-polish-entry">
-          {performanceMode || reduceMotion ? polishButton : <Suspense fallback={polishButton}><MetalFx className="prompt-polish-metal" variant="button" preset={theme === 'light' ? 'silver' : 'chromatic'} theme={theme} strength={theme === 'light' ? 0.55 : 0.8} shaderScale={1.6} mask={paintPolishBadge} glowMode="ring" normalizeHostStyles={false} innerShadow>{polishButton}</MetalFx></Suspense>}
+          {performanceMode || reduceMotion ? polishButton : <LazyLoadBoundary label="润色按钮特效" errorFallback={polishButton}><Suspense fallback={polishButton}><MetalFx className="prompt-polish-metal" variant="button" preset={theme === 'light' ? 'silver' : 'chromatic'} theme={theme} strength={theme === 'light' ? 0.55 : 0.8} shaderScale={1.6} mask={paintPolishBadge} glowMode="ring" normalizeHostStyles={false} innerShadow>{polishButton}</MetalFx></Suspense></LazyLoadBoundary>}
         </div>
       )}
       </div>
@@ -1073,9 +1076,11 @@ export default function PromptPanel({
               >
                 {!performanceMode && (
                   <span className="prompt-stop-orb" aria-hidden="true">
-                    <Suspense fallback={null}>
-                      <ThinkingOrb state="composing" size={20} />
-                    </Suspense>
+                    <LazyLoadBoundary label="停止按钮动画" errorFallback={null}>
+                      <Suspense fallback={null}>
+                        <ThinkingOrb state="composing" size={20} />
+                      </Suspense>
+                    </LazyLoadBoundary>
                   </span>
                 )}
                 <svg className="prompt-stop-icon" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -1089,20 +1094,22 @@ export default function PromptPanel({
               className={`prompt-submit-wrap${batchMenuOpen ? ' batch-open' : ''}`}
             >
               {performanceMode || reduceMotion ? submitButton : (
-                <Suspense fallback={submitButton}>
-                  <MetalFx
-                    className="prompt-send-metal"
-                    variant="circle"
-                    preset={theme === 'light' ? 'silver' : 'chromatic'}
-                    theme={theme}
-                    strength={theme === 'light' ? 0.65 : 0.81}
-                    paused={!canGenerate || !hasGenerationInput}
-                    normalizeHostStyles={false}
-                    innerShadow
-                  >
-                    {submitButton}
-                  </MetalFx>
-                </Suspense>
+                <LazyLoadBoundary label="生成按钮特效" errorFallback={submitButton}>
+                  <Suspense fallback={submitButton}>
+                    <MetalFx
+                      className="prompt-send-metal"
+                      variant="circle"
+                      preset={theme === 'light' ? 'silver' : 'chromatic'}
+                      theme={theme}
+                      strength={theme === 'light' ? 0.65 : 0.81}
+                      paused={!canGenerate || !hasGenerationInput}
+                      normalizeHostStyles={false}
+                      innerShadow
+                    >
+                      {submitButton}
+                    </MetalFx>
+                  </Suspense>
+                </LazyLoadBoundary>
               )}
               {batchSupported && (
                 <div className="image-batch-clip">

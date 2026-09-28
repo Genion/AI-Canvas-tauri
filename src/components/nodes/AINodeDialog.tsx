@@ -27,6 +27,7 @@ import { createCharacterDirectionGrid } from '../../services/onnxService';
 import PromptPanel from './shared/PromptPanel';
 import VolcengineCostEstimate from './shared/VolcengineCostEstimate';
 import ModalOverlay from '../shared/ModalOverlay';
+import LazyLoadBoundary from '../shared/LazyLoadBoundary';
 const VolcengineBillingSettings = lazy(() => import('../settings/VolcengineBillingSettings'));
 import type { MentionEditorHandle } from './shared/MentionEditor';
 import ConnectedNodesPreview from './shared/ConnectedNodesPreview';
@@ -1080,19 +1081,21 @@ function AINodeDialog() {
         onMouseDown={(e) => e.stopPropagation()}
       >
         {data.status === 'loading' && !performanceMode && (
-          <Suspense fallback={null}>
-            <BorderBeam
-              className="ai-dialog-beam"
-              borderRadius={14}
-              colorVariant="colorful"
-              /* 长宽比大，角度匀速旋转在角落会加速；放慢一圈的时间让观感平顺些 */
-              duration={5}
-              strength={0.85}
-              theme={typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark'}
-            >
-              {null}
-            </BorderBeam>
-          </Suspense>
+          <LazyLoadBoundary label="生成边框特效" errorFallback={null}>
+            <Suspense fallback={null}>
+              <BorderBeam
+                className="ai-dialog-beam"
+                borderRadius={14}
+                colorVariant="colorful"
+                /* 长宽比大，角度匀速旋转在角落会加速；放慢一圈的时间让观感平顺些 */
+                duration={5}
+                strength={0.85}
+                theme={typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark'}
+              >
+                {null}
+              </BorderBeam>
+            </Suspense>
+          </LazyLoadBoundary>
         )}
         {isExpanded && (
           <div className="ai-dialog-preview-float is-expanded">

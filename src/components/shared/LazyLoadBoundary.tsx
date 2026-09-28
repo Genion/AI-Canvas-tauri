@@ -12,10 +12,13 @@ interface LazyLoadFallbackProps {
 
 interface LazyLoadBoundaryProps extends LazyLoadFallbackProps {
   children: ReactNode;
+  errorFallback?: ReactNode;
+  resetKey?: string;
 }
 
 interface LazyLoadBoundaryState {
   failed: boolean;
+  resetKey?: string;
 }
 
 export function LazyLoadFallback({ label, variant = 'feature' }: LazyLoadFallbackProps) {
@@ -56,7 +59,12 @@ export default class LazyLoadBoundary extends Component<
   LazyLoadBoundaryProps,
   LazyLoadBoundaryState
 > {
-  state: LazyLoadBoundaryState = { failed: false };
+  state: LazyLoadBoundaryState = { failed: false, resetKey: this.props.resetKey };
+
+  static getDerivedStateFromProps(props: LazyLoadBoundaryProps, state: LazyLoadBoundaryState) {
+    // 换了节点或重新打开后，再给内容一次渲染机会。
+    return props.resetKey !== state.resetKey ? { failed: false, resetKey: props.resetKey } : null;
+  }
 
   static getDerivedStateFromError(): LazyLoadBoundaryState {
     return { failed: true };
@@ -72,6 +80,7 @@ export default class LazyLoadBoundary extends Component<
 
   render() {
     if (!this.state.failed) return this.props.children;
+    if (this.props.errorFallback !== undefined) return this.props.errorFallback;
 
     if (this.props.variant === 'root') {
       return (
