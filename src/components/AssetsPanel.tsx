@@ -602,19 +602,21 @@ export default function AssetsPanel() {
 
               {/* Tabs */}
               <div className="assets-tabs">
-                {(['project', 'permanent', 'drama', 'ark', 'nodes'] as TabKey[]).map((tab) => (
-                  <motion.button
-                    key={tab} type="button"
-                    className={`assets-tab ${visibleTab === tab ? 'active' : ''}`}
-                    onClick={() => switchTab(tab)}
-                    whileHover={{ scale: visibleTab === tab ? 1 : 1.03 }} whileTap={{ scale: 0.97 }}
-                  >
-                    {tab === 'project' ? '项目文件' : tab === 'permanent' ? '全局资产' : tab === 'drama' ? '创作资产' : tab === 'ark' ? '方舟素材库' : '节点列表'}
-                    <span className="assets-tab-count">
-                      {tab === 'project' ? projectFiles.length : tab === 'permanent' ? permanentFiles.length : tab === 'drama' ? dramaAssetCount : tab === 'ark' ? arkAssetCount : canvasNodeCount}
-                    </span>
-                  </motion.button>
-                ))}
+                <div className="assets-tab-list">
+                  {(['project', 'permanent', 'drama', 'ark', 'nodes'] as TabKey[]).map((tab) => (
+                    <motion.button
+                      key={tab} type="button"
+                      className={`assets-tab ${visibleTab === tab ? 'active' : ''}`}
+                      onClick={() => switchTab(tab)}
+                      whileHover={{ scale: visibleTab === tab ? 1 : 1.03 }} whileTap={{ scale: 0.97 }}
+                    >
+                      {tab === 'project' ? '项目文件' : tab === 'permanent' ? '全局资产' : tab === 'drama' ? '创作资产' : tab === 'ark' ? '方舟素材库' : '节点列表'}
+                      <span className="assets-tab-count">
+                        {tab === 'project' ? projectFiles.length : tab === 'permanent' ? permanentFiles.length : tab === 'drama' ? dramaAssetCount : tab === 'ark' ? arkAssetCount : canvasNodeCount}
+                      </span>
+                    </motion.button>
+                  ))}
+                </div>
 
                 {/* Toolbar: 搜索 + 添加 */}
               {visibleTab !== 'drama' && visibleTab !== 'ark' ? <div className="assets-toolbar ml-auto">

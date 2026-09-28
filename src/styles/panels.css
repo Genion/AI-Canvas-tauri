@@ -1148,9 +1148,16 @@ button.wf-ionode-badge.is-default {
   border-bottom: 1px solid var(--border-subtle);
   flex-shrink: 0;
 }
+.assets-tab-list {
+  display: flex;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
 .assets-tab {
   display: flex;
   align-items: center;
+  flex-shrink: 0;
   gap: 6px;
   padding: 10px 10px;
   font-size: 13px;
@@ -1159,6 +1166,7 @@ button.wf-ionode-badge.is-default {
   background: none;
   border: none;
   border-bottom: 2px solid transparent;
+  white-space: nowrap;
   cursor: var(--cursor-pointer, pointer);
   transition: color 0.15s, border-color 0.15s;
   margin-bottom: -1px;
@@ -1687,17 +1695,14 @@ button.wf-ionode-badge.is-default {
 }
 .assets-panel--drawer .assets-tabs {
   flex-wrap: wrap;
-  padding-bottom: 8px;
+}
+.assets-panel--drawer .assets-tab-list {
+  flex: 1 0 100%;
 }
 .assets-panel--drawer .assets-tab {
-  flex: 1 1 0;
-  min-width: 0;
-  justify-content: center;
-  gap: 3px;
-  padding: 8px 2px;
+  padding: 8px 10px;
   font-size: 12px;
 }
-.assets-panel--drawer .assets-tab-count { padding: 1px 3px; }
 .assets-panel--drawer .assets-toolbar {
   width: 100%;
   min-width: 0;
