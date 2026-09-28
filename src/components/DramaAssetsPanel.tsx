@@ -4,6 +4,7 @@
  * 生图在画布图像节点完成：@ 资产（无图=简介，有图=参考图）+ slash 人设参考等。
  */
 import { useCallback, useMemo, useState } from 'react';
+import { Icon } from '@iconify/react';
 import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '../store/useAppStore';
 import type { DramaAsset, DramaAssetKind } from '../types/dramaAssets';
@@ -11,6 +12,7 @@ import { DRAMA_ASSET_KIND_LABEL } from '../types/dramaAssets';
 import { formatDramaAssetTextBrief } from '../services/dramaAssetPrompt';
 import { confirmAction } from '../services/confirmDialog';
 import ViewportImage from './shared/ViewportImage';
+import { cropImageStyle } from './character/characterReferencePresentation';
 
 const KIND_TABS: Array<{ key: DramaAssetKind | 'all'; label: string }> = [
   { key: 'all', label: '全部' },
@@ -77,6 +79,16 @@ function DramaAssetCard({
   const [visualNotes, setVisualNotes] = useState(asset.visualNotes);
   const [storyRole, setStoryRole] = useState(asset.storyRole ?? '');
   const [bindOpen, setBindOpen] = useState(false);
+  const avatarReference = asset.kind === 'character'
+    ? asset.referenceImages?.find((reference) => reference.id === asset.avatarReferenceImageId)
+      ?? asset.referenceImages?.find((reference) => reference.id === asset.primaryReferenceImageId)
+      ?? asset.referenceImages?.[0]
+    : undefined;
+  const displayThumb = avatarReference?.imageUrl || thumb;
+  const avatarCrop = asset.kind === 'character' && avatarReference?.imageUrl
+    && avatarReference.id === asset.avatarReferenceImageId
+    ? asset.avatarCrop
+    : undefined;
 
   const handleToggleEdit = useCallback(() => {
     if (!editing) {
@@ -95,12 +107,15 @@ function DramaAssetCard({
     >
       <div className="drama-asset-card-layout flex items-start gap-3">
         {/* Thumb */}
-        <div className="drama-asset-thumbnail w-20 h-20 rounded-lg overflow-hidden shrink-0 bg-canvas-hover border border-canvas-border flex items-center justify-center">
-          {thumb ? (
+        <div className={`drama-asset-thumbnail w-20 rounded-lg overflow-hidden shrink-0 bg-canvas-hover border border-canvas-border flex items-center justify-center${asset.kind === 'character' ? ' character-avatar drama-asset-thumbnail--character' : ' h-20'}`}>
+          {displayThumb ? (
             <ViewportImage
-              src={thumb}
+              src={displayThumb}
               alt=""
-              className="drama-asset-thumbnail-image w-full h-full object-cover"
+              className={asset.kind === 'character'
+                ? `drama-asset-thumbnail-image${avatarCrop ? ' is-cropped' : ''}`
+                : 'drama-asset-thumbnail-image w-full h-full object-cover'}
+              style={cropImageStyle(avatarCrop)}
               draggable={false}
             />
           ) : (
@@ -267,10 +282,12 @@ function DramaAssetCard({
           )}
           <button
             type="button"
-            className="drama-asset-action-delete px-2 py-1 rounded-lg text-[11px] font-medium text-red-400/80 hover:bg-red-500/10 transition-colors"
+            className="drama-asset-action-delete flex items-center justify-center px-2 py-1 rounded-lg text-red-400/80 hover:bg-red-500/10 transition-colors"
             onClick={onDelete}
+            aria-label={`删除${asset.name}`}
+            title={`删除${asset.name}`}
           >
-            删除
+            <Icon icon="lucide:trash-2" width="16" height="16" aria-hidden="true" />
           </button>
         </div>
       </div>
