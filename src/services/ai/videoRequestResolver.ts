@@ -62,7 +62,10 @@ export function resolveVideoSubmissionControls(
   }
 
   const videoFps = options.videoFps || DEFAULT_VIDEO_FPS;
-  const seedanceDuration = resolveVideoDurationSeconds(
+  // 火山直连在 generateVideo 中按具体模型归一化；这里不能提前套用 15 秒上限，
+  // 也不能把自动值 -1 或未指定时长转换为通用默认值。工作流仍保持旧规则。
+  const deferDurationResolution = options.provider === 'volcengine' && !options.workflowId;
+  const seedanceDuration = deferDurationResolution ? options.seedanceDuration : resolveVideoDurationSeconds(
     options.seedanceDuration,
     options.videoFrames,
     videoFps,
@@ -70,7 +73,9 @@ export function resolveVideoSubmissionControls(
   return {
     videoResolution: options.videoResolution || LEGACY_VIDEO_RESOLUTION,
     videoFps,
-    videoFrames: videoFramesFromDuration(seedanceDuration, videoFps),
+    videoFrames: deferDurationResolution
+      ? (seedanceDuration === undefined ? options.videoFrames : undefined)
+      : videoFramesFromDuration(seedanceDuration, videoFps),
     seedanceResolution: options.seedanceResolution || LEGACY_VIDEO_RESOLUTION_PRESET,
     seedanceRatio: options.seedanceRatio || LEGACY_VIDEO_ASPECT_RATIO,
     seedanceDuration,

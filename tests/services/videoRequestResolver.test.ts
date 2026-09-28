@@ -28,9 +28,26 @@ describe('resolveVideoSubmissionControls', () => {
     });
   });
 
-  it('keeps legacy defaults and duration normalization for built-in/workflow paths', () => {
+  it.each([19, 30, -1, undefined])('defers official duration %s to model-aware normalization', (duration) => {
     expect(resolveVideoSubmissionControls({
       provider: 'volcengine',
+      seedanceDuration: duration,
+    })).toMatchObject({ seedanceDuration: duration, videoFrames: undefined });
+  });
+
+  it('preserves legacy frames only when no explicit official duration exists', () => {
+    expect(resolveVideoSubmissionControls({ provider: 'volcengine', videoFrames: 721 }))
+      .toMatchObject({ seedanceDuration: undefined, videoFrames: 721 });
+    expect(resolveVideoSubmissionControls({ provider: 'volcengine', videoFrames: 721, seedanceDuration: -1 }))
+      .toMatchObject({ seedanceDuration: -1, videoFrames: undefined });
+  });
+
+  it.each([
+    { provider: 'volcengine', workflowId: 'local-workflow' },
+    { provider: 'comfyui' },
+  ])('keeps legacy defaults and duration normalization for workflow paths: %o', (route) => {
+    expect(resolveVideoSubmissionControls({
+      ...route,
       seedanceDuration: 30,
     })).toEqual({
       videoResolution: 832,

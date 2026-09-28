@@ -24,6 +24,7 @@ import * as apimartApi from '../../src/services/ai/apimartGen';
 import * as imageUtils from '../../src/services/ai/imageUtils';
 import * as uploadService from '../../src/services/uploadService';
 import { createSeedanceQuickAdaptTemplate } from '../../src/services/ai/seedanceModelCapabilities';
+import { resolveVideoSubmissionControls } from '../../src/services/ai/videoRequestResolver';
 import { resolveVideoParameterInputMode } from '../../src/components/nodes/shared/VideoParamSelector';
 import type {
   ModelExecutionProfile,
@@ -508,7 +509,16 @@ describe('Volcengine Seedance content', () => {
     });
   });
 
-  it('submits an explicit 30 second duration unchanged for official Seedance 2.5', async () => {
+  it.each([
+    { model: 'doubao-seedance-2-5-260628', duration: 19, expected: 19 },
+    { model: 'doubao-seedance-2-5-260628', duration: 30, expected: 30 },
+    { model: 'doubao-seedance-2-5-260628', duration: -1, expected: -1 },
+    { model: 'doubao-seedance-2-5-260628', duration: undefined, expected: -1 },
+    { model: 'doubao-seedance-2-5-260628', duration: undefined, frames: 721, expected: 30 },
+    { model: 'doubao-seedance-2-5-260628', duration: 19, frames: 121, expected: 19 },
+    { model: 'doubao-seedance-2-0-260128', duration: 15, expected: 15 },
+    { model: 'doubao-seedance-2-0-260128', duration: 30, expected: 15 },
+  ])('submits model-aware duration through node preprocessing: %o', async ({ model, duration, frames, expected }) => {
     const state = useAppStore.getState();
     useAppStore.setState({
       config: {
@@ -539,19 +549,23 @@ describe('Volcengine Seedance content', () => {
 
     await expect(generateVideo({
       provider: 'volcengine',
-      model: 'volcengine/doubao-seedance-2-5-260628',
+      model: `volcengine/${model}`,
       prompt: '连续三十秒的长镜头',
-      seedanceDuration: 30,
-      seedanceResolution: '480p',
-      seedanceRatio: '21:9',
+      ...resolveVideoSubmissionControls({
+        provider: 'volcengine',
+        seedanceDuration: duration,
+        videoFrames: frames,
+        seedanceResolution: '480p',
+        seedanceRatio: '21:9',
+      }),
     })).resolves.toEqual({ url: 'https://cdn.example/seedance-30s.mp4' });
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toMatchObject({
-      model: 'doubao-seedance-2-5-260628',
+      model,
       resolution: '480p',
       ratio: '21:9',
-      duration: 30,
+      duration: expected,
     });
   });
 
