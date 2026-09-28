@@ -138,7 +138,7 @@
   display: flex;
   flex: 1 1 auto;
   min-height: 0;
-  padding: 48px 20px 12px;
+  padding: 60px 20px 12px;
 }
 .ai-dialog-float.is-expanded .mention-editor-wrap {
   display: flex;

@@ -14,6 +14,8 @@ import { runBatchTasks } from '../batchUtils';
 import type { BatchImageResult } from '../../../types/aiTypes';
 import { corsSafeFetch } from '../httpTransport';
 import { mapImageParameters } from '../imageParameterMappings';
+import { quoteVolcengineImage } from '../../billing/volcenginePricing';
+import { createBillingRun, updateBillingRun } from '../../billing/volcengineBillingService';
 
 export interface VolcengineImageParams {
   apiKey: string;
@@ -26,6 +28,7 @@ export interface VolcengineImageParams {
   imageSize: string;
   aspectRatio: string;
   imageUrls?: string[];
+  nodeId?: string;
 }
 
 export async function generateVolcengineImage(
@@ -64,22 +67,38 @@ export async function generateVolcengineImage(
     requestBody.image = imageUrls;
   }
 
-  const response = await corsSafeFetch(apiUrl, {
-    method: 'POST',
-    headers: buildAuthHeaders(apiKey),
-    body: JSON.stringify(requestBody),
-    signal,
+  const quote = quoteVolcengineImage({ modelId: modelName, inputImageCount: imageUrls.length, outputCount: 1,
+    width: adaptiveRatio ? undefined : dimensions.width, height: adaptiveRatio ? undefined : dimensions.height });
+  let run = await createBillingRun({
+    nodeId: params.nodeId, modelType: 'image', modelId: modelName, prompt,
+    details: { imageSize: requestSize, aspectRatio, width: dimensions.width, height: dimensions.height, inputImageCount: imageUrls.length, outputCountRequested: 1 },
+    quote,
   });
 
-  if (!response.ok) {
-    await parseResponseError(response, `图片生成失败 (${response.status})`);
+  let explicitlyRejected = false;
+  try {
+    const response = await corsSafeFetch(apiUrl, {
+      method: 'POST', headers: buildAuthHeaders(apiKey), body: JSON.stringify(requestBody), signal,
+    });
+    explicitlyRejected = !response.ok;
+    if (!response.ok) await parseResponseError(response, `图片生成失败 (${response.status})`);
+    const json = await response.json();
+    const imageUrl = parseGeneralImageResponse(json);
+    if (!imageUrl) throw new Error('图片生成返回结果为空');
+    run = await updateBillingRun(run, {
+      status: 'succeeded', finishedAt: Date.now(), calculatedMicros: quote.amountMicros,
+      amountConfidence: quote.amountMicros === null ? 'unknown' : 'calculated',
+    });
+    return { url: imageUrl, width: dimensions.width, height: dimensions.height };
+  } catch (error) {
+    await updateBillingRun(run, {
+      status: explicitlyRejected ? 'failed' : 'unknown', finishedAt: Date.now(),
+      calculatedMicros: explicitlyRejected ? 0 : null,
+      amountConfidence: explicitlyRejected ? 'calculated' : 'unknown',
+      errorMessage: error instanceof Error ? error.message.slice(0, 500) : '图片请求失败',
+    });
+    throw error;
   }
-
-  const json = await response.json();
-  const imageUrl = parseGeneralImageResponse(json);
-  if (!imageUrl) throw new Error('图片生成返回结果为空');
-
-  return { url: imageUrl, width: dimensions.width, height: dimensions.height };
 }
 
 export async function generateVolcengineImagesBatch(

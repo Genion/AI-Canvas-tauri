@@ -360,6 +360,7 @@ export async function generateImagesBatch(
         imageSize,
         aspectRatio,
         imageUrls: allImageUrls,
+        nodeId: params.nodeId,
       }, requestedCount, signal);
     }
 

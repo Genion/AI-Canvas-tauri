@@ -128,6 +128,54 @@ beforeEach(() => {
   useAppStore.setState(useAppStore.getInitialState(), true);
 });
 
+describe('multi-selection connections', () => {
+  it('creates one ordinary edge per source in one undoable action and skips duplicates', async () => {
+    useAppStore.setState({
+      currentProjectId: 'p',
+      nodes: [node('a'), node('b'), node('target')],
+      edges: [{ id: 'existing', source: 'a', target: 'target', sourceHandle: 'right', targetHandle: 'left' }],
+    });
+    const originalCommit = useAppStore.getState().commitToHistory;
+    const commitSpy = vi.fn(() => originalCommit());
+    useAppStore.setState({ commitToHistory: commitSpy });
+
+    expect(useAppStore.getState().connectSelectedNodes(['a', 'b'], 'target', 'p')).toBe(1);
+    expect(commitSpy).toHaveBeenCalledTimes(1);
+    expect(useAppStore.getState().edges.map((edge) => [edge.source, edge.target])).toEqual([
+      ['a', 'target'], ['b', 'target'],
+    ]);
+    expect(useAppStore.getState().connectSelectedNodes(['a', 'b'], 'target', 'p')).toBe(0);
+    expect(commitSpy).toHaveBeenCalledTimes(1);
+    expect(await useAppStore.getState().undo()).toBe(true);
+    expect(useAppStore.getState().edges.map((edge) => edge.id)).toEqual(['existing']);
+    expect(await useAppStore.getState().redo()).toBe(true);
+    expect(useAppStore.getState().edges).toHaveLength(2);
+  });
+
+  it('rejects stale projects, missing sources, selected targets and unsupported nodes atomically', () => {
+    useAppStore.setState({ currentProjectId: 'p', nodes: [node('a'), node('b'), node('target')], edges: [] });
+    const connect = useAppStore.getState().connectSelectedNodes;
+    expect(connect(['a', 'b'], 'target', 'other')).toBe(0);
+    expect(connect(['a', 'missing'], 'target', 'p')).toBe(0);
+    expect(connect(['a', 'b'], 'a', 'p')).toBe(0);
+    expect(connect(['a', 'a'], 'target', 'p')).toBe(0);
+    useAppStore.setState({ nodes: [node('a'), canvasNoteNode('b'), node('target')] });
+    expect(connect(['a', 'b'], 'target', 'p')).toBe(0);
+    expect(useAppStore.getState().edges).toEqual([]);
+    expect(useAppStore.getState().history).toEqual([]);
+  });
+
+  it('creates a target and its incoming edges in one history entry', async () => {
+    useAppStore.setState({ currentProjectId: 'p', nodes: [node('a'), node('b')], edges: [] });
+    expect(useAppStore.getState().addNodeFromSelection(node('target'), ['a', 'b'], 'p')).toBe(true);
+    expect(useAppStore.getState().nodes.map((item) => item.id)).toEqual(['a', 'b', 'target']);
+    expect(useAppStore.getState().edges.map((edge) => edge.source)).toEqual(['a', 'b']);
+    expect(await useAppStore.getState().undo()).toBe(true);
+    expect(useAppStore.getState().nodes.map((item) => item.id)).toEqual(['a', 'b']);
+    expect(useAppStore.getState().edges).toEqual([]);
+  });
+});
+
 describe('batch canvas history', () => {
   it('undo and redo preserve the independent file created by media duplication', async () => {
     useAppStore.setState({ currentProjectId: 'p', nodes: [{ ...node('source'), type: 'ai-image',

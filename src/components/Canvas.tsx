@@ -46,6 +46,7 @@ import CanvasNoteStylePanel from './canvas/CanvasNoteStylePanel';
 import RoundedMiniMapMask from './canvas/RoundedMiniMapMask';
 import MiniMapNodeStats from './canvas/MiniMapNodeStats';
 import MultiSelectToolbar from './canvas/MultiSelectToolbar';
+import SelectionConnectionHandle from './canvas/SelectionConnectionNode';
 import CanvasEmptyState from './canvas/CanvasEmptyState';
 import HistoryTimelinePanel from './canvas/HistoryTimelinePanel';
 import SelectedNodeFlowEdge from './canvas/SelectedNodeFlowEdge';
@@ -57,7 +58,7 @@ import { useNodeContextMenu } from '../hooks/useNodeContextMenu';
 import { useCanvasSecondaryClickMenu } from '../hooks/useCanvasSecondaryClickMenu';
 import { useCanvasLongPressRadialMenu } from '../hooks/useCanvasLongPressRadialMenu';
 import { useAppStore } from '../store/useAppStore';
-import { createNodeDuplicateDrag, filterHiddenCanvasElements, isCanvasConnectionValid } from '../store/store.nodes';
+import { createNodeDuplicateDrag, filterHiddenCanvasElements, isBatchConnectableNode, isCanvasConnectionValid } from '../store/store.nodes';
 import {
   createCanvasEdgeProjection,
   createCanvasNodeProjectionCache,
@@ -148,6 +149,8 @@ const nodeTypes: NodeTypes = withNodeRenderBoundaries({
 });
 
 const edgeTypes: EdgeTypes = {
+  default: SelectedNodeFlowEdge,
+  smoothstep: SelectedNodeFlowEdge,
   'selected-node-flow': SelectedNodeFlowEdge,
 };
 
@@ -378,7 +381,14 @@ function CanvasInner() {
   const nodes = useAppStore((s) => s.nodes);
   const edges = useAppStore((s) => s.edges);
   const selectedNodeIds = useAppStore((s) => s.selectedNodeIds);
-  const onConnect = useAppStore((s) => s.onConnect);
+  const connectableSelectionCount = useMemo(() => {
+    if (selectedNodeIds.length < 2) return 0;
+    const selected = new Set(selectedNodeIds);
+    const collapsed = new Set(nodes.filter((node) => node.data.groupCollapsed).map((node) => node.id));
+    return nodes.filter((node) => selected.has(node.id) && isBatchConnectableNode(node)
+      && !(node.parentId && collapsed.has(node.parentId))).length;
+  }, [nodes, selectedNodeIds]);
+  const connectNode = useAppStore((s) => s.onConnect);
   const setEdges = useAppStore((s) => s.setEdges);
   const setSelectedNodeIds = useAppStore((s) => s.setSelectedNodeIds);
   const applyStableNodeChanges = useAppStore((s) => s.onNodesChange);
@@ -790,6 +800,7 @@ function CanvasInner() {
     handleSelect: handleConnectionMenuSelect,
     connectionMenuMap,
     sourceNode,
+    openSelectionMenu,
   } = useConnectionDropMenu(smoothLine);
 
   // ── Node context menu ──
@@ -1170,7 +1181,10 @@ function CanvasInner() {
       renderableGraph.nodes,
       nodeProjectionCache,
     );
-    return draftNode ? [...projected, projectTransientCanvasNode(draftNode)] : projected;
+    return [
+      ...projected,
+      ...(draftNode ? [projectTransientCanvasNode(draftNode)] : []),
+    ];
   }, [draftNode, nodeProjectionCache, renderableGraph.nodes]);
 
   // 仅派生渲染状态，不把隐藏和节点选中效果写回可持久化的边数据。
@@ -1442,7 +1456,7 @@ function CanvasInner() {
     <ResizeSnapContext.Provider value={resizeSnapApi}>
     <div
       ref={canvasRootRef}
-      className={`absolute inset-0 canvas-drawing-root is-tool-${activeDrawingTool}`}
+      className={`absolute inset-0 canvas-drawing-root is-tool-${activeDrawingTool}${connectableSelectionCount > 1 ? ' is-multi-selected' : ''}`}
       onPointerDownCapture={handleDrawingPointerDown}
       onPointerMoveCapture={handleDrawingPointerMove}
       onPointerUpCapture={handleDrawingPointerUp}
@@ -1450,7 +1464,7 @@ function CanvasInner() {
       <ReactFlow
         nodes={renderedCanvasNodes}
         edges={renderedEdges}
-        onConnect={onConnect}
+        onConnect={connectNode}
         onConnectEnd={handleConnectEnd}
         isValidConnection={isCanvasConnectionValid}
         onNodeClick={onNodeClick}
@@ -1564,6 +1578,8 @@ function CanvasInner() {
 
       </ReactFlow>
 
+      <SelectionConnectionHandle rootRef={canvasRootRef} onBlankDrop={openSelectionMenu} />
+
       {radialMenuHoldPosition && (
         <CanvasLongPressIndicator position={radialMenuHoldPosition} />
       )}
@@ -1578,6 +1594,7 @@ function CanvasInner() {
         sourceNodeType={connectionMenu.sourceNodeType}
         direction={connectionMenu.direction}
         sourceNode={sourceNode}
+        selectionCount={connectionMenu.sourceNodeIds?.length}
         menuRef={connectionMenuRef}
         onSelect={handleConnectionMenuSelect}
         connectionMenuMap={connectionMenuMap}

@@ -33,7 +33,10 @@ import { deleteAppSecret, isSecretStoreAvailable } from '../../services/provider
 import { testProviderConnection } from '../../services/testConnection';
 import { replaceLegacyApimartOmni } from '../../services/ai/apimartVideoModels';
 import DreaminaLoginModal from './DreaminaLoginModal';
+import ModalOverlay from '../shared/ModalOverlay';
 import ProviderConnectionDialog from './ProviderConnectionDialog';
+import VolcengineBillingSettings from './VolcengineBillingSettings';
+import { queryBillingRuns } from '../../services/billing/volcengineBillingService';
 import { saveAutodlWorkflowTemplate, saveWorkflowApiDrafts } from '../../services/workflowApi/workflowApiConfig';
 import { invoke } from '@tauri-apps/api/core';
 import { useT } from '../../i18n';
@@ -97,6 +100,8 @@ export default function ApiKeySettings({ onClose }: { onClose: () => void }) {
     revision: 0,
   });
   const [pendingDeleteId, setPendingDeleteId] = useState<string>();
+  const [billingOpen, setBillingOpen] = useState(false);
+  const [hasBillingHistory, setHasBillingHistory] = useState(false);
   const [providerBalances, setProviderBalances] = useState<Record<string, string>>({});
   const balanceRefreshStartedRef = useRef(new Set<string>());
   const balanceRefreshActiveRef = useRef(true);
@@ -187,6 +192,16 @@ export default function ApiKeySettings({ onClose }: { onClose: () => void }) {
     () => providerItems.map((item) => getProviderDefinition(item.id, item.config)?.id || item.id),
     [providerItems],
   );
+  const hasVolcengineConnection = providerItems.some((item) => getProviderDefinition(item.id, item.config)?.id === 'volcengine');
+
+  useEffect(() => {
+    if (billingOpen || hasVolcengineConnection || !isTauri()) return;
+    let cancelled = false;
+    void queryBillingRuns({}, 1, 1).then((page) => {
+      if (!cancelled) setHasBillingHistory(page.total > 0);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [billingOpen, hasVolcengineConnection]);
 
   // Agent 保存厂商配置后请求补填密钥：在渲染期直接生效，不用 effect 回写本地 state。
   // 任何一次手动开关对话框都视为消费掉该请求（关闭设置面板时 store 也会清空它）。
@@ -683,6 +698,11 @@ export default function ApiKeySettings({ onClose }: { onClose: () => void }) {
                     </div>
                   ) : (
                     <div className="provider-card-actions">
+                      {definition.id === 'volcengine' && (
+                        <AnimatedButton type="button" className="provider-icon-btn" aria-label="查看火山方舟用量记录" data-tooltip="用量记录" onClick={() => setBillingOpen(true)}>
+                          <Icon icon="lucide:receipt-text" width="16" />
+                        </AnimatedButton>
+                      )}
                       {!isDreamina && !isWebSearchProvider && (
                         <AnimatedButton
                           type="button"
@@ -719,6 +739,11 @@ export default function ApiKeySettings({ onClose }: { onClose: () => void }) {
               );
             })}
           </div>
+        )}
+        {!hasVolcengineConnection && hasBillingHistory && (
+          <button type="button" className="ui-btn ui-btn--sm ui-btn--secondary mt-3" onClick={() => setBillingOpen(true)}>
+            <Icon icon="lucide:receipt-text" />火山方舟历史用量
+          </button>
         )}
       </div>
 
@@ -760,6 +785,23 @@ export default function ApiKeySettings({ onClose }: { onClose: () => void }) {
         onOpenUrl={openExternalUrl}
         onCopy={handleDreaminaCopy}
       />
+      <ModalOverlay
+        isOpen={billingOpen}
+        onClose={() => setBillingOpen(false)}
+        ariaLabel="火山方舟用量记录"
+        className="h-[min(860px,calc(100dvh-24px))] w-[min(1120px,calc(100vw-24px))]"
+        zIndex={270}
+        closeOnBackdrop={false}
+      >
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-canvas-border px-5 py-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <Icon icon="lucide:receipt-text" width="19" className="shrink-0 text-canvas-text-secondary" />
+            <h2 className="truncate text-base font-semibold text-canvas-text">火山方舟用量记录</h2>
+          </div>
+          <button type="button" className="ui-icon-btn ui-icon-btn--sm" aria-label="关闭用量记录" title="关闭" onClick={() => setBillingOpen(false)}><Icon icon="lucide:x" /></button>
+        </div>
+        {billingOpen && <VolcengineBillingSettings />}
+      </ModalOverlay>
       <span className="sr-only" aria-live="polite">{dreaminaStatusMsg}</span>
     </div>
   );

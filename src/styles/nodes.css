@@ -233,7 +233,7 @@
   backdrop-filter: blur(var(--glass-blur-md));
   border: 1px solid var(--glass-ring);
   border-radius: 10px;
-  cursor: none;
+  cursor: var(--cursor-default, default);
   isolation: isolate;
 }
 
@@ -321,7 +321,7 @@
   justify-content: center;
   border: none;
   color: var(--theme-text-secondary);
-  cursor: none;
+  cursor: var(--cursor-pointer, pointer);
   transition: color var(--transition-base), background var(--transition-base);
   padding: 0;
 }

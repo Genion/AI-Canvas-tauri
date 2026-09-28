@@ -728,6 +728,11 @@ export const createConfigSlice: StateCreator<AppState, [], [], ConfigSlice> = (r
     try {
       setBaseDataDir(merged.baseDataDir);
       await syncAuthorizedDirectories(merged);
+      if (merged.volcengineBillingPath) {
+        await import('../services/billing/volcengineBillingService')
+          .then(({ setBillingStoragePath }) => setBillingStoragePath(merged.volcengineBillingPath!))
+          .catch(() => {});
+      }
     } catch {
       get().showToast('配置已加载，但文件目录授权同步失败', 'error');
     }

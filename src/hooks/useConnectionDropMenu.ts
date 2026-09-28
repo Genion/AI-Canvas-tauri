@@ -8,6 +8,8 @@ import { useAppStore, generateId } from '../store/useAppStore';
 import { isCanvasConnectionValid } from '../store/store.nodes';
 import type { BaseNodeData, NodeType } from '../types';
 
+const SELECTION_MENU_TYPE = '__selection__';
+
 // ── Model preference helper ──
 const MODEL_PREF_KEY = 'canvas-model-prefs';
 
@@ -44,9 +46,19 @@ interface ConnectionMenuState {
   sourceHandleId: string | null;
   direction: ConnectionMenuDirection;
   position: { x: number; y: number };
+  sourceNodeIds?: string[];
+  projectId?: string | null;
 }
 
 const CONNECTION_MENU_MAP: Record<string, ConnectionMenuOption[]> = {
+  [SELECTION_MENU_TYPE]: [
+    { label: '生成文本', type: 'ai-text' },
+    { label: '生成图像', type: 'ai-image' },
+    { label: '生成视频', type: 'ai-video' },
+    { label: '生成音频', type: 'ai-audio' },
+    { label: '生成动画', type: 'ai-animation' },
+    { label: '生成360全景图', type: 'ai-panorama' },
+  ],
   'ai-text': [
     { label: '生成文本', type: 'ai-text' },
     { label: '生成图像', type: 'ai-image' },
@@ -142,6 +154,7 @@ export function getConnectionMenuOptions(
 export function useConnectionDropMenu(smoothLine: boolean) {
   const reactFlowInstance = useReactFlow();
   const addNodeWithEdge = useAppStore((s) => s.addNodeWithEdge);
+  const addNodeFromSelection = useAppStore((s) => s.addNodeFromSelection);
   const connectNodes = useAppStore((s) => s.onConnect);
   const nodes = useAppStore((s) => s.nodes);
 
@@ -157,6 +170,24 @@ export function useConnectionDropMenu(smoothLine: boolean) {
 
   const close = useCallback(() => {
     setMenu((s) => ({ ...s, visible: false }));
+  }, []);
+
+  const openSelectionMenu = useCallback((
+    sourceNodeIds: string[],
+    projectId: string | null,
+    position: { x: number; y: number },
+  ) => {
+    if (sourceNodeIds.length < 2 || useAppStore.getState().currentProjectId !== projectId) return;
+    setMenu({
+      visible: true,
+      sourceNodeId: '',
+      sourceNodeType: SELECTION_MENU_TYPE,
+      sourceHandleId: 'right',
+      direction: 'output',
+      position,
+      sourceNodeIds,
+      projectId,
+    });
   }, []);
 
   // Close on click outside or Escape
@@ -298,10 +329,14 @@ export function useConnectionDropMenu(smoothLine: boolean) {
         targetHandle: edgeSourceHandle === 'left' ? edgeSourceHandle : edgeTargetHandle,
         type: smoothLine ? 'smoothstep' : 'default',
       };
-      addNodeWithEdge(newNode, edge);
+      if (menu.sourceNodeIds) {
+        addNodeFromSelection(newNode, menu.sourceNodeIds, menu.projectId ?? null);
+      } else {
+        addNodeWithEdge(newNode, edge);
+      }
       setMenu((s) => ({ ...s, visible: false }));
     },
-    [menu, reactFlowInstance, addNodeWithEdge, smoothLine],
+    [menu, reactFlowInstance, addNodeWithEdge, addNodeFromSelection, smoothLine],
   );
 
   const sourceNode = nodes.find((n) => n.id === menu.sourceNodeId);
@@ -314,6 +349,7 @@ export function useConnectionDropMenu(smoothLine: boolean) {
     menuRef,
     sourceNode,
     handleConnectEnd,
+    openSelectionMenu,
     handleSelect,
     closeMenu: close,
     connectionMenuMap,

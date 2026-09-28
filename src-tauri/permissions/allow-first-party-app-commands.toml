@@ -2,6 +2,14 @@
 identifier = "allow-first-party-app-commands"
 description = "Allows registered AI Canvas application commands for trusted first-party windows."
 commands.allow = [
+  "billing_upsert",
+  "billing_query",
+  "billing_get_by_task",
+  "billing_clear_preview",
+  "billing_clear",
+  "billing_export",
+  "billing_set_storage_path",
+  "billing_get_storage_path",
   "fetch_image_data_url",
   "proxy_fetch",
   "proxy_stream_fetch",

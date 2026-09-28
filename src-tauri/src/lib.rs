@@ -23,6 +23,7 @@ mod assistant_web;
 #[path = "director/blender_runtime/mod.rs"]
 mod blender_runtime;
 mod canvas_input;
+mod billing;
 mod native_rendering;
 #[path = "files/clipboard.rs"]
 mod clipboard;
@@ -1146,6 +1147,7 @@ pub fn run() {
         .manage(blender_runtime::production_blender_job_core())
         .manage(mcp_bridge::McpBridgeState::default())
         .manage(path_policy::UserStorageRoot::default())
+        .manage(billing::BillingStoragePath::default())
         .register_uri_scheme_protocol("director-desk", director_desk_runtime::handle_protocol)
         .register_uri_scheme_protocol("plugin-ui", plugin_ui::handle_protocol)
         .register_uri_scheme_protocol("plugin-window", plugin_window::handle_protocol)
@@ -1158,6 +1160,14 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(canvas_input::init())
         .invoke_handler(tauri::generate_handler![
+            billing::billing_upsert,
+            billing::billing_query,
+            billing::billing_get_by_task,
+            billing::billing_clear_preview,
+            billing::billing_clear,
+            billing::billing_export,
+            billing::billing_set_storage_path,
+            billing::billing_get_storage_path,
             fetch_image_data_url,
             proxy_fetch,
             proxy_stream_fetch,
