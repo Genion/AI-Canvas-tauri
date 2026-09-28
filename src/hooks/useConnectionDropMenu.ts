@@ -46,6 +46,7 @@ interface ConnectionMenuState {
   sourceHandleId: string | null;
   direction: ConnectionMenuDirection;
   position: { x: number; y: number };
+  previewSources?: { x: number; y: number }[];
   sourceNodeIds?: string[];
   projectId?: string | null;
 }
@@ -176,6 +177,7 @@ export function useConnectionDropMenu(smoothLine: boolean) {
     sourceNodeIds: string[],
     projectId: string | null,
     position: { x: number; y: number },
+    sourcePoints?: { x: number; y: number }[],
   ) => {
     if (sourceNodeIds.length < 2 || useAppStore.getState().currentProjectId !== projectId) return;
     setMenu({
@@ -185,10 +187,11 @@ export function useConnectionDropMenu(smoothLine: boolean) {
       sourceHandleId: 'right',
       direction: 'output',
       position,
+      previewSources: sourcePoints?.map((point) => reactFlowInstance.screenToFlowPosition(point)),
       sourceNodeIds,
       projectId,
     });
-  }, []);
+  }, [reactFlowInstance]);
 
   // Close on click outside or Escape
   useEffect(() => {
@@ -240,6 +243,17 @@ export function useConnectionDropMenu(smoothLine: boolean) {
       const direction = sourceHandleId === 'left' ? 'input' : 'output';
       if (!sourceType || getConnectionMenuOptions(sourceType, direction).length === 0) return;
 
+      const sourceElement = Array.from(document.querySelectorAll<HTMLElement>('.react-flow__node[data-id]'))
+        .find((element) => element.dataset.id === fromNode.id);
+      const handleElement = sourceElement?.querySelector<HTMLElement>(`.react-flow__handle-${direction === 'input' ? 'left' : 'right'}`);
+      const handleRect = handleElement?.getBoundingClientRect();
+      const nodeRect = sourceElement?.getBoundingClientRect();
+      const sourcePoint = handleRect && handleRect.width > 0 && handleRect.height > 0
+        ? { x: handleRect.left + handleRect.width / 2, y: handleRect.top + handleRect.height / 2 }
+        : nodeRect
+          ? { x: direction === 'input' ? nodeRect.left : nodeRect.right, y: nodeRect.top + nodeRect.height / 2 }
+          : null;
+
       setMenu({
         visible: true,
         sourceNodeId: fromNode.id,
@@ -247,9 +261,10 @@ export function useConnectionDropMenu(smoothLine: boolean) {
         sourceHandleId,
         direction,
         position: clientPosition,
+        previewSources: sourcePoint ? [reactFlowInstance.screenToFlowPosition(sourcePoint)] : undefined,
       });
     },
-    [connectNodes],
+    [connectNodes, reactFlowInstance],
   );
 
   const handleSelect = useCallback(

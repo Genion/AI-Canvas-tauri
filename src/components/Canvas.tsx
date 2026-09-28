@@ -377,6 +377,35 @@ function CanvasGrid({ color }: { color: string }) {
   return <Background variant={BackgroundVariant.Dots} gap={gap} size={1} color={color} />;
 }
 
+function ConnectionDropPreview({
+  sources,
+  position,
+  direction,
+}: {
+  sources: { x: number; y: number }[];
+  position: { x: number; y: number };
+  direction: 'input' | 'output';
+}) {
+  const flow = useReactFlow();
+  useViewport();
+  const sign = direction === 'input' ? -1 : 1;
+
+  return (
+    <svg className="canvas-selection-connect-preview" aria-hidden="true">
+      {sources.map((source, index) => {
+        const start = flow.flowToScreenPosition(source);
+        const bend = Math.max(36, Math.abs(position.x - start.x) / 2);
+        return (
+          <path
+            key={index}
+            d={`M ${start.x} ${start.y} C ${start.x + sign * bend} ${start.y}, ${position.x - sign * bend} ${position.y}, ${position.x} ${position.y}`}
+          />
+        );
+      })}
+    </svg>
+  );
+}
+
 function CanvasInner() {
   const nodes = useAppStore((s) => s.nodes);
   const edges = useAppStore((s) => s.edges);
@@ -1579,6 +1608,14 @@ function CanvasInner() {
       </ReactFlow>
 
       <SelectionConnectionHandle rootRef={canvasRootRef} onBlankDrop={openSelectionMenu} />
+
+      {connectionMenu.visible && connectionMenu.previewSources?.length ? (
+        <ConnectionDropPreview
+          sources={connectionMenu.previewSources}
+          position={connectionMenu.position}
+          direction={connectionMenu.direction}
+        />
+      ) : null}
 
       {radialMenuHoldPosition && (
         <CanvasLongPressIndicator position={radialMenuHoldPosition} />

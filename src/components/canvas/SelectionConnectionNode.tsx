@@ -15,7 +15,12 @@ interface DragSession {
 
 interface Props {
   rootRef: RefObject<HTMLDivElement | null>;
-  onBlankDrop: (sourceIds: string[], projectId: string | null, position: { x: number; y: number }) => void;
+  onBlankDrop: (
+    sourceIds: string[],
+    projectId: string | null,
+    position: { x: number; y: number },
+    sourcePoints: { x: number; y: number }[],
+  ) => void;
 }
 
 export default function SelectionConnectionHandle({ rootRef, onBlankDrop }: Props) {
@@ -77,7 +82,12 @@ export default function SelectionConnectionHandle({ rootRef, onBlankDrop }: Prop
         const canvas = rootRef.current?.getBoundingClientRect();
         if (canvas && canvas.left <= event.clientX && canvas.right >= event.clientX
           && canvas.top <= event.clientY && canvas.bottom >= event.clientY) {
-          onBlankDrop(session.sourceIds, session.projectId, { x: event.clientX, y: event.clientY });
+          onBlankDrop(
+            session.sourceIds,
+            session.projectId,
+            { x: event.clientX, y: event.clientY },
+            session.sourcePoints,
+          );
         }
       }
     };
