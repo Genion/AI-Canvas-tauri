@@ -424,8 +424,10 @@ export default function OverlayScrollbarLayer() {
 
     const publishTargets = (targetsChanged = false) => {
       for (const target of knownTargets.keys()) {
-        if (target.isConnected) continue;
-        target.removeAttribute('data-overlay-scrollbar');
+        if (target.isConnected && !target.closest(DISCOVERY_EXCLUSION_SELECTOR)) continue;
+        if (target.getAttribute('data-overlay-scrollbar') === 'managed') {
+          target.removeAttribute('data-overlay-scrollbar');
+        }
         knownTargets.delete(target);
         targetsChanged = true;
       }
@@ -520,7 +522,11 @@ export default function OverlayScrollbarLayer() {
       window.clearInterval(disconnectedTargetSweep);
       if (initialScanIdle !== null) window.cancelIdleCallback(initialScanIdle);
       if (initialScanFrame) cancelAnimationFrame(initialScanFrame);
-      knownTargets.forEach((_, target) => target.removeAttribute('data-overlay-scrollbar'));
+      knownTargets.forEach((_, target) => {
+        if (target.getAttribute('data-overlay-scrollbar') === 'managed') {
+          target.removeAttribute('data-overlay-scrollbar');
+        }
+      });
       knownTargets.clear();
     };
   }, []);

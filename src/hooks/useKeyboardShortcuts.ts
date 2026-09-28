@@ -122,12 +122,14 @@ export function useKeyboardShortcuts() {
       const target = e.target as HTMLElement;
       const isEditing = isEditableTarget(target);
 
-      // Tab 只在画布表面开关资产抽屉；控件、输入和其他弹层保留原生焦点导航。
+      // Tab 在画布表面开关资产抽屉；抽屉内的滚动区和控件获得焦点后仍可收起。
       if (e.key === 'Tab' && !e.defaultPrevented && !e.isComposing
-        && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && !isEditing) {
+        && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
         const state = useAppStore.getState();
         const isCanvasTarget = target === document.body || target === document.documentElement
           || !!target.closest?.('.react-flow');
+        const isDrawerTarget = state.assetsPanelOpen && state.assetsPanelMode === 'drawer'
+          && !!target.closest?.('.assets-panel--drawer');
         const isControl = !!target.closest?.(
           'button, a, input, textarea, select, [contenteditable="true"], [role="button"], [role="tab"], [role="combobox"], [role="slider"], [role="menu"], [role="listbox"], [role="dialog"]',
         );
@@ -138,7 +140,8 @@ export function useKeyboardShortcuts() {
           || !!state.reversePromptRequest || !!state.presetRunRequest
           || (state.assetsPanelOpen && state.assetsPanelMode !== 'drawer')
           || !!document.querySelector('[aria-modal="true"], dialog[open]');
-        if (isCanvasTarget && !isControl && !hasBlockingPanel && document.querySelector('.react-flow')) {
+        if (((isCanvasTarget && !isControl && !isEditing) || isDrawerTarget)
+          && !hasBlockingPanel && document.querySelector('.react-flow')) {
           e.preventDefault();
           e.stopPropagation();
           if (!e.repeat) state.setAssetsPanelOpen(!state.assetsPanelOpen, 'drawer');

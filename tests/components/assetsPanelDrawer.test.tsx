@@ -93,9 +93,10 @@ import AssetsPanel from '../../src/components/AssetsPanel';
 import { useKeyboardShortcuts } from '../../src/hooks/useKeyboardShortcuts';
 
 class Target {
-  tagName = 'DIV'; isContentEditable = false; canvas = true; control = false;
+  tagName = 'DIV'; isContentEditable = false; canvas = true; control = false; drawer = false;
   closest(selector: string) {
     if (selector === '.react-flow') return this.canvas ? this : null;
+    if (selector === '.assets-panel--drawer') return this.drawer ? this : null;
     return this.control ? this : null;
   }
 }
@@ -191,6 +192,24 @@ describe('资产库 Tab 抽屉', () => {
     expect(driver.store!.getState().assetsPanelOpen).toBe(true);
     key();
     expect(driver.store!.getState().assetsPanelOpen).toBe(false);
+  });
+
+  it('抽屉滚动区、页签和搜索框获得焦点后按 Tab 收起，外部按钮保留焦点导航', () => {
+    key(); render();
+    expect(find((el) => el.props.className === 'assets-tab-list').props.tabIndex).toBe(-1);
+    click(all(tree, (el) => String(el.props.className).startsWith('assets-tab '))[2]); render();
+    const otherButton = Object.assign(new Target(), { tagName: 'BUTTON', canvas: false, control: true });
+    expect(key('Tab', otherButton).defaultPrevented).toBe(false);
+    expect(driver.store!.getState().assetsPanelOpen).toBe(true);
+    for (const target of [
+      Object.assign(new Target(), { canvas: false, drawer: true }),
+      Object.assign(new Target(), { tagName: 'BUTTON', canvas: false, control: true, drawer: true }),
+      Object.assign(new Target(), { tagName: 'INPUT', canvas: false, control: true, drawer: true }),
+    ]) {
+      expect(key('Tab', target).defaultPrevented).toBe(true);
+      expect(driver.store!.getState().assetsPanelOpen).toBe(false);
+      driver.store!.getState().setAssetsPanelOpen(true, 'drawer');
+    }
   });
 
   it.each(['shiftKey', 'ctrlKey', 'metaKey', 'altKey', 'isComposing'])('保留 %s + Tab', (modifier) => {

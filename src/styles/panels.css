@@ -1152,7 +1152,10 @@ button.wf-ionode-badge.is-default {
   display: flex;
   min-width: 0;
   overflow-x: auto;
-  scrollbar-width: thin;
+  scrollbar-width: none;
+}
+.assets-tab-list::-webkit-scrollbar {
+  display: none;
 }
 .assets-tab {
   display: flex;

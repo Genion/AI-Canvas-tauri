@@ -602,7 +602,7 @@ export default function AssetsPanel() {
 
               {/* Tabs */}
               <div className="assets-tabs">
-                <div className="assets-tab-list">
+                <div className="assets-tab-list" tabIndex={-1} data-overlay-scrollbar="off">
                   {(['project', 'permanent', 'drama', 'ark', 'nodes'] as TabKey[]).map((tab) => (
                     <motion.button
                       key={tab} type="button"
