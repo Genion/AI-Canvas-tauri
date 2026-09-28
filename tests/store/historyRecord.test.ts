@@ -13,6 +13,7 @@ const fileServiceMocks = vi.hoisted(() => ({
 }));
 
 const historyMocks = vi.hoisted(() => ({
+  putGlobalCharacterOrder: vi.fn(async () => undefined),
   putHistoryEntry: vi.fn(async (_record: HistoryRecord) => undefined),
   putHistoryEntries: vi.fn(async (_records: HistoryRecord[]) => undefined),
   deleteHistoryEntryFromDb: vi.fn(async () => undefined),

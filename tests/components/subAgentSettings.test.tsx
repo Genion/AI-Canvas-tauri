@@ -5,6 +5,7 @@ vi.mock('../../src/services/indexedDbService', () => ({
   saveSubAgentProfileToDb: vi.fn().mockResolvedValue(undefined),
   getAllSubAgentProfiles: vi.fn().mockResolvedValue([]),
   deleteSubAgentProfileFromDb: vi.fn().mockResolvedValue(undefined),
+  putGlobalCharacterOrder: vi.fn().mockResolvedValue(undefined),
 }));
 
 import SubAgentSettings, {

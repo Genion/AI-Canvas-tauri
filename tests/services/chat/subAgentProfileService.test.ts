@@ -8,6 +8,7 @@ vi.mock('../../../src/services/indexedDbService', () => ({
   saveSubAgentProfileToDb: saveMock,
   getAllSubAgentProfiles: getAllMock,
   deleteSubAgentProfileFromDb: deleteMock,
+  putGlobalCharacterOrder: vi.fn().mockResolvedValue(undefined),
 }));
 
 import { useAppStore } from '../../../src/store/useAppStore';
