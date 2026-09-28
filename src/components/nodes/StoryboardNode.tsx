@@ -1,7 +1,7 @@
 ﻿/**
- * StoryboardNode 宫格分镜 — 单节点内把源图按均分网格拼接展示（多图拼接）。
+ * StoryboardNode 宫格分镜 — 展示源图裁片，或创建可拖入图片的空白宫格。
  *
- * 各格用「超尺寸源图 + 负偏移」呈现对应裁片（object-fit:fill）；分割线固定不可拖拽。
+ * 有源图时按行列裁切展示；空白格可接收画布上的图片节点。
  * 双击进入分镜编辑：可拖拽某一格到画布，生成一个「提取分镜r-c」真实裁片图像节点，
  * 原格随即变为空占位（+）。
  */
@@ -64,6 +64,7 @@ function StoryboardNode({ id, data, selected }: { id: string; data: BaseNodeData
     ...overrides.map((override) => override?.filePath),
   ]);
   const displayImageUrl = withPreviewRevision(imageUrl, revisionFor(data.filePath));
+  const hasGridContent = Boolean(displayImageUrl) || extracted.some(Boolean) || overrides.some(Boolean);
 
   // 行/列边界（含 0 和 100）：均分宫格按格数算，自定义宫格按线算
   const hRanges = useMemo(() => gridBoundaries(rows, rowPositions), [rows, rowPositions]);
@@ -169,7 +170,7 @@ function StoryboardNode({ id, data, selected }: { id: string; data: BaseNodeData
   // ── 拖出一格 → 生成「提取分镜」图像节点 ──
   const extractCell = useCallback(
     async (idx: number, clientX: number, clientY: number) => {
-      if (!displayImageUrl) return;
+      if (!displayImageUrl && !overrides[idx]) return;
       const r = Math.floor(idx / cols);
       const c = idx % cols;
       const store = useAppStore.getState();
@@ -203,6 +204,8 @@ function StoryboardNode({ id, data, selected }: { id: string; data: BaseNodeData
         completeCanvasDerivation(derivation);
         return;
       }
+
+      if (!displayImageUrl) return;
 
       // 立即建 loading 节点 + 标记原格已提取
       const newId = `node-${generateId()}`;
@@ -327,11 +330,11 @@ function StoryboardNode({ id, data, selected }: { id: string; data: BaseNodeData
         onDoubleClick={toggleEditing}
       >
         <div className="storyboard-grid">
-          {displayImageUrl ? (
+          {hasGridContent ? (
             cells.map((cell) => {
               const override = overrides[cell.idx];
               const isEmpty = !override && extracted[cell.idx];
-              const draggable = editing && !isEmpty; // 空格不可拖出（可作拖入目标）
+              const draggable = editing && !isEmpty && Boolean(displayImageUrl || override); // 空格不可拖出（可作拖入目标）
               return (
                 <div
                   key={cell.idx}
@@ -369,7 +372,7 @@ function StoryboardNode({ id, data, selected }: { id: string; data: BaseNodeData
             </button>
           )}
 
-          {displayImageUrl && (
+          {hasGridContent && (
             <span className="storyboard-badge">
               <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
                 <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" />
@@ -415,7 +418,7 @@ function StoryboardNode({ id, data, selected }: { id: string; data: BaseNodeData
       )}
 
       {/* 拖出幽灵预览（portal 到 body，避免被画布 transform 影响定位）*/}
-      {drag && dragCell && displayImageUrl &&
+      {drag && dragCell && (displayImageUrl || overrides[drag.idx]) &&
         createPortal(
           <div className="sb-drag-ghost" style={{ left: drag.x, top: drag.y }}>
             <div className="sb-drag-ghost-clip">

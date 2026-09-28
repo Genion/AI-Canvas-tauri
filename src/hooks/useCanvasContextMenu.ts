@@ -92,7 +92,14 @@ export function useCanvasContextMenu() {
   }, [menu.visible, closeMenu]);
 
   const addNodeAtCtxPos = useCallback(
-    (type: NodeType, label: string, role: 'generator' | 'source' = 'generator') => {
+    (
+      type: NodeType,
+      label: string,
+      role: 'generator' | 'source' = 'generator',
+      grid?: { rows: number; cols: number },
+    ) => {
+      if (type === 'ai-storyboard' && (!grid || !Number.isInteger(grid.rows) || !Number.isInteger(grid.cols)
+        || grid.rows < 1 || grid.cols < 1 || grid.rows > 20 || grid.cols > 20)) return;
       const pos = menu.flowPosition;
       const flowPos = reactFlowInstance.screenToFlowPosition({ x: pos.x, y: pos.y });
       const isImage = type === 'ai-image';
@@ -100,9 +107,12 @@ export function useCanvasContextMenu() {
       const isAnimation = type === 'ai-animation';
       const isDirector = type === 'ai-director';
       const isShotlist = type === 'ai-shotlist';
+      const isStoryboard = type === 'ai-storyboard';
       const isSource = role === 'source';
-      const newWidth = isShotlist ? 720 : isAnimation || isDirector ? 320 : type === 'ai-audio' ? 260 : isPanorama ? 300 : 280;
-      const newHeight = isShotlist ? 380 : isDirector ? 240 : isAnimation ? 358 : type === 'ai-audio' ? 140 : isImage ? 158 : isPanorama ? 200 : type === 'ai-markdown' ? 200 : 160;
+      const newWidth = isShotlist ? 720 : isStoryboard ? Math.max(280, grid!.cols * 56)
+        : isAnimation || isDirector ? 320 : type === 'ai-audio' ? 260 : isPanorama ? 300 : 280;
+      const newHeight = isShotlist ? 380 : isStoryboard ? Math.max(200, grid!.rows * 56)
+        : isDirector ? 240 : isAnimation ? 358 : type === 'ai-audio' ? 140 : isImage ? 158 : isPanorama ? 200 : type === 'ai-markdown' ? 200 : 160;
       const defaultModel = !isSource ? loadDefaultModel(type) : null;
       const newNode: RFNode<BaseNodeData> = {
         id: `node-${generateId()}`,
@@ -133,6 +143,11 @@ export function useCanvasContextMenu() {
           ...(isShotlist ? {
             shotlistColumns: SHOTLIST_DEFAULT_COLUMNS,
             shotlistRows: [1, 2, 3].map((no) => createShotRow(`shot-${generateId()}`, no)),
+          } : {}),
+          ...(isStoryboard ? {
+            storyboardRows: grid!.rows,
+            storyboardCols: grid!.cols,
+            storyboardExtracted: new Array<boolean>(grid!.rows * grid!.cols).fill(true),
           } : {}),
           ...(defaultModel ? { model: defaultModel.model, provider: defaultModel.provider } : {}),
         },
