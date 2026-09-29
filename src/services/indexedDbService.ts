@@ -155,9 +155,11 @@ export async function deleteProjectFromDb(id: string): Promise<void> {
       STORE_PROJECT_MEMORIES,
       STORE_PROJECT_VISUAL_DESCRIPTIONS,
       STORE_HISTORY,
+      STORE_METADATA,
     ], 'readwrite');
 
     tx.objectStore(STORE_PROJECTS).delete(id);
+    tx.objectStore(STORE_METADATA).delete(`video-batches:${id}`);
     tx.objectStore(STORE_PROJECT_SUMMARIES).delete(id);
 
     const conversationStore = tx.objectStore(STORE_CHAT_CONVERSATIONS);

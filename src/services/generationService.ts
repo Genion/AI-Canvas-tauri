@@ -28,6 +28,7 @@ import { isCloudWorkflow, getCloudWorkflowPersistedOutput } from './workflowExec
 import { completeWorkflowApiNodeTask } from './workflowApi/workflowApiAdapter';
 import { completeRunningHubNodeTask } from './ai/providers/runninghubWorkflow';
 import { registerCanvasDerivation, isCanvasDerivationFresh, completeCanvasDerivation } from './canvasDerivationGuard';
+import { videoInputFingerprint } from './videoBatchPlanning';
 
 export interface GenerationResult {
   success: boolean;
@@ -80,11 +81,15 @@ export async function executeGeneration(
 
   const submittingProjectId = store.currentProjectId;
   const runningHubTask = cloudWorkflow || data.provider === 'runninghub';
-  let cloudGuard = runningHubTask ? registerCanvasDerivation(store, nodeId) : null;
+  const guardedSubmission = runningHubTask || nodeType === 'ai-video';
+  let cloudGuard = guardedSubmission ? registerCanvasDerivation(store, nodeId) : null;
+  const videoNode = store.nodes.find((n) => n.id === nodeId);
+  const videoFingerprint = nodeType === 'ai-video' && videoNode
+    ? videoInputFingerprint({ ...videoNode, data }, store) : undefined;
   const isStillCurrentSubmission = () => {
     const s = useAppStore.getState();
     return s.currentProjectId === submittingProjectId && s.nodes.some((n) => n.id === nodeId)
-      && (!runningHubTask || (!!cloudGuard && isCanvasDerivationFresh(cloudGuard, s)));
+      && (!guardedSubmission || (!!cloudGuard && isCanvasDerivationFresh(cloudGuard, s)));
   };
 
   store.updateNodeDataTransient(nodeId, { status: 'loading', error: undefined });
@@ -198,6 +203,15 @@ export async function executeGeneration(
       });
       store.showToast('全景图生成完成');
     } else if (nodeType === 'ai-video') {
+      // Imported/legacy outputs may not have a history record. Preserve before replacing.
+      if (data.videoUrl) {
+        await store.recordOutputHistory(nodeId, {
+          nodeId, nodeLabel: `${data.label} · 替换前版本`, timestamp: Date.now(), prompt: '',
+          output: data.sourceUrl || data.videoUrl, nodeType: 'ai-video', model: '',
+          provider: '', status: 'success', mediaUrl: data.videoUrl, filePath: data.filePath,
+        }, true);
+        if (!isStillCurrentSubmission()) return { success: false, message: '画布已变化，尚未提交' };
+      }
       const {
         videoResolution,
         videoFps,
@@ -226,20 +240,20 @@ export async function executeGeneration(
       const persisted = getCloudWorkflowPersistedOutput(result.workflowApiOutputs ?? result.runninghubOutputs, result.url) ?? (submittingProjectId
         ? await persistMediaUrlToProjectData(result.url, submittingProjectId, 'ai-video', data.label)
         : { mediaUrl: result.url, sourceUrl: result.url });
-      if (runningHubTask && !isStillCurrentSubmission()) return { success: false, message: '画布已变化，任务已保留' };
+      if (!isStillCurrentSubmission()) return { success: false, message: '画布已变化，任务已保留' };
       store.updateNodeData(nodeId, {
         videoUrl: persisted.mediaUrl, sourceUrl: persisted.sourceUrl, filePath: persisted.filePath,
-        thumbnailUrl: persisted.mediaUrl, output: persisted.sourceUrl, status: 'success',
+        thumbnailUrl: persisted.mediaUrl, output: persisted.sourceUrl, status: 'success', videoBatchFingerprint: videoFingerprint,
       });
       if (result.workflowApiTaskId) completeWorkflowApiNodeTask(nodeId, result.workflowApiTaskId);
       if (runningHubTask) completeRunningHubNodeTask(nodeId);
       if (result.workflowApiTaskId) completeWorkflowApiNodeTask(nodeId, result.workflowApiTaskId);
-      store.recordOutputHistory(nodeId, {
+      await store.recordOutputHistory(nodeId, {
         nodeId, nodeLabel: data.label, timestamp: Date.now(), prompt: effectivePrompt,
         output: persisted.sourceUrl, nodeType: 'ai-video', model: nodeModel, provider: nodeProvider,
         status: 'success', mediaUrl: persisted.mediaUrl, filePath: persisted.filePath,
         params: { videoResolution, videoFps, videoFrames, seedanceResolution, seedanceRatio, seedanceDuration, generateAudio: genAudio },
-      });
+      }, true);
       store.showToast('视频生成完成');
     } else if (nodeType === 'ai-audio') {
       const result = await generateAudio({

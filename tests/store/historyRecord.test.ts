@@ -29,7 +29,9 @@ const historyMocks = vi.hoisted(() => ({
   deleteNodeHistoryEntries: vi.fn(async () => undefined),
 }));
 
-vi.mock('../../src/services/indexedDbService', () => historyMocks);
+vi.mock('../../src/services/indexedDbService', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../../src/services/indexedDbService')>(), ...historyMocks,
+}));
 vi.mock('../../src/services/fs/generatedAssetTags', () => ({
   tagGeneratedProjectAssetSafely: vi.fn(async () => undefined),
 }));
@@ -77,6 +79,12 @@ beforeEach(() => {
 });
 
 describe('project output history', () => {
+  it('propagates persistence errors when video replacement requires durable history', async () => {
+    useAppStore.setState({ currentProjectId: 'project-a' });
+    historyMocks.putHistoryEntry.mockRejectedValueOnce(new Error('storage full'));
+    await expect(useAppStore.getState().recordOutputHistory('node-1', historyEntry(1), true)).rejects.toThrow('storage full');
+    expect(useAppStore.getState().outputHistoryRecords).toHaveLength(0);
+  });
   const mediaRecord = (): OutputHistoryEntry => ({ ...historyEntry(1), id: 'delete-me', projectId: 'project-a',
     nodeType: 'ai-image', filePath: '/project/data/old.png' });
 
