@@ -416,6 +416,9 @@
   cursor: var(--cursor-help, help);
   line-height: 1;
 }
+.ui-schema-video-params-popup .img-rp-section-label .rh-tip {
+  margin-left: 6px;
+}
 .rh-v5-fps-seg .img-rp-quality-item {
   font-size: 11px;
 }

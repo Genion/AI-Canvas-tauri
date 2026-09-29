@@ -15,7 +15,7 @@ import type {
   VideoReferenceItem,
 } from '../../../types/aiTypes';
 import type { DramaCharacter } from '../../../types/dramaAssets';
-import { resolveDramaAssetImageRef } from '../../../services/dramaAssetPrompt';
+import { resolveDramaAssetImageRef, resolveDramaVoiceRef } from '../../../services/dramaAssetPrompt';
 import { getApimartSeedanceCapability } from '../../../services/ai/apimartVideoModels';
 import { getVolcengineSeedanceCapability } from '../../../services/ai/volcengineVideoModels';
 import { getDreaminaVideoCapability } from '../../../services/ai/dreaminaModels';
@@ -73,6 +73,44 @@ const SEEDANCE_RATIOS = [
 ];
 
 type ImageReferenceRole = 'first_frame' | 'last_frame' | 'reference';
+
+interface CharacterVideoReferenceOption {
+  id: string;
+  label: string;
+  url: string;
+  character?: DramaCharacter;
+}
+
+/** 角色主图和明确指定的主音色作为同一次选择的参考素材保存。 */
+// eslint-disable-next-line react-refresh/only-export-components
+export function buildCharacterVideoReferences(
+  option: CharacterVideoReferenceOption,
+  provider?: string,
+): VideoReferenceItem[] {
+  const binding = provider === 'volcengine' ? option.character?.volcengineBinding : undefined;
+  const asset = binding?.imageAssetId
+    ? { assetId: binding.imageAssetId, name: binding.imageAssetName }
+    : binding?.imageAssets?.[0];
+  const image: VideoReferenceItem = asset
+    ? {
+      id: `${option.id}:volcengine:${asset.assetId}`, kind: 'character', role: 'reference',
+      url: `asset://${asset.assetId}`, previewUrl: option.url,
+      label: asset.name || option.label, provider: 'volcengine', assetId: asset.assetId,
+      projectName: binding?.projectName || 'default',
+    }
+    : {
+      id: option.id, kind: 'character', role: 'reference', url: option.url, label: option.label,
+      sourceNodeId: option.id.startsWith('character:') ? undefined : option.id,
+    };
+  const voice = option.character?.primaryVoiceClipId
+    ? resolveDramaVoiceRef(option.character, option.character.primaryVoiceClipId) : null;
+  if (!voice) return [image];
+  return [image, {
+    id: `${image.id}:voice`, kind: 'character', mediaKind: 'audio', role: 'reference_audio',
+    url: voice.url,
+    label: `${option.label} · ${voice.label || '主音色'}`,
+  }];
+}
 
 const FRAME_ROLE_OPTIONS: Array<{ value: ImageReferenceRole; label: string }> = [
   { value: 'first_frame', label: '首帧' },
@@ -271,7 +309,7 @@ export default function VideoParamSelector({
 
   const references = videoReferences ?? [];
   const frameReferences = references.filter((item) => item.kind === 'frame');
-  const characterReferences = references.filter((item) => item.kind === 'character');
+  const characterReferences = references.filter((item) => item.kind === 'character' && item.mediaKind !== 'audio');
 
   const characterOptions = useMemo(() => {
     const merged = [...projectCharacters, ...globalCharacters.filter(
@@ -279,38 +317,29 @@ export default function VideoParamSelector({
     )];
     return merged.flatMap((character: DramaCharacter) => {
       const resolved = resolveDramaAssetImageRef(character, canvasNodes);
-      return resolved ? [{ id: `character:${character.id}`, label: character.name, url: resolved.imageUrl, volcengineBinding: character.volcengineBinding }] : [];
+      if (!resolved) return [];
+      return [{
+        id: `character:${character.id}`, label: character.name, url: resolved.imageUrl,
+        character,
+      }];
     });
   }, [canvasNodes, globalCharacters, projectCharacters]);
 
-  const addReference = (kind: 'frame' | 'character', option: { id: string; label: string; url: string; volcengineBinding?: DramaCharacter['volcengineBinding'] }) => {
+  const addReference = (kind: 'frame' | 'character', option: CharacterVideoReferenceOption) => {
     setPickerFor(null);
+    if (kind === 'character') {
+      const characterItems = buildCharacterVideoReferences(option, provider);
+      if (references.some((item) => item.id === characterItems[0].id)) return;
+      onChangeVideoReferences?.([...references, ...characterItems]);
+      return;
+    }
     if (references.some((item) => item.id === option.id && item.kind === kind)) return;
-    // 参考帧默认补上还空着的那一端，参考角色一律当普通参考图提交
-    const role: VideoReferenceItem['role'] = kind === 'character'
-      ? 'reference'
-      : frameReferences.some((item) => item.role === 'first_frame') ? 'last_frame' : 'first_frame';
-    const binding = provider === 'volcengine' ? option.volcengineBinding : undefined;
-    // 角色与方舟视觉资产是一对一绑定；旧版多资产数据只取第一项兼容读取。
-    const asset = binding?.imageAssetId
-      ? { assetId: binding.imageAssetId, name: binding.imageAssetName, status: binding.imageAssetStatus }
-      : binding?.imageAssets?.[0];
-    const visualAssets = asset ? [asset] : [];
-    const imageReferences = visualAssets.length > 0
-      ? visualAssets.map((asset, index) => ({
-        id: `${option.id}:volcengine:${asset.assetId}`,
-        kind,
-        role: index === 0 ? role : 'reference' as const,
-        url: `asset://${asset.assetId}`,
-        previewUrl: option.url,
-        label: asset.name || `${option.label}视觉参考${index + 1}`,
-        sourceNodeId: undefined,
-        provider: 'volcengine' as const,
-        assetId: asset.assetId,
-        projectName: binding?.projectName || 'default',
-      }))
-      : [{ id: option.id, kind, role, url: option.url, label: option.label, sourceNodeId: option.id.startsWith('character:') ? undefined : option.id }];
-    onChangeVideoReferences?.([...references, ...imageReferences]);
+    const role: VideoReferenceItem['role'] = frameReferences.some((item) => item.role === 'first_frame')
+      ? 'last_frame' : 'first_frame';
+    onChangeVideoReferences?.([...references, {
+      id: option.id, kind, role, url: option.url, label: option.label,
+      sourceNodeId: option.id.startsWith('character:') ? undefined : option.id,
+    }]);
   };
 
   const setFrameRole = (itemId: string, role: ImageReferenceRole) => {
@@ -338,7 +367,7 @@ export default function VideoParamSelector({
   };
 
   const removeReference = (itemId: string) => {
-    onChangeVideoReferences?.(references.filter((item) => item.id !== itemId));
+    onChangeVideoReferences?.(references.filter((item) => item.id !== itemId && item.id !== `${itemId}:voice`));
   };
 
   const generalModel = useMemo(() => {
@@ -718,7 +747,7 @@ export default function VideoParamSelector({
                 <div className="img-rp-section-label rh-video-ref-head mt-2">
                   <span>
                     参考角色
-                    <span className="rh-tip" data-tooltip="可选：从角色库或连线节点挑选角色形象，作为参考图一起提交。提示词里写到该角色名字时，会自动告诉模型这个名字对应哪张参考图。">!</span>
+                    <span className="rh-tip" data-tooltip="可选：从角色库或连线节点挑选角色形象，作为参考图提交。从角色库添加时，若角色设置了可用的主音色，也会携带音频作为参考；当前模型不支持参考音频时，生成前会提示。提示词中提到角色名字时，会说明它对应的参考图。">!</span>
                   </span>
                   <button type="button" className="rh-video-ref-add" onClick={() => setPickerFor(pickerFor === 'character' ? null : 'character')}>
                     {pickerFor === 'character' ? '取消' : '＋ 添加'}
@@ -730,6 +759,9 @@ export default function VideoParamSelector({
                       <div key={item.id} className="rh-video-frame-row">
                         <img className="rh-video-frame-thumb" src={getReferencePreviewUrl(item)} alt={item.label || '参考角色'} title={item.label} loading="lazy" />
                         <span className="rh-video-ref-name">{item.label || '参考角色'}</span>
+                        {references.some((reference) => reference.id === `${item.id}:voice` && reference.mediaKind === 'audio') && (
+                          <span className="shrink-0 text-[10px] text-canvas-text-muted">含主音色</span>
+                        )}
                         <button type="button" className="rh-video-ref-remove" aria-label={`移除 ${item.label || '参考角色'}`} onClick={() => removeReference(item.id)}>✕</button>
                       </div>
                     ))}

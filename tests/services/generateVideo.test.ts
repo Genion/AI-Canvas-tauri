@@ -25,7 +25,7 @@ import * as imageUtils from '../../src/services/ai/imageUtils';
 import * as uploadService from '../../src/services/uploadService';
 import { createSeedanceQuickAdaptTemplate } from '../../src/services/ai/seedanceModelCapabilities';
 import { resolveVideoSubmissionControls } from '../../src/services/ai/videoRequestResolver';
-import { resolveVideoParameterInputMode } from '../../src/components/nodes/shared/VideoParamSelector';
+import { buildCharacterVideoReferences, resolveVideoParameterInputMode } from '../../src/components/nodes/shared/VideoParamSelector';
 import type {
   ModelExecutionProfile,
   VideoModelCapability,
@@ -781,6 +781,69 @@ describe('manual frame and character references', () => {
     ];
     expect(annotateCharacterReferences('推开门走进房间', items, ['https://cdn.example/hero.png']))
       .toBe('推开门走进房间');
+  });
+
+  it('adds a character library primary voice to the video reference audio request', async () => {
+    const character = {
+      id: 'hero', kind: 'character', name: '主角', primaryVoiceClipId: 'voice-main',
+      voiceClips: [
+        { id: 'voice-other', kind: 'timbre', audioUrl: 'https://cdn.example/other.wav' },
+        { id: 'voice-main', kind: 'timbre', label: '主音色', audioUrl: 'https://cdn.example/main.wav' },
+      ],
+    } as DramaCharacter;
+    const references = buildCharacterVideoReferences({
+      id: 'character:hero', label: '主角', url: 'https://cdn.example/hero.png', character,
+    });
+    expect(references).toEqual([
+      expect.objectContaining({ kind: 'character', role: 'reference', url: 'https://cdn.example/hero.png' }),
+      expect.objectContaining({
+        id: 'character:hero:voice', kind: 'character', mediaKind: 'audio',
+        role: 'reference_audio', url: 'https://cdn.example/main.wav',
+      }),
+    ]);
+    useAppStore.setState({ nodes: [{
+      id: 'video-1', type: 'ai-video', position: { x: 0, y: 0 },
+      data: { type: 'ai-video', label: '镜头', videoReferences: references },
+    } as Node<BaseNodeData>] });
+    let captured: VideoGenerationReferenceInput | undefined;
+    const unregister = mediaProviderRegistry.register({
+      providerId: 'test-character-voice-provider', capabilities: ['video'],
+      async generateVideo({ resolveReferenceInput }) {
+        captured = await resolveReferenceInput();
+        return { url: 'https://cdn.example/result.mp4' };
+      },
+    });
+    try {
+      await generateVideo({
+        prompt: '主角走入镜头', provider: 'test-character-voice-provider',
+        model: 'test/character-voice', nodeId: 'video-1',
+      });
+    } finally {
+      unregister();
+    }
+    expect(captured?.imageUrls).toEqual(['https://cdn.example/hero.png']);
+    expect(captured?.audioUrls).toEqual(['https://cdn.example/main.wav']);
+    expect(captured?.prompt).toContain('图1 是主角');
+  });
+
+  it('only adds an explicitly selected, available primary voice', () => {
+    const character = {
+      id: 'hero', kind: 'character', name: '主角',
+      voiceClips: [{ id: 'other', kind: 'timbre', audioUrl: 'https://cdn.example/other.wav' }],
+    } as DramaCharacter;
+    const option = { id: 'character:hero', label: '主角', url: 'https://cdn.example/hero.png', character };
+    expect(buildCharacterVideoReferences(option)).toHaveLength(1);
+    character.primaryVoiceClipId = 'missing';
+    expect(buildCharacterVideoReferences(option)).toHaveLength(1);
+    character.primaryVoiceClipId = 'other';
+    character.volcengineBinding = { projectName: 'default', imageAssetId: 'asset-1' };
+    expect(buildCharacterVideoReferences(option, 'volcengine')).toEqual([
+      expect.objectContaining({ id: 'character:hero:volcengine:asset-1', url: 'asset://asset-1' }),
+      expect.objectContaining({
+        id: 'character:hero:volcengine:asset-1:voice', mediaKind: 'audio',
+        url: 'https://cdn.example/other.wav',
+      }),
+    ]);
   });
 
   it('keeps connected and mentioned images as plain references when no frame role was picked', async () => {
