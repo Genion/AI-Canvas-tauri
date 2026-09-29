@@ -7,6 +7,7 @@ import { episodeShotGroups, shotVideoNodes } from '../../utils/episodeLayout';
 import { checkVideoServices, inspectVideoNode } from '../../services/videoBatchPlanning';
 import type { VideoBatchItemStatus, VideoBatchScope, VideoPreflightItem } from '../../types/videoBatch';
 import ModalOverlay from '../shared/ModalOverlay';
+import Select from '../shared/Select';
 
 const statusLabels: Record<VideoBatchItemStatus, string> = {
   waiting: '等待', running: '生成中', success: '已完成', error: '失败', cancelled: '未提交', unknown: '待核对',
@@ -79,16 +80,16 @@ function EpisodeWorkbench() {
     <div className="absolute top-16 left-3 md:left-20 right-3 md:right-5 z-40 pointer-events-none">
       <div className="pointer-events-auto rounded-xl border border-canvas-border bg-canvas-surface/95 backdrop-blur-xl p-2 shadow-lg flex flex-wrap items-center gap-2" aria-label={t('逐镜工作台')}>
         <span className="text-sm font-semibold text-canvas-text truncate max-w-52 mr-auto" title={projectName}>{projectName}</span>
-        <label className="text-xs text-canvas-text-secondary flex items-center gap-2 whitespace-nowrap">
+        <div className="text-xs text-canvas-text-secondary flex items-center gap-2 whitespace-nowrap">
           {t('生成范围')}
-          <span className="w-36"><select className="ui-input" aria-label={t('生成范围')} value={scope} onChange={(e) => setScope(e.target.value as VideoBatchScope)}>
+          <Select fixedMenu className="w-36" aria-label={t('生成范围')} value={scope} onChange={(value) => setScope(value as VideoBatchScope)}>
             <option value="episode">{t('本集镜头')}</option><option value="selected">{t('选中镜头组')}</option><option value="pending">{t('待生成或失败')}</option>
-          </select></span>
-        </label>
+          </Select>
+        </div>
         <span className="text-xs text-canvas-text-secondary">{candidates.length} {t('视频')}</span>
-        <label className="w-20 shrink-0"><select className="ui-input" aria-label={t('布局列数')} value={columns} onChange={(e) => setColumns(Number(e.target.value))}>
+        <Select fixedMenu className="w-20 shrink-0" aria-label={t('布局列数')} value={columns} onChange={(value) => setColumns(Number(value))}>
           {[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n} {t('列')}</option>)}
-        </select></label>
+        </Select>
         <button className="ui-btn" onClick={layout} disabled={busy || !groups.length}><LayoutGrid size={14} />{t('统一布局')}</button>
         <button className="ui-btn" onClick={() => void inspect()} disabled={checking || !candidates.length}><CheckCircle2 size={14} />{checking ? t('检查中') : t('检查物料')}</button>
         <button className="ui-btn ui-btn--primary" onClick={() => void inspect()} disabled={busy || checking || !candidates.length}><Play size={14} />{busy ? t('批次执行中') : t('生成本集视频')}</button>
