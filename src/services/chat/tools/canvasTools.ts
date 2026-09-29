@@ -524,7 +524,7 @@ function describeNode(node: Node<BaseNodeData>): Record<string, unknown> {
     displayId: data.displayId,
     type: node.type,
     label: data.label,
-    displayLabel: data.fileName || data.label,
+    displayLabel: data.displayLabel || data.fileName || data.label,
     role: data.role,
     status: data.status ?? 'idle',
     position: { x: Math.round(node.position.x), y: Math.round(node.position.y) },
@@ -1346,6 +1346,9 @@ export function registerCanvasAgentTools(): Array<() => void> {
         // change only the displayed alias, preserving media paths and bytes.
         if (input.label !== undefined) {
           for (const node of targets) {
+            if (node.data.displayLabel) {
+              store.updateNodeDataTransient(node.id, { displayLabel: input.label.trim() });
+            }
             if (node.data.fileName) {
               store.updateNodeDataTransient(node.id, { fileName: input.label.trim() });
             }

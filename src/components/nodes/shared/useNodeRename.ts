@@ -9,11 +9,12 @@ import { getAssetUrlFromPath, renameProjectFileToLabel } from '../../../services
 export function useNodeRename(id: string, data: BaseNodeData, fallback: string) {
   const updateNodeData = useAppStore((s) => s.updateNodeData);
 
-  const displayLabel = data.fileName || data.label || fallback;
+  const displayLabel = data.displayLabel || data.fileName || data.label || fallback;
 
   const handleRename = useCallback(
     (newName: string) => {
       const payload: Partial<BaseNodeData> = { label: newName };
+      if (data.displayLabel) payload.displayLabel = newName;
       if (data.fileName) (payload as Record<string, unknown>).fileName = newName;
       updateNodeData(id, payload);
 
@@ -40,7 +41,7 @@ export function useNodeRename(id: string, data: BaseNodeData, fallback: string) 
         })();
       }
     },
-    [id, updateNodeData, data.fileName, data.filePath, data.imageUrl, data.videoUrl, data.audioUrl],
+    [id, updateNodeData, data.displayLabel, data.fileName, data.filePath, data.imageUrl, data.videoUrl, data.audioUrl],
   );
 
   return { displayLabel, handleRename };

@@ -228,6 +228,10 @@ export interface BaseNodeData {
   workflowApiStage?: string;
   imageUrl?: string;          // 生成的图片 URL（Tauri: asset://localhost/..., 浏览器: data:...）
   videoUrl?: string;          // 生成的视频 URL
+  /** Successful video inputs digest for detecting results that need regeneration. */
+  videoBatchFingerprint?: string;
+  /** Canvas presentation title, independent of media archival filenames. */
+  displayLabel?: string;
   audioUrl?: string;          // 生成的音频 URL
   sourceUrl?: string;         // 原始远程生成 URL（下载到本地前保留）
   filePath?: string;          // 本地文件路径（项目 data 目录下，重建 asset URL 用）

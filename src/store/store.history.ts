@@ -35,6 +35,7 @@ const STRUCTURAL_NODE_DATA_KEYS = [
 const LAYOUT_NODE_DATA_KEYS = [
   'nodeWidth',
   'nodeHeight',
+  'displayLabel',
 ] as const satisfies readonly (keyof BaseNodeData)[];
 
 function createSnapshot(

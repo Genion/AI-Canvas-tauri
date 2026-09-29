@@ -171,6 +171,7 @@ export interface HistoryRecordSlice {
   recordOutputHistory: (
     nodeId: string,
     entry: Omit<OutputHistoryEntry, 'id' | 'projectId'>,
+    requireDurable?: boolean,
   ) => Promise<void>;
   /** 删除某条历史 */
   deleteHistoryEntry: (nodeId: string, entryId: string) => Promise<void>;
@@ -323,13 +324,15 @@ export const createHistoryRecordSlice: StateCreator<AppState, [], [], HistoryRec
     await get().loadHistoryFromDb();
   },
 
-  recordOutputHistory: async (_nodeId, entry) => {
+  recordOutputHistory: async (_nodeId, entry, requireDurable = false) => {
     const projectId = get().currentProjectId;
     if (!projectId) return;
     const id = `hist-${generateId()}`;
-    const { record } = await normalizeHistoryMediaRecord({ ...entry, id, projectId }, projectId);
+    const { record, failed } = await normalizeHistoryMediaRecord({ ...entry, id, projectId }, projectId);
+    if (requireDurable && failed) throw new Error('视频历史素材保存失败，已停止提交');
     // Persist to IndexedDB first, then update store
-    await putHistoryEntry(record).catch((e) => console.warn('Failed to persist history entry:', e));
+    if (requireDurable) await putHistoryEntry(record);
+    else await putHistoryEntry(record).catch((e) => console.warn('Failed to persist history entry:', e));
     if (record.status === 'success' && record.filePath && record.prompt.trim()) {
       await tagGeneratedProjectAssetSafely({
         filePath: record.filePath,

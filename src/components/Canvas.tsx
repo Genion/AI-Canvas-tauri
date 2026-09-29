@@ -41,6 +41,7 @@ import ConnectionMenu from './canvas/ConnectionMenu';
 import CanvasContextMenu from './canvas/CanvasContextMenu';
 import NodeContextMenu from './canvas/NodeContextMenu';
 import CanvasToolbar from './canvas/CanvasToolbar';
+import EpisodeWorkbench from './canvas/EpisodeWorkbench';
 import CanvasDrawingToolbar from './canvas/CanvasDrawingToolbar';
 import CanvasNoteStylePanel from './canvas/CanvasNoteStylePanel';
 import RoundedMiniMapMask from './canvas/RoundedMiniMapMask';
@@ -1606,6 +1607,7 @@ function CanvasInner() {
         )}
 
       </ReactFlow>
+      <EpisodeWorkbench key={currentProjectId} />
 
       <SelectionConnectionHandle rootRef={canvasRootRef} onBlankDrop={openSelectionMenu} />
 

@@ -6,6 +6,7 @@ import type { AppState } from './useAppStore';
 import type { NodeGroup } from '../types';
 import { GROUP_COLOR_PALETTE } from '../types';
 import { generateId } from './store.utils';
+import { layoutEpisodeShots } from '../utils/episodeLayout';
 import { isNodeMediaCopySource } from '../services/nodeMediaCopy';
 import { registerCanvasImport, isCanvasDerivationFresh, completeCanvasDerivation, type CanvasDerivationGuard } from '../services/canvasDerivationGuard';
 import { persistMediaRelocation, pendingMediaRelocations, completeMediaRelocation,
@@ -22,6 +23,7 @@ import {
 
 export interface GroupSlice {
   groups: NodeGroup[];
+  layoutEpisodeGroups: (selectedOnly?: boolean, columns?: number) => string[];
   groupSelectedNodes: () => void;
   ungroupSelectedNodes: () => void;
   renameGroup: (id: string, name: string) => void;
@@ -122,6 +124,19 @@ async function relocateGroupedFiles(projectId: string, projectDir: string, guard
 export const createGroupSlice: StateCreator<AppState, [], [], GroupSlice> = (set, get) => {
   return {
   groups: [],
+
+  layoutEpisodeGroups: (selectedOnly = false, columns = 3) => {
+    const state = get();
+    const result = layoutEpisodeShots(state.nodes, selectedOnly ? state.selectedNodeIds : undefined, columns);
+    if (!result.groupIds.length) {
+      get().showToast('没有可整理的镜头组，请先将每镜素材放入独立 SH 镜头组并展开', 'error');
+      return [];
+    }
+    get().commitToHistory();
+    set({ nodes: result.nodes });
+    get().showToast(`已统一 ${result.groupIds.length} 个镜头组布局，可撤销${result.skipped ? `；跳过 ${result.skipped} 个折叠或嵌套组` : ''}`);
+    return result.groupIds;
+  },
 
   groupSelectedNodes: () => {
     const { selectedNodeIds, groups, nodes } = get();
