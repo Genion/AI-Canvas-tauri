@@ -1155,6 +1155,7 @@ select option:disabled {
 }
 
 .app-header,
+.episode-workbench,
 .footer-toolbar {
   padding: 4px;
   border-color: transparent;

@@ -77,23 +77,24 @@ function EpisodeWorkbench() {
   if (!groups.length && !nodes.some((n) => n.data.type === 'ai-video') && !batches.length) return null;
 
   return <>
-    <div className="absolute top-16 left-3 md:left-20 right-3 md:right-5 z-40 pointer-events-none">
-      <div className="pointer-events-auto rounded-xl border border-canvas-border bg-canvas-surface/95 backdrop-blur-xl p-2 shadow-lg flex flex-wrap items-center gap-2" aria-label={t('逐镜工作台')}>
-        <span className="text-sm font-semibold text-canvas-text truncate max-w-52 mr-auto" title={projectName}>{projectName}</span>
-        <div className="text-xs text-canvas-text-secondary flex items-center gap-2 whitespace-nowrap">
+    <div className="pointer-events-none absolute inset-x-3 bottom-16 min-[1400px]:bottom-2 z-40 flex justify-center">
+      <div className="episode-workbench pointer-events-auto flex w-fit max-w-full flex-wrap items-center justify-center gap-1 rounded-[14px] border border-canvas-border bg-canvas-surface/60 backdrop-blur-xl shadow-lg shadow-black/30 select-none" aria-label={t('逐镜工作台')}>
+        <span className="max-w-32 truncate px-2 text-[11px] font-semibold text-canvas-text/90" title={projectName}>{projectName}</span>
+        <span className="mx-0.5 h-4 w-px bg-[var(--separator-color)]" aria-hidden="true" />
+        <div className="flex items-center gap-1 whitespace-nowrap text-[11px] text-canvas-text-secondary/80">
           {t('生成范围')}
-          <Select fixedMenu className="w-36" aria-label={t('生成范围')} value={scope} onChange={(value) => setScope(value as VideoBatchScope)}>
+          <Select fixedMenu size="sm" className="w-28" aria-label={t('生成范围')} value={scope} onChange={(value) => setScope(value as VideoBatchScope)}>
             <option value="episode">{t('本集镜头')}</option><option value="selected">{t('选中镜头组')}</option><option value="pending">{t('待生成或失败')}</option>
           </Select>
         </div>
-        <span className="text-xs text-canvas-text-secondary">{candidates.length} {t('视频')}</span>
-        <Select fixedMenu className="w-20 shrink-0" aria-label={t('布局列数')} value={columns} onChange={(value) => setColumns(Number(value))}>
+        <span className="whitespace-nowrap px-1 text-[11px] text-canvas-text-secondary/70">{candidates.length} {t('视频')}</span>
+        <Select fixedMenu size="sm" className="w-[68px] shrink-0" aria-label={t('布局列数')} value={columns} onChange={(value) => setColumns(Number(value))}>
           {[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n} {t('列')}</option>)}
         </Select>
-        <button className="ui-btn" onClick={layout} disabled={busy || !groups.length}><LayoutGrid size={14} />{t('统一布局')}</button>
-        <button className="ui-btn" onClick={() => void inspect()} disabled={checking || !candidates.length}><CheckCircle2 size={14} />{checking ? t('检查中') : t('检查物料')}</button>
-        <button className="ui-btn ui-btn--primary" onClick={() => void inspect()} disabled={busy || checking || !candidates.length}><Play size={14} />{busy ? t('批次执行中') : t('生成本集视频')}</button>
-        <button className="ui-btn" onClick={() => setPanel('queue')}><ListVideo size={14} />{t('查看队列')}</button>
+        <button className="ui-btn ui-btn--sm ui-btn--ghost" onClick={layout} disabled={busy || !groups.length}><LayoutGrid size={14} />{t('统一布局')}</button>
+        <button className="ui-btn ui-btn--sm ui-btn--ghost" onClick={() => void inspect()} disabled={checking || !candidates.length}><CheckCircle2 size={14} />{checking ? t('检查中') : t('检查物料')}</button>
+        <button className="ui-btn ui-btn--sm ui-btn--primary" onClick={() => void inspect()} disabled={busy || checking || !candidates.length}><Play size={14} />{busy ? t('批次执行中') : t('生成本集视频')}</button>
+        <button className="ui-btn ui-btn--sm ui-btn--ghost" onClick={() => setPanel('queue')}><ListVideo size={14} />{t('查看队列')}</button>
       </div>
     </div>
     <ModalOverlay isOpen={panel !== null} onClose={() => setPanel(null)} ariaLabel={panel === 'check' ? t('视频物料检查') : t('视频生成队列')} className="w-[min(900px,96vw)]">
