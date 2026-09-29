@@ -29,6 +29,8 @@ jobs:
   publish:
     name: Publish ${{ matrix.target }}
     needs: quality
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -66,12 +68,39 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
+      - name: Require macOS signing and notarization credentials
+        if: runner.os == 'macOS'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+            if [ -z "${!name}" ]; then
+              echo "Missing required macOS release secret: $name" >&2
+              exit 1
+            fi
+          done
+          case "$APPLE_SIGNING_IDENTITY" in
+            "Developer ID Application: "*) ;;
+            *) echo 'APPLE_SIGNING_IDENTITY must be a Developer ID Application identity.' >&2; exit 1 ;;
+          esac
+
       - name: Build with Tauri Action
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          APPLE_CERTIFICATE: ${{ runner.os == 'macOS' && secrets.APPLE_CERTIFICATE || '' }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ runner.os == 'macOS' && secrets.APPLE_CERTIFICATE_PASSWORD || '' }}
+          APPLE_SIGNING_IDENTITY: ${{ runner.os == 'macOS' && secrets.APPLE_SIGNING_IDENTITY || '' }}
+          APPLE_ID: ${{ runner.os == 'macOS' && secrets.APPLE_ID || '' }}
+          APPLE_PASSWORD: ${{ runner.os == 'macOS' && secrets.APPLE_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ runner.os == 'macOS' && secrets.APPLE_TEAM_ID || '' }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'AI Canvas v0.9.20 - 火山方舟计费账本与画布连线增强'
@@ -132,15 +161,52 @@ jobs:
             - 🪟 Windows 旧款 CPU：使用名称含 `Legacy` 的 `.exe` 或 `.msi`；该版本不包含本地 ONNX 功能。
             - 🍎 macOS：Apple Silicon 使用 `aarch64.dmg`，Intel 使用 `x64.dmg`。
             - 🐧 Linux：使用 `.AppImage`、`.deb` 或 `.rpm`。
-          releaseDraft: false
+          releaseDraft: true
           prerelease: false
           includeUpdaterJson: true
           args: --target ${{ matrix.target }}
+
+      - name: Verify notarized macOS app launches with quarantine
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          bundle_dir="src-tauri/target/${{ matrix.target }}/release/bundle/macos"
+          shopt -s nullglob
+          apps=("$bundle_dir"/*.app)
+          if [ "${#apps[@]}" -ne 1 ]; then
+            echo "Expected exactly one macOS app in $bundle_dir" >&2
+            exit 1
+          fi
+          app="${apps[0]}"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          xcrun stapler validate "$app"
+          spctl --assess --type execute --verbose=4 "$app"
+
+          smoke_dir="$(mktemp -d "${RUNNER_TEMP}/ai-canvas-macos-smoke.XXXXXX")"
+          trap 'rm -rf "$smoke_dir"' EXIT
+          ditto "$app" "$smoke_dir/$(basename "$app")"
+          smoke_app="$smoke_dir/$(basename "$app")"
+          xattr -w com.apple.quarantine "0083;$(printf '%x' "$(date +%s)");GitHubActions;" "$smoke_app"
+          test -n "$(xattr -p com.apple.quarantine "$smoke_app")"
+          spctl --assess --type execute --verbose=4 "$smoke_app"
+          open -a "$smoke_app"
+          executable="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$smoke_app/Contents/Info.plist")"
+          for attempt in {1..20}; do
+            if pgrep -x "$executable" >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Quarantined app did not remain running: $executable" >&2
+          exit 1
 
   publish-windows-legacy:
     name: Publish Windows x64 legacy
     needs: publish
     runs-on: windows-latest
+    permissions:
+      contents: write
 
     steps:
       - uses: actions/checkout@v4
@@ -186,3 +252,15 @@ jobs:
           foreach ($artifact in $artifacts) {
             gh release upload "${{ github.ref_name }}" $artifact.FullName --clobber
           }
+
+  finalize-release:
+    name: Publish verified release
+    needs: publish-windows-legacy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Make release public after all checks pass
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit "${{ github.ref_name }}" --repo "${{ github.repository }}" --draft=false
