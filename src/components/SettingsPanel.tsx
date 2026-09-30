@@ -222,6 +222,7 @@ export default function SettingsPanel() {
   const nodeToolbarMode = config.nodeToolbarMode ?? 'icons';
   const nodeLabelVisible = config.nodeLabelVisible !== false; // 默认开启
   const canvasNoteToolbarVisible = config.canvasNoteToolbarVisible !== false; // 默认开启
+  const autoMentionOnConnect = config.autoMentionOnConnect !== false;
   const startupView = config.startupView ?? 'last-project';
   const activeInteractionMode = INTERACTION_MODE_OPTIONS.find((option) => option.id === interactionMode)
     ?? INTERACTION_MODE_OPTIONS[0];
@@ -959,6 +960,30 @@ export default function SettingsPanel() {
                     </div>
                   </button>
                 </div>
+
+                <section>
+                  <h3 className="text-sm font-medium text-canvas-text mb-2">{t('素材引用')}</h3>
+                  <div className="ui-card p-3">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <div id="auto-mention-on-connect-label" className="text-sm font-medium text-canvas-text">{t('连线后自动 @ 素材')}</div>
+                        <p id="auto-mention-on-connect-desc" className="mt-1 text-xs text-canvas-text-secondary">{t('新建连线时，将上游素材追加到生成节点的提示词中，已有引用不会重复添加。')}</p>
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-labelledby="auto-mention-on-connect-label"
+                        aria-describedby="auto-mention-on-connect-desc"
+                        aria-checked={autoMentionOnConnect}
+                        className="ui-switch shrink-0"
+                        onClick={() => {
+                          updateConfig({ autoMentionOnConnect: !autoMentionOnConnect });
+                          void persist();
+                        }}
+                      />
+                    </div>
+                  </div>
+                </section>
 
                 {/* 节点标题（node-label）是否显示 */}
                 <div>

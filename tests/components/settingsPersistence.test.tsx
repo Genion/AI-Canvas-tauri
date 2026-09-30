@@ -110,6 +110,24 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('settings persistence consumers', () => {
+  it.each(['dark', 'light'] as const)('defaults automatic mentions on and saves the toggle in the %s theme', async (theme) => {
+    component = SettingsPanel;
+    driver.state.config.theme = theme;
+    const toggle = () => all(tree, (e) => e.type === 'button' && e.props['aria-labelledby'] === 'auto-mention-on-connect-label')[0];
+    render();
+    expect(text(tree)).toContain('连线后自动 @ 素材');
+    expect(toggle().props['aria-checked']).toBe(true);
+    await click(toggle());
+    expect(driver.state.updateConfig).toHaveBeenCalledWith({ autoMentionOnConnect: false });
+    expect(driver.save).toHaveBeenCalledOnce();
+    driver.state.config.autoMentionOnConnect = false;
+    render();
+    expect(toggle().props['aria-checked']).toBe(false);
+    await click(toggle());
+    expect(driver.state.updateConfig).toHaveBeenLastCalledWith({ autoMentionOnConnect: true });
+    expect(driver.save).toHaveBeenCalledTimes(2);
+  });
+
   it('uses the save-and-restart service and disables the switch while it is pending', async () => {
     component = SettingsPanel;
     let resolve!: () => void;

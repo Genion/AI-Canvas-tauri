@@ -128,6 +128,88 @@ beforeEach(() => {
   useAppStore.setState(useAppStore.getInitialState(), true);
 });
 
+describe('automatic connection mentions', () => {
+  const targetPrompt = () => useAppStore.getState().nodes.find((item) => item.id === 'target')?.data.prompt;
+  const connect = () => useAppStore.getState().onConnect({
+    source: 'source', target: 'target', sourceHandle: 'right', targetHandle: 'left',
+  });
+
+  it('defaults on for old settings and appends the reference to the real prompt', () => {
+    useAppStore.setState({
+      nodes: [node('source', { label: '参考素材' }), node('target', { prompt: '保留描述' })],
+      config: { providers: {}, theme: 'dark' },
+    });
+    connect();
+    expect(targetPrompt()).toBe('保留描述 @{source:参考素材}');
+    expect(useAppStore.getState().history).toHaveLength(1);
+    expect(useAppStore.getState().edges).toHaveLength(1);
+  });
+
+  it('keeps manual references and does not duplicate mentions after a rename or reconnect', () => {
+    useAppStore.setState({ nodes: [node('source', { label: '新名称' }), node('target', { prompt: '@{source:旧名称} 描述' })] });
+    connect();
+    expect(targetPrompt()).toBe('@{source:旧名称} 描述');
+    useAppStore.setState({ edges: [] });
+    connect();
+    expect(targetPrompt()).toBe('@{source:旧名称} 描述');
+  });
+
+  it('leaves prompts untouched when disabled, including batch creation', () => {
+    useAppStore.setState({
+      currentProjectId: 'p', nodes: [node('source'), node('other'), node('target', { prompt: '原提示词' })],
+      config: { ...useAppStore.getState().config, autoMentionOnConnect: false },
+    });
+    connect();
+    expect(targetPrompt()).toBe('原提示词');
+    useAppStore.getState().connectSelectedNodes(['source', 'other'], 'target', 'p');
+    expect(targetPrompt()).toBe('原提示词');
+    useAppStore.getState().addNodeFromSelection(node('new', { prompt: '新提示词' }), ['source', 'other'], 'p');
+    expect(useAppStore.getState().nodes.find((item) => item.id === 'new')?.data.prompt).toBe('新提示词');
+  });
+
+  it('normalizes reverse drags before mentioning the real upstream node', () => {
+    useAppStore.setState({ nodes: [node('source'), node('target')] });
+    useAppStore.getState().onConnect({ source: 'target', target: 'source', sourceHandle: 'left', targetHandle: 'right' });
+    expect(targetPrompt()).toBe('@{source:source}');
+    expect(useAppStore.getState().nodes[0].data.prompt).toBeUndefined();
+  });
+
+  it('adds batch mentions in connection order and keeps one history entry', () => {
+    useAppStore.setState({ currentProjectId: 'p', nodes: [node('source'), node('other'), node('target', { prompt: '描述\n' })] });
+    expect(useAppStore.getState().connectSelectedNodes(['other', 'source'], 'target', 'p')).toBe(2);
+    expect(targetPrompt()).toBe('描述\n@{other:other} @{source:source}');
+    expect(useAppStore.getState().history).toHaveLength(1);
+    expect(useAppStore.getState().connectSelectedNodes(['other', 'source'], 'target', 'p')).toBe(0);
+    expect(targetPrompt()).toBe('描述\n@{other:other} @{source:source}');
+  });
+
+  it('handles both single and batch creation of connected targets', () => {
+    useAppStore.setState({ currentProjectId: 'p', nodes: [node('source'), node('other')] });
+    useAppStore.getState().addNodeWithEdge(node('target'), { id: 'edge', source: 'source', target: 'target' });
+    expect(targetPrompt()).toBe('@{source:source}');
+    useAppStore.getState().addNodeFromSelection(node('batch'), ['source', 'other'], 'p');
+    expect(useAppStore.getState().nodes.find((item) => item.id === 'batch')?.data.prompt).toBe('@{source:source} @{other:other}');
+    useAppStore.getState().addNodesWithEdges([node('next')], [{ id: 'next-edge', source: 'batch', target: 'next' }]);
+    expect(useAppStore.getState().nodes.find((item) => item.id === 'next')?.data.prompt).toBe('@{batch:batch}');
+  });
+
+  it('expands source groups into real asset references and escapes label delimiters', () => {
+    useAppStore.setState({ nodes: [
+      { ...node('source'), type: 'group' },
+      { ...node('child', { label: '图{片}\nA' }), parentId: 'source' },
+      { ...canvasNoteNode('note'), parentId: 'source' }, node('target'),
+    ] });
+    connect();
+    expect(targetPrompt()).toBe('@{child:图 片  A}');
+  });
+
+  it.each(['source-image', 'canvas-note', 'group', 'plugin-node'])('does not write prompts into %s targets', (type) => {
+    useAppStore.setState({ nodes: [node('source'), { ...node('target', { prompt: '原内容' }), type, data: { ...node('target').data, type: type as BaseNodeData['type'], prompt: '原内容' } }] });
+    connect();
+    expect(targetPrompt()).toBe('原内容');
+  });
+});
+
 describe('multi-selection connections', () => {
   it('creates one ordinary edge per source in one undoable action and skips duplicates', async () => {
     useAppStore.setState({

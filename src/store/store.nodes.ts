@@ -69,6 +69,54 @@ export function isBatchConnectableNode(node: Node<BaseNodeData>): boolean {
     && node.hidden !== true;
 }
 
+const AUTO_MENTION_TARGET_TYPES = new Set([
+  'ai-text', 'ai-image', 'ai-video', 'ai-audio', 'ai-animation', 'ai-panorama',
+  'ai-markdown', 'ai-shotlist',
+]);
+
+/** 与新连线一起写入真实提示词，编辑器、持久化与撤销共用同一个状态。 */
+function appendConnectionMentions(
+  nodes: Node<BaseNodeData>[],
+  edges: readonly Edge[],
+  enabled: boolean | undefined,
+): { nodes: Node<BaseNodeData>[]; edges: Edge[] } {
+  if (enabled === false || edges.length === 0) return { nodes, edges: [...edges] };
+  const byId = new Map(nodes.map((node) => [node.id, node]));
+  const sourcesByTarget = new Map<string, Node<BaseNodeData>[]>();
+  for (const edge of edges) {
+    const source = byId.get(edge.source);
+    const target = byId.get(edge.target);
+    if (!source || !target || source.id === target.id || target.type === 'group'
+      || !AUTO_MENTION_TARGET_TYPES.has(target.data.type) || target.data.role === 'source') continue;
+    const sources = source.type === 'group'
+      ? nodes.filter((node) => node.parentId === source.id)
+      : [source];
+    const eligible = sources.filter((node) => node.id !== target.id && BATCH_CONNECTABLE_TYPES.has(node.data.type));
+    sourcesByTarget.set(target.id, [...(sourcesByTarget.get(target.id) ?? []), ...eligible]);
+  }
+  const nextNodes = nodes.map((node) => {
+    const sources = sourcesByTarget.get(node.id);
+    if (!sources?.length) return node;
+    let prompt = node.data.prompt ?? '';
+    const mentioned = new Set([...prompt.matchAll(/@\{([^:]+):[^}]+\}/g)].map((match) => match[1]));
+    let changed = false;
+    for (const source of sources) {
+      if (mentioned.has(source.id)) continue;
+      const label = (source.data.label || '节点').replace(/[{}\r\n]/g, ' ').trim() || '节点';
+      const token = `@{${source.id}:${label}}`;
+      const separator = prompt && !/\s$/.test(prompt) ? ' ' : '';
+      prompt += separator + token;
+      mentioned.add(source.id);
+      changed = true;
+    }
+    return changed ? { ...node, data: { ...node.data, prompt } } : node;
+  });
+  return {
+    nodes: nextNodes,
+    edges: [...edges],
+  };
+}
+
 function resolveBatchSources(
   state: AppState,
   sourceIds: readonly string[],
@@ -538,9 +586,12 @@ export const createNodeSlice: StateCreator<AppState, [], [], NodeSlice> = (set, 
       const displayId = getNextDisplayId(state.nodes);
       const settings = state.projects.find((project) => project.id === state.currentProjectId)?.settings;
       const data = applyProjectDefaultsToNodeData(node.data, settings);
+      const inserted = insertNodeInGroup(state, prepareNodeForInsertion(node, data, displayId));
+      const connected = appendConnectionMentions(inserted.nodes, [edge], state.config?.autoMentionOnConnect);
       return {
-        ...insertNodeInGroup(state, prepareNodeForInsertion(node, data, displayId)),
-        edges: [...state.edges, edge],
+        ...inserted,
+        nodes: connected.nodes,
+        edges: [...state.edges, ...connected.edges],
       };
     });
   },
@@ -556,9 +607,10 @@ export const createNodeSlice: StateCreator<AppState, [], [], NodeSlice> = (set, 
         const data = applyProjectDefaultsToNodeData(node.data, settings);
         nextNodes.push(prepareNodeForInsertion(node, data, displayId));
       }
+      const connected = appendConnectionMentions(nextNodes, edges, state.config?.autoMentionOnConnect);
       return {
-        nodes: nextNodes,
-        edges: [...state.edges, ...edges],
+        nodes: connected.nodes,
+        edges: [...state.edges, ...connected.edges],
       };
     });
   },
@@ -1238,7 +1290,10 @@ export const createNodeSlice: StateCreator<AppState, [], [], NodeSlice> = (set, 
       id,
       ...normalized,
     };
-    set((state) => ({ edges: [...state.edges, edge] }));
+    set((state) => {
+      const connected = appendConnectionMentions(state.nodes, [edge], state.config?.autoMentionOnConnect);
+      return { nodes: connected.nodes, edges: [...state.edges, ...connected.edges] };
+    });
   },
 
   connectSelectedNodes: (sourceIds, targetId, projectId) => {
@@ -1250,7 +1305,10 @@ export const createNodeSlice: StateCreator<AppState, [], [], NodeSlice> = (set, 
     const nextEdges = newBatchEdges(sources, targetId, state.edges);
     if (nextEdges.length === 0) return 0;
     state.commitToHistory();
-    set((current) => ({ edges: [...current.edges, ...nextEdges] }));
+    set((current) => {
+      const connected = appendConnectionMentions(current.nodes, nextEdges, current.config?.autoMentionOnConnect);
+      return { nodes: connected.nodes, edges: [...current.edges, ...connected.edges] };
+    });
     return nextEdges.length;
   },
 
@@ -1264,9 +1322,12 @@ export const createNodeSlice: StateCreator<AppState, [], [], NodeSlice> = (set, 
       const displayId = getNextDisplayId(current.nodes);
       const settings = current.projects.find((project) => project.id === current.currentProjectId)?.settings;
       const data = applyProjectDefaultsToNodeData(node.data, settings);
+      const inserted = insertNodeInGroup(current, prepareNodeForInsertion(node, data, displayId));
+      const connected = appendConnectionMentions(inserted.nodes, nextEdges, current.config?.autoMentionOnConnect);
       return {
-        ...insertNodeInGroup(current, prepareNodeForInsertion(node, data, displayId)),
-        edges: [...current.edges, ...nextEdges],
+        ...inserted,
+        nodes: connected.nodes,
+        edges: [...current.edges, ...connected.edges],
       };
     });
     return true;
