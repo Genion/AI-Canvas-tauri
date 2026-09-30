@@ -162,7 +162,14 @@ export const createUISlice: StateCreator<AppState, [], [], UISlice> = (set) => (
   closeAvatarMenu: () => set({ avatarMenuOpen: false }),
   setProjectLibraryOpen: (open) => set({ projectLibraryOpen: open }),
   setHelpOpen: (open) => set({ helpOpen: open }),
-  openNodeDialog: (nodeId, position) => set({ activeNodeId: nodeId, dialogPosition: position ?? null }),
+  openNodeDialog: (nodeId, position) => set((state) => {
+    const node = state.nodes.find((item) => item.id === nodeId);
+    // 点击、空格和其他入口共用此边界：宫格只使用自身的分格/取图交互。
+    if (node?.type === 'ai-storyboard' || node?.data.type === 'ai-storyboard') {
+      return { activeNodeId: null, dialogPosition: null, pendingPresetAction: null };
+    }
+    return { activeNodeId: nodeId, dialogPosition: position ?? null };
+  }),
   closeNodeDialog: () => set({ activeNodeId: null, dialogPosition: null, pendingPresetAction: null }),
   setAssetsPanelOpen: (open, mode = 'modal') => set(open
     ? {

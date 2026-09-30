@@ -59,4 +59,33 @@ describe('canvas grid creation', () => {
     createFromContextMenu(21, 2);
     expect(useAppStore.getState().nodes).toHaveLength(0);
   });
+
+  it.each(['source', 'generator'] as const)('never opens the AI dialog for a %s storyboard, with or without a click anchor', (role) => {
+    createFromContextMenu(3, 3);
+    const storyboard = useAppStore.getState().nodes[0];
+    useAppStore.getState().updateNodeDataTransient(storyboard.id, { role });
+    for (const position of [undefined, { x: 200, y: 400 }]) {
+      useAppStore.setState({
+        activeNodeId: 'previous', dialogPosition: { x: 10, y: 20 },
+        pendingPresetAction: { nodeId: 'previous', filledPrompt: '保留素材', shouldTrigger: false },
+      });
+      useAppStore.getState().openNodeDialog(storyboard.id, position);
+      expect(useAppStore.getState()).toMatchObject({ activeNodeId: null, dialogPosition: null, pendingPresetAction: null });
+    }
+    expect(useAppStore.getState().nodes[0].data.storyboardRows).toBe(3);
+    expect(useAppStore.getState().nodes[0].data.storyboardCols).toBe(3);
+  });
+
+  it('continues to open ordinary image node dialogs', () => {
+    const image: Node<BaseNodeData> = {
+      id: 'image', type: 'ai-image', position: { x: 0, y: 0 },
+      data: { type: 'ai-image', label: '图像', status: 'idle' },
+    };
+    useAppStore.setState({ nodes: [image] });
+    useAppStore.getState().openNodeDialog(image.id, { x: 100, y: 200 });
+    expect(useAppStore.getState()).toMatchObject({ activeNodeId: image.id, dialogPosition: { x: 100, y: 200 } });
+    useAppStore.getState().closeNodeDialog();
+    useAppStore.getState().openNodeDialog(image.id);
+    expect(useAppStore.getState()).toMatchObject({ activeNodeId: image.id, dialogPosition: null });
+  });
 });
