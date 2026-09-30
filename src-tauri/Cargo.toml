@@ -7,6 +7,12 @@ edition = "2021"
 name = "ai_canvas_tauri_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+# 保留未变化 crate 的编译结果；不保存体积较大的 crate 内部增量中间文件。
+# test 继承 dev；debug = 1 保留基本调试信息，不生成完整类型和变量信息。
+[profile.dev]
+incremental = false
+debug = 1
+
 [features]
 default = ["local-onnx"]
 local-onnx = ["dep:ort"]
