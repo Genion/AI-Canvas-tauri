@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const DB_NAME = 'ai-canvas-db';
 const EXPECTED_STORES = [
   'agentTasks',
+  'appearanceThemes',
   'assetIndex',
   'assetMeta',
   'assetMetaV2',
@@ -278,7 +279,7 @@ describe('indexedDbService schema', () => {
     newer.close();
   });
 
-  it('creates the complete v21 schema for a fresh database', async () => {
+  it('creates the complete v22 schema for a fresh database', async () => {
     const service = await import('../../src/services/indexedDbService');
     await service.saveProjectToDb({
       id: 'project-fresh',
@@ -290,7 +291,7 @@ describe('indexedDbService schema', () => {
     });
 
     const db = await openDatabase(DB_NAME);
-    expect(db.version).toBe(21);
+    expect(db.version).toBe(22);
     expect([...db.objectStoreNames]).toEqual(EXPECTED_STORES);
 
     const taskStore = db.transaction('agentTasks', 'readonly').objectStore('agentTasks');
@@ -387,7 +388,7 @@ describe('indexedDbService schema', () => {
       }),
     }));
     const upgradedDb = await openDatabase(DB_NAME);
-    expect(upgradedDb.version).toBe(21);
+    expect(upgradedDb.version).toBe(22);
     expect([...upgradedDb.objectStoreNames]).toEqual(EXPECTED_STORES);
     upgradedDb.close();
   });

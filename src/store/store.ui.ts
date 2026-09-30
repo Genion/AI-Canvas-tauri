@@ -5,7 +5,7 @@ import type { StateCreator } from 'zustand';
 import type { AppState } from './useAppStore';
 import type { ReversePromptRequest } from '../types';
 
-export type SettingsTab = 'general' | 'files' | 'api' | 'shortcuts' | 'comfyui' | 'storage' | 'plugins' | 'mcp';
+export type SettingsTab = 'general' | 'appearance' | 'files' | 'api' | 'shortcuts' | 'comfyui' | 'storage' | 'plugins' | 'mcp';
 export const NEW_API_KEY_CONNECTION_ID = '__new__';
 
 export type ComfyNodeProgressStage = 'connecting' | 'queued' | 'running' | 'finalizing';

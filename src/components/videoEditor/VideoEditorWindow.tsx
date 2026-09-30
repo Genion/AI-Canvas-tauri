@@ -24,6 +24,8 @@ import {
   uploadSourceFileToProject,
   type AssetFileEntry,
 } from '../../services/fileService';
+import { applyAppearanceTheme } from '../../services/appearance/appearanceRuntime';
+import { getAppearanceForConfig } from '../../services/appearance/appearanceMigration';
 import {
   buildVideoEditorProjectId,
   getVideoEditorProject,
@@ -395,10 +397,7 @@ export default function VideoEditorWindow() {
     void (async () => {
       try {
         const config = (await loadConfig()) as AppConfig | null;
-        document.documentElement.setAttribute(
-          'data-theme',
-          config?.theme === 'light' ? 'light' : session.theme,
-        );
+        applyAppearanceTheme(config?.appearance ?? getAppearanceForConfig(config));
         document.documentElement.toggleAttribute('data-native-cursor', config?.customCursor === false);
         setLocale(config?.language);
         setBaseDataDir(config?.baseDataDir);

@@ -430,6 +430,8 @@ function CanvasInner() {
   const closeNodeDialog = useAppStore((s) => s.closeNodeDialog);
   const interactionMode = useAppStore((s) => s.config.interactionMode ?? 'default');
   const canvasBackground = useAppStore((s) => s.config.canvasBackground ?? 'default');
+  const appearance = useAppStore((s) => s.config.appearance);
+  const appearancePreview = useAppStore((s) => s.appearancePreview);
   const defaultDarkBackgroundShade = useAppStore((s) => s.config.defaultDarkBackgroundShade ?? 20);
   const offWhiteBackgroundColor = useAppStore((s) => s.config.offWhiteBackgroundColor ?? '#F4F6FB');
   const currentProjectId = useAppStore((s) => s.currentProjectId);
@@ -784,9 +786,11 @@ function CanvasInner() {
   const lightDotColor = `rgb(${[1, 3, 5].map((start) => (
     Math.max(0, parseInt(lightColor.slice(start, start + 2), 16) - 72)
   )).join(' ')})`;
-  const gridDotColor = canvasBackground === 'default'
+  const appearanceCanvas = (appearancePreview ?? appearance)?.canvas;
+  const gridDotColor = appearanceCanvas?.gridColor ?? (canvasBackground === 'default'
     ? `rgb(${darkShade + 68} ${darkShade + 68} ${darkShade + 84})`
-    : canvasBackground === 'off-white' ? lightDotColor : 'var(--theme-hover)';
+    : canvasBackground === 'off-white' ? lightDotColor : 'var(--theme-hover)');
+  const appearanceGridVisible = appearanceCanvas?.gridVisible ?? true;
   const [smoothLine, setSmoothLine] = useState(() => localStorage.getItem('canvas-smoothLine') !== 'false');
 
   useEffect(() => { localStorage.setItem('canvas-showGrid', String(showGrid)); }, [showGrid]);
@@ -1535,7 +1539,7 @@ function CanvasInner() {
         {snapLines.length > 0 && <SnapLinesOverlay lines={snapLines} />}
 
         {/* Grid background */}
-        {showGrid && <CanvasGrid color={gridDotColor} />}
+        {showGrid && appearanceGridVisible && <CanvasGrid color={gridDotColor} />}
 
 
         {/* Mini Map — interactive navigator, toggle with M key */}

@@ -49,11 +49,12 @@
 .node {
   display: flex;
   flex-direction: column;
-  background: var(--glass-bg-node);
+  background: var(--appearance-node-background, var(--glass-bg-node));
   /* ponytail: 不加 backdrop-filter —— 底色 0.88/0.90 已近乎不透明，6px 模糊看不出来，
      却让每个节点单独成一层合成表面并逐帧回读背景，是画布平移/缩放的主要开销。 */
   /* border: 1px solid var(--glass-ring); */
-  border-radius: 12px;
+  border-radius: var(--appearance-node-radius, 12px);
+  border: var(--appearance-node-border-width, 0px) solid var(--appearance-node-border, transparent);
   transition: border-color var(--transition-smooth), box-shadow var(--transition-smooth),
     transform var(--dur-fast) var(--ease-out-quart), height 0.24s var(--ease-spring);
   /* 进场只淡入，不移动连线锚点；跨视口重新挂载时无需在动画结束后补测。 */
@@ -84,8 +85,8 @@
 }
 
 .node.selected {
-  border-color: var(--brand-alpha-25);
-  box-shadow: 0 0 0 1px var(--brand-alpha-20), 0 8px 32px color-mix(in srgb, var(--brand) 12%, transparent);
+  border-color: var(--appearance-node-selected-border, var(--brand-alpha-25));
+  box-shadow: 0 0 0 1px var(--appearance-node-selected-glow, var(--brand-alpha-20)), 0 8px 32px color-mix(in srgb, var(--brand) 12%, transparent);
 }
 
 /* ════════════════════════════════════════════
@@ -160,6 +161,8 @@
 
 .node-label-icon {
   flex-shrink: 0;
+  background: var(--appearance-node-header, var(--theme-card));
+  color: var(--appearance-node-text, var(--theme-text));
 }
 
 /* 设置中关闭「显示节点标题」后隐藏标签（保留 DOM，项目快照仍可读取标题） */

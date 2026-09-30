@@ -7,6 +7,8 @@ import { Icon } from '@iconify/react';
 import { invoke } from '@tauri-apps/api/core';
 import { useTooltipAutoPlacement } from '../../hooks/useTooltipAutoPlacement';
 import { loadConfigWithoutSecrets } from '../../services/fileService';
+import { applyAppearanceTheme, installSystemAppearanceListener } from '../../services/appearance/appearanceRuntime';
+import { getAppearanceForConfig } from '../../services/appearance/appearanceMigration';
 import { useAppStore } from '../../store/useAppStore';
 import { emptyDramaAssetLibrary } from '../../types/dramaAssets';
 import type { AppConfig } from '../../types';
@@ -49,15 +51,16 @@ export default function ChatWindow() {
 
   useEffect(() => {
     let disposed = false;
+    let removeSystemListener = () => {};
 
     const syncTheme = () => {
       void loadConfigWithoutSecrets().then((savedConfig) => {
         if (disposed) return;
         const config = savedConfig as AppConfig | null;
-        const effectiveTheme = config?.canvasBackground === 'off-white'
-          ? 'light'
-          : config?.theme === 'light' ? 'light' : 'dark';
-        document.documentElement.setAttribute('data-theme', effectiveTheme);
+        const theme = config?.appearance ?? getAppearanceForConfig(config);
+        applyAppearanceTheme(theme);
+        removeSystemListener();
+        removeSystemListener = installSystemAppearanceListener(() => applyAppearanceTheme(theme));
         document.documentElement.toggleAttribute('data-native-cursor', config?.customCursor === false);
         setLocale(config?.language);
       }).catch(() => {
@@ -71,6 +74,7 @@ export default function ChatWindow() {
 
     return () => {
       disposed = true;
+      removeSystemListener();
       window.removeEventListener('focus', syncTheme);
       document.documentElement.removeAttribute('data-theme');
     };
