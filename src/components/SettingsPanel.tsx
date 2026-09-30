@@ -19,6 +19,7 @@ import ShortcutSettings from './settings/ShortcutSettings';
 import ComfyUISettings from './settings/ComfyUISettings';
 import FileAppSettings from './settings/FileAppSettings';
 import PluginSettings from './settings/PluginSettings';
+import AppearanceSettings from './settings/AppearanceSettings';
 import { BACKGROUND_OPTIONS } from './backgrounds/backgroundOptions';
 import { detectBackgroundBrightness, compressImageLossless } from '../services/backgroundService';
 import type {
@@ -233,6 +234,8 @@ export default function SettingsPanel() {
   const darkShade = Math.min(58, Math.max(0, config.defaultDarkBackgroundShade ?? 20));
   const darkDotColor = `rgb(${darkShade + 68} ${darkShade + 68} ${darkShade + 84})`;
   const offWhiteColor = config.offWhiteBackgroundColor ?? '#F4F6FB';
+  // Legacy background controls remain in source only for migration reference; the new appearance page owns this UI.
+  const legacyBackgroundUiEnabled = false;
   const applyDarkShade = (shade: number) => {
     if (shade === darkShade && (config.canvasBackground ?? 'default') === 'default') return;
     updateConfig({ canvasBackground: 'default', theme: 'dark', defaultDarkBackgroundShade: shade });
@@ -341,7 +344,7 @@ export default function SettingsPanel() {
             onClick={() => setSettingsOpen(false)}
           />
         </div>
-        {(saveError || !configHydrated || unreadSecretCount > 0 || (saveStatus !== 'idle' && saveStatus !== 'saved')) && (
+        {(saveError || !configHydrated || unreadSecretCount > 0 || (activeTab !== 'appearance' && saveStatus !== 'idle' && saveStatus !== 'saved')) && (
         <div role="status" className={`ui-alert ${saveStatus === 'error' || saveStatus === 'conflict' ? 'ui-alert--danger' : 'ui-alert--info'} mx-3 my-2`} data-settings-persistence>
           <div className="ui-alert__body flex-1">
             {saveError ?? t(saveStatus === 'saving' ? '正在保存设置…' : saveStatus === 'dirty' ? '有未保存的设置'
@@ -367,6 +370,8 @@ export default function SettingsPanel() {
 
             {activeTab === 'comfyui' && <ComfyUISettings />}
 
+            {activeTab === 'appearance' && <AppearanceSettings />}
+
             {activeTab === 'general' && (
               <div className="space-y-4">
                 <section>
@@ -391,7 +396,7 @@ export default function SettingsPanel() {
                           }}
                           className={`flex h-9 items-center justify-center gap-2 rounded-md text-xs font-medium transition-colors ${
                             active
-                              ? 'bg-indigo-500/15 text-indigo-400 shadow-sm'
+                              ? 'bg-brand/15 text-brand-light shadow-sm'
                               : 'text-canvas-text-secondary hover:bg-canvas-hover hover:text-canvas-text'
                           }`}
                         >
@@ -424,13 +429,13 @@ export default function SettingsPanel() {
                           }}
                           className={`flex items-start gap-3 rounded-lg border p-3 text-left transition-colors ${
                             active
-                              ? 'border-indigo-500 bg-indigo-500/10 text-indigo-400'
+                              ? 'border-brand bg-brand/10 text-brand-light'
                               : 'border-canvas-border bg-canvas-card text-canvas-text-secondary hover:border-canvas-hover'
                           }`}
                         >
                           <span
                             className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-                              active ? 'bg-indigo-500/15' : 'bg-canvas-surface'
+                              active ? 'bg-brand/15' : 'bg-canvas-surface'
                             }`}
                             aria-hidden="true"
                           >
@@ -471,7 +476,7 @@ export default function SettingsPanel() {
                           }}
                           className={`flex h-9 items-center justify-center rounded-md text-xs font-medium transition-colors ${
                             active
-                              ? 'bg-indigo-500/15 text-indigo-400 shadow-sm'
+                              ? 'bg-brand/15 text-brand-light shadow-sm'
                               : 'text-canvas-text-secondary hover:bg-canvas-hover hover:text-canvas-text'
                           }`}
                         >
@@ -496,12 +501,12 @@ export default function SettingsPanel() {
                           onClick={() => { void applyWindowSize(w, h); }}
                           className={`flex flex-col items-center gap-0.5 rounded-lg border px-2 py-2 transition-colors ${
                             active
-                              ? 'border-indigo-500 bg-indigo-500/10'
+                              ? 'border-brand bg-brand/10'
                               : 'border-canvas-border bg-canvas-card hover:border-canvas-hover'
                           }`}
                         >
-                          <span className={`text-xs font-medium ${active ? 'text-indigo-400' : 'text-canvas-text'}`}>{w} × {h}</span>
-                          <span className={`text-[11px] ${active ? 'text-indigo-400/70' : 'text-canvas-text-muted'}`}>{t(label)}</span>
+                          <span className={`text-xs font-medium ${active ? 'text-brand-light' : 'text-canvas-text'}`}>{w} × {h}</span>
+                          <span className={`text-[11px] ${active ? 'text-brand-light/70' : 'text-canvas-text-muted'}`}>{t(label)}</span>
                         </AnimatedButton>
                       );
                     })}
@@ -518,7 +523,7 @@ export default function SettingsPanel() {
                   >
                     <span
                       className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-                        windowAspectLocked ? 'bg-indigo-500/15 text-indigo-400' : 'bg-canvas-surface text-canvas-text-secondary'
+                        windowAspectLocked ? 'bg-brand/15 text-brand-light' : 'bg-canvas-surface text-canvas-text-secondary'
                       }`}
                       aria-hidden="true"
                     >
@@ -540,14 +545,15 @@ export default function SettingsPanel() {
                   </button>
                 </section>
 
-                {/* 画布背景主题 */}
+                {legacyBackgroundUiEnabled && (<>
+                {/* 旧版画布背景入口由外观页接管，保留迁移逻辑但不再展示。 */}
                 <div>
                   <h3 className="text-sm font-medium text-canvas-text mb-2">{t('画布背景')}</h3>
                   <div className="grid grid-cols-3 gap-2">
                     {BACKGROUND_OPTIONS.map(({ value, label, theme }) => {
                       const isActive = (config.canvasBackground || 'default') === value;
                       return (
-                        <div key={value} className="relative rounded-lg focus-within:ring-2 focus-within:ring-indigo-400">
+                        <div key={value} className="relative rounded-lg focus-within:ring-2 focus-within:ring-brand-light">
                         <AnimatedButton
                           onClick={async () => {
                             if (value === 'custom') {
@@ -568,7 +574,7 @@ export default function SettingsPanel() {
                           }}
                           className={`flex h-full w-full flex-col items-center gap-1.5 p-1 rounded-lg border transition-colors ${
                             isActive
-                              ? 'border-indigo-500 bg-indigo-500/10 text-indigo-400'
+                              ? 'border-brand bg-brand/10 text-brand-light'
                               : 'border-canvas-border bg-canvas-card text-canvas-text-secondary hover:border-canvas-hover'
                           }`}
                         >
@@ -588,7 +594,7 @@ export default function SettingsPanel() {
                               ? (config.customBackgroundUrl
                                 ? ''
                                 : 'bg-canvas-surface')
-                              : 'bg-black'
+                              : 'bg-canvas-bg'
                           }`}
                           style={
                             value === 'default'
@@ -656,8 +662,8 @@ export default function SettingsPanel() {
                                   aria-label={hex}
                                   aria-pressed={isActive && darkShade === shade}
                                   onClick={() => applyDarkShade(shade)}
-                                  className={`h-5 w-5 shrink-0 rounded border border-white/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-400 ${
-                                    isActive && darkShade === shade ? 'ring-2 ring-indigo-400' : ''
+                                  className={`h-5 w-5 shrink-0 rounded border border-canvas-text-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-light ${
+                                    isActive && darkShade === shade ? 'ring-2 ring-brand-light' : ''
                                   }`}
                                   style={{ backgroundColor: hex }}
                                 />
@@ -675,8 +681,8 @@ export default function SettingsPanel() {
                                 aria-label={color}
                                 aria-pressed={isActive && offWhiteColor === color}
                                 onClick={() => applyOffWhiteColor(color)}
-                                className={`h-5 w-5 shrink-0 rounded border border-canvas-text-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-400 ${
-                                  isActive && offWhiteColor === color ? 'ring-2 ring-indigo-400' : ''
+                                className={`h-5 w-5 shrink-0 rounded border border-canvas-text-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-light ${
+                                  isActive && offWhiteColor === color ? 'ring-2 ring-brand-light' : ''
                                 }`}
                                 style={{ backgroundColor: color }}
                               />
@@ -723,12 +729,12 @@ export default function SettingsPanel() {
                           <div className="flex items-center gap-2">
                             <div
                               className={`w-2 h-2 rounded-full shrink-0 ${
-                                bgDetection ? (bgDetection.isDark ? 'bg-indigo-400' : 'bg-amber-400') : 'bg-canvas-border'
+                                bgDetection ? (bgDetection?.isDark ? 'bg-brand-light' : 'bg-amber-400') : 'bg-canvas-border'
                               }`}
                             />
                             <span className="text-[11px] text-canvas-text-secondary">
                               {bgDetection
-                                ? t('已识别为{tone}背景（亮度: {brightness}/255）', { tone: bgDetection.isDark ? t('深色') : t('浅色'), brightness: bgDetection.brightness })
+                                ? t('已识别为{tone}背景（亮度: {brightness}/255）', { tone: bgDetection?.isDark ? t('深色') : t('浅色'), brightness: bgDetection?.brightness ?? 0 })
                                 : config.customBackgroundIsDark !== undefined
                                   ? t('已识别为{tone}背景', { tone: config.customBackgroundIsDark ? t('深色') : t('浅色') })
                                   : t('未检测')}
@@ -746,7 +752,8 @@ export default function SettingsPanel() {
                                 updateConfig({ customBackgroundOpacity: Number(e.target.value) / 100 });
                                 void persist();
                               }}
-                              className="flex-1 h-1 accent-indigo-500 cursor-pointer"
+                              className="flex-1 h-1 cursor-pointer"
+                              style={{ accentColor: 'var(--brand)' }}
                             />
                             <span className="text-[11px] text-canvas-text-secondary w-8 text-right tabular-nums">
                               {Math.round((config.customBackgroundOpacity ?? 0.3) * 100)}%
@@ -766,6 +773,8 @@ export default function SettingsPanel() {
                     onChange={handleBgFileChange}
                   />
                 </div>
+
+                </>)}
 
                 {/* 画布交互模式（macOS 使用系统原生手势，隐藏此设置） */}
                 {!IS_MAC && (
@@ -865,7 +874,7 @@ export default function SettingsPanel() {
                   >
                     <span
                       className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-                        customCursor ? 'bg-indigo-500/15 text-indigo-400' : 'bg-canvas-surface text-canvas-text-secondary'
+                        customCursor ? 'bg-brand/15 text-brand-light' : 'bg-canvas-surface text-canvas-text-secondary'
                       }`}
                       aria-hidden="true"
                     >
@@ -910,7 +919,7 @@ export default function SettingsPanel() {
                           }}
                           className={`flex h-9 items-center justify-center gap-2 rounded-md text-xs font-medium transition-colors ${
                             active
-                              ? 'bg-indigo-500/15 text-indigo-400 shadow-sm'
+                              ? 'bg-brand/15 text-brand-light shadow-sm'
                               : 'text-canvas-text-secondary hover:bg-canvas-hover hover:text-canvas-text'
                           }`}
                         >
@@ -940,7 +949,7 @@ export default function SettingsPanel() {
                           canvasNoteToolbarVisible ? 'opacity-100' : 'opacity-30'
                         }`}
                       >
-                        <span className="h-3 w-3 rounded-[3px] bg-indigo-400/60" />
+                        <span className="h-3 w-3 rounded-[3px] bg-brand/60" />
                         <span className="h-3 w-3 rounded-[3px] border border-canvas-text-muted" />
                         <span className="h-3 w-3 rounded-full border border-canvas-text-muted" />
                       </div>
@@ -1022,7 +1031,7 @@ export default function SettingsPanel() {
                             nodeLabelVisible ? 'opacity-100' : 'opacity-0'
                           }`}
                         >
-                          <span className="h-1.5 w-1.5 shrink-0 rounded-[2px] bg-indigo-400/70" />
+                          <span className="h-1.5 w-1.5 shrink-0 rounded-[2px] bg-brand/70" />
                           <span className="h-1 flex-1 rounded-full bg-canvas-border" />
                         </div>
                         <div className="h-7 w-full rounded-[5px] border border-canvas-border bg-canvas-bg" />
@@ -1066,7 +1075,7 @@ export default function SettingsPanel() {
                           windowGlassFrame ? 'inset-[5px] rounded-[5px]' : 'inset-0 rounded-[8px]'
                         }`}
                       >
-                        <span className="h-6 w-1.5 shrink-0 rounded-sm bg-indigo-400/35" />
+                        <span className="h-6 w-1.5 shrink-0 rounded-sm bg-brand/35" />
                         <span className="h-1 flex-1 rounded-full bg-canvas-border" />
                       </div>
                     </div>
@@ -1108,7 +1117,7 @@ export default function SettingsPanel() {
                         }`}
                       >
                         <span className="block h-1 w-2/3 rounded-full bg-canvas-text-muted/50" />
-                        <span className="mt-1.5 block h-3 rounded-[3px] bg-indigo-500/20" />
+                        <span className="mt-1.5 block h-3 rounded-[3px] bg-brand/20" />
                       </div>
                     </div>
 

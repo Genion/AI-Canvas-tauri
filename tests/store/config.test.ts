@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppConfig } from '../../src/types';
 import type { ConfigSaveOptions, LoadedConfig } from '../../src/services/storageService';
 import { ConfigConflictError, configWithoutSecrets } from '../../src/services/configPatch';
+import { cloneAppearanceTheme, getBuiltinAppearanceTheme } from '../../src/services/appearance/appearanceDefaults';
 
 const fileMocks = vi.hoisted(() => {
   const loadConfig = vi.fn();
@@ -46,6 +47,35 @@ beforeEach(() => {
 });
 
 describe('config hydration guard', () => {
+  it('persists an activated appearance before reporting the save as complete', async () => {
+    fileMocks.loadConfig.mockResolvedValue({ providers: {} });
+    await useAppStore.getState().loadConfig();
+    const theme = getBuiltinAppearanceTheme('standard-light');
+    await useAppStore.getState().activateAppearanceTheme(theme);
+    expect(fileMocks.saveConfig).toHaveBeenCalledOnce();
+    expect(fileMocks.saveConfig.mock.calls[0]?.[0]).toEqual(expect.objectContaining({ appearance: theme }));
+    expect(useAppStore.getState()).toMatchObject({ configDirty: false, configSaveStatus: 'saved' });
+  });
+
+  it('does not mutate a saved custom preset during ordinary appearance edits', async () => {
+    fileMocks.loadConfig.mockResolvedValue({ providers: {} });
+    await useAppStore.getState().loadConfig();
+    const preset = cloneAppearanceTheme(getBuiltinAppearanceTheme('standard-dark'), 'theme-fixture', '自定义预设');
+    useAppStore.setState({ appearanceThemes: [preset] });
+    await useAppStore.getState().activateAppearanceTheme({ ...preset, ui: { ...preset.ui, accent: '#be4b78' } });
+    expect(useAppStore.getState().appearanceThemes[0]).toEqual(preset);
+    expect(useAppStore.getState().config.appearance?.ui.accent).toBe('#be4b78');
+  });
+
+  it('keeps appearance changes dirty when persistence fails', async () => {
+    fileMocks.loadConfig.mockResolvedValue({ providers: {} });
+    await useAppStore.getState().loadConfig();
+    fileMocks.saveConfig.mockRejectedValueOnce(new Error('fixture-private'));
+    await expect(useAppStore.getState().activateAppearanceTheme(getBuiltinAppearanceTheme('standard-light')))
+      .rejects.toThrow('设置保存失败');
+    expect(useAppStore.getState()).toMatchObject({ configDirty: true, configSaveStatus: 'error' });
+  });
+
   it('keeps failed edits dirty and clears the error only after a successful retry', async () => {
     fileMocks.loadConfig.mockResolvedValue({ theme: 'dark', providers: {} });
     await useAppStore.getState().loadConfig();

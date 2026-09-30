@@ -993,7 +993,7 @@ export default function CharacterLibraryPanel() {
               <Icon icon="lucide:contact-round" width="34" height="34" aria-hidden="true" />
               <h3>{search ? t('没有匹配的角色') : t('这里还没有角色')}</h3>
               {!search ? (
-                <button type="button" className="character-button-primary mt-3 text-white" onClick={() => openEditor(null)}>
+                <button type="button" className="character-button-primary mt-3" onClick={() => openEditor(null)}>
                   <Icon icon="lucide:plus" width="15" height="15" aria-hidden="true" />
                   {t('新建角色')}
                 </button>
@@ -1083,7 +1083,7 @@ export default function CharacterLibraryPanel() {
           motionPreset="quick"
         >
           <header className="flex items-center gap-3 border-b border-canvas-border px-5 py-4">
-            <span className="grid size-10 shrink-0 place-items-center rounded-xl border border-canvas-border bg-canvas-card text-indigo-400">
+            <span className="grid size-10 shrink-0 place-items-center rounded-xl border border-canvas-border bg-canvas-card text-brand-light">
               <Icon icon="lucide:accessibility" width="19" height="19" aria-hidden="true" />
             </span>
             <div className="min-w-0 flex-1">
@@ -1149,7 +1149,7 @@ export default function CharacterLibraryPanel() {
                       return (
                         <article key={action.id} className="character-action-card flex min-w-0 flex-col rounded-xl border border-canvas-border bg-canvas-card p-3 shadow-sm">
                           <div className="flex items-start gap-2">
-                            <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-canvas-border bg-canvas-surface text-indigo-400">
+                            <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-canvas-border bg-canvas-surface text-brand-light">
                               <Icon icon={category?.icon ?? 'lucide:shapes'} width="15" height="15" aria-hidden="true" />
                             </span>
                             <div className="min-w-0 flex-1">
@@ -1203,12 +1203,12 @@ export default function CharacterLibraryPanel() {
                                       expanded={videoPreview.expandedId === `action:${action.id}:${media.id}`}
                                       onExpandedChange={(expanded) => videoPreview.setExpanded(expanded ? `action:${action.id}:${media.id}` : null)} />
                                   )}
-                                  <span className="pointer-events-none absolute bottom-1 left-1 max-w-[calc(100%-40px)] truncate rounded bg-black/60 px-1.5 py-0.5 text-[9px] text-white">
+                                  <span className="pointer-events-none absolute bottom-1 left-1 max-w-[calc(100%-40px)] truncate rounded bg-[color:color-mix(in_srgb,var(--theme-bg)_78%,transparent)] px-1.5 py-0.5 text-[9px] text-canvas-text">
                                     {media.name}
                                   </span>
                                   <button
                                     type="button"
-                                    className="absolute right-1 top-1 grid size-6 place-items-center rounded-md bg-black/60 text-white transition-[transform,background-color] duration-150 ease-out hover:bg-black/80 active:scale-[.97]"
+                                    className="absolute right-1 top-1 grid size-6 place-items-center rounded-md bg-[color:color-mix(in_srgb,var(--theme-bg)_78%,transparent)] text-canvas-text transition-[transform,background-color] duration-150 ease-out hover:bg-[color:color-mix(in_srgb,var(--theme-bg)_92%,transparent)] active:scale-[.97]"
                                     aria-label={t('移除媒体「{name}」', { name: media.name })}
                                     onClick={async () => {
                                       if (await removeCharacterActionMedia(
@@ -1248,7 +1248,7 @@ export default function CharacterLibraryPanel() {
                             <button
                               type="button"
                               disabled={uploadingActionMedia}
-                              className="flex aspect-video min-h-20 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-canvas-border text-[10px] text-canvas-text-muted transition-[transform,color,background-color,border-color] duration-150 ease-out hover:border-indigo-400 hover:bg-canvas-surface hover:text-canvas-text active:scale-[.98] disabled:opacity-50"
+                              className="flex aspect-video min-h-20 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-canvas-border text-[10px] text-canvas-text-muted transition-[transform,color,background-color,border-color] duration-150 ease-out hover:border-brand-light hover:bg-canvas-surface hover:text-canvas-text active:scale-[.98] disabled:opacity-50"
                               onClick={() => openActionMediaPicker(action.id)}
                             >
                               <Icon icon="lucide:upload" width="16" height="16" aria-hidden="true" />
@@ -1257,7 +1257,7 @@ export default function CharacterLibraryPanel() {
                             <button
                               type="button"
                               aria-expanded={actionNodePickerTargetId === action.id}
-                              className="flex aspect-video min-h-20 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-canvas-border text-[10px] text-canvas-text-muted transition-[transform,color,background-color,border-color] duration-150 ease-out hover:border-indigo-400 hover:bg-canvas-surface hover:text-canvas-text active:scale-[.98]"
+                              className="flex aspect-video min-h-20 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-canvas-border text-[10px] text-canvas-text-muted transition-[transform,color,background-color,border-color] duration-150 ease-out hover:border-brand-light hover:bg-canvas-surface hover:text-canvas-text active:scale-[.98]"
                               onClick={() => setActionNodePickerTargetId((current) => (
                                 current === action.id ? null : action.id
                               ))}
@@ -1344,7 +1344,7 @@ export default function CharacterLibraryPanel() {
             >
               <div className="min-h-0 flex-1 overflow-y-auto p-4">
                 <div className="flex items-center gap-2">
-                  <span className="grid size-8 place-items-center rounded-lg bg-indigo-500 text-white">
+                  <span className="grid size-8 place-items-center rounded-lg bg-brand text-[var(--brand-contrast)]">
                     <Icon icon="lucide:plus" width="15" height="15" aria-hidden="true" />
                   </span>
                   <div>
@@ -1374,7 +1374,7 @@ export default function CharacterLibraryPanel() {
                       value={customActionCategory}
                       onChange={(event) => setCustomActionCategory(event.target.value)}
                       placeholder={t('例如：武术、特殊技能')}
-                      className="h-9 rounded-lg border border-canvas-border bg-canvas-surface px-3 text-xs text-canvas-text outline-none transition-[border-color] duration-150 focus:border-indigo-400"
+                      className="h-9 rounded-lg border border-canvas-border bg-canvas-surface px-3 text-xs text-canvas-text outline-none transition-[border-color] duration-150 focus:border-brand-light"
                     />
                   </label>
                 ) : null}
@@ -1385,7 +1385,7 @@ export default function CharacterLibraryPanel() {
                     value={actionName}
                     onChange={(event) => setActionName(event.target.value)}
                     placeholder={t('例如：警戒站姿')}
-                    className="h-9 rounded-lg border border-canvas-border bg-canvas-surface px-3 text-xs text-canvas-text outline-none transition-[border-color] duration-150 focus:border-indigo-400"
+                    className="h-9 rounded-lg border border-canvas-border bg-canvas-surface px-3 text-xs text-canvas-text outline-none transition-[border-color] duration-150 focus:border-brand-light"
                   />
                 </label>
 
@@ -1396,7 +1396,7 @@ export default function CharacterLibraryPanel() {
                     onChange={(event) => setActionPrompt(event.target.value)}
                     placeholder={t('描述姿势、重心、手部动作和运动方向…')}
                     rows={4}
-                    className="resize-none rounded-lg border border-canvas-border bg-canvas-surface px-3 py-2 text-xs leading-5 text-canvas-text outline-none transition-[border-color] duration-150 focus:border-indigo-400"
+                    className="resize-none rounded-lg border border-canvas-border bg-canvas-surface px-3 py-2 text-xs leading-5 text-canvas-text outline-none transition-[border-color] duration-150 focus:border-brand-light"
                   />
                 </label>
 
@@ -1418,7 +1418,7 @@ export default function CharacterLibraryPanel() {
                           )}
                           <button
                             type="button"
-                            className="absolute right-1 top-1 grid size-6 place-items-center rounded-md bg-black/60 text-white transition-transform duration-150 ease-out active:scale-[.97]"
+                            className="absolute right-1 top-1 grid size-6 place-items-center rounded-md bg-[color:color-mix(in_srgb,var(--theme-bg)_78%,transparent)] text-canvas-text transition-transform duration-150 ease-out active:scale-[.97]"
                             aria-label={t('移除待添加媒体「{name}」', { name: media.name })}
                             onClick={() => setPendingActionMedia((current) => current.filter((item) => item.id !== media.id))}
                           >
@@ -1431,7 +1431,7 @@ export default function CharacterLibraryPanel() {
                   <button
                     type="button"
                     disabled={uploadingActionMedia}
-                    className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-canvas-border bg-canvas-surface px-3 py-3 text-[10px] text-canvas-text-secondary transition-[transform,color,border-color] duration-150 ease-out hover:border-indigo-400 hover:text-canvas-text active:scale-[.98] disabled:opacity-50"
+                    className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-canvas-border bg-canvas-surface px-3 py-3 text-[10px] text-canvas-text-secondary transition-[transform,color,border-color] duration-150 ease-out hover:border-brand-light hover:text-canvas-text active:scale-[.98] disabled:opacity-50"
                     onClick={() => openActionMediaPicker(null)}
                   >
                     <Icon icon={uploadingActionMedia ? 'lucide:loader-circle' : 'lucide:upload'} className={uploadingActionMedia ? 'animate-spin' : ''} width="14" height="14" aria-hidden="true" />
@@ -1444,7 +1444,7 @@ export default function CharacterLibraryPanel() {
                 <button
                   type="submit"
                   disabled={!actionName.trim() || savingAction || uploadingActionMedia}
-                  className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-indigo-500 px-4 text-xs font-medium text-white transition-[transform,opacity,background-color] duration-150 ease-out hover:bg-indigo-400 active:scale-[.98] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-brand px-4 text-xs font-medium text-[var(--brand-contrast)] transition-[transform,opacity,background-color] duration-150 ease-out hover:bg-brand-hover active:scale-[.98] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Icon icon={savingAction ? 'lucide:loader-circle' : 'lucide:plus'} className={savingAction ? 'animate-spin' : ''} width="14" height="14" aria-hidden="true" />
                   {savingAction ? t('正在保存…') : t('添加到动作库')}

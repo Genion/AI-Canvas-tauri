@@ -21,6 +21,7 @@ import { useAppStore } from '../../../../store/useAppStore';
 import AnimatedButton from '../../../shared/AnimatedButton';
 import ModalOverlay from '../../../shared/ModalOverlay';
 import PopupCloseButton from '../../../shared/PopupCloseButton';
+import { resolveAppearanceMode } from '../../../../services/appearance/appearanceRuntime';
 
 interface NodePluginToolDialogProps {
   pluginTool: AvailableNodePluginTool;
@@ -124,8 +125,8 @@ export default function NodePluginToolDialog({ pluginTool, nodeId, onClose }: No
   }, [onClose]);
 
   useEffect(() => {
-    frameSession?.updateTheme(config.theme);
-  }, [config.theme, frameSession]);
+    frameSession?.updateTheme(resolveAppearanceMode(config.appearance?.mode ?? config.theme));
+  }, [config.appearance?.mode, config.theme, frameSession]);
 
   useEffect(() => {
     frameSession?.updateLocale(getLocale());

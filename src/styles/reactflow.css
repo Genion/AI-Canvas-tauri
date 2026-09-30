@@ -24,25 +24,25 @@
 }
 
 .react-flow__edge-path {
-  stroke: var(--canvas-edge) !important;
-  stroke-width: 1.5 !important;
+  stroke: var(--appearance-edge-color, var(--canvas-edge)) !important;
+  stroke-width: var(--appearance-edge-width, 1.5) !important;
   transition: stroke var(--transition-base), stroke-width var(--transition-base);
 }
 
 /* Selected Edge Highlight */
 .react-flow__edge.selected .react-flow__edge-path {
-  stroke: var(--brand) !important;
-  stroke-width: 2.5 !important;
+  stroke: var(--appearance-edge-selected, var(--brand)) !important;
+  stroke-width: var(--appearance-edge-selected-width, 2.5) !important;
 }
 .react-flow__edge.selected .react-flow__edge-marker {
-  fill: var(--brand) !important;
+  fill: var(--appearance-edge-selected, var(--brand)) !important;
 }
 
 /* The original edge stays solid; a moving mask reveals a gradient on its path. */
 .selected-node-edge-flow {
   fill: none;
   pointer-events: none;
-  stroke: var(--brand-pale);
+  stroke: var(--appearance-edge-flow, var(--brand-pale));
   stroke-width: 2.25;
   vector-effect: non-scaling-stroke;
 }
@@ -104,7 +104,7 @@
 
 /* Connection Line */
 .react-flow__connectionline {
-  stroke: var(--brand) !important;
+  stroke: var(--appearance-edge-preview, var(--brand)) !important;
   stroke-width: 2 !important;
   z-index: 0 !important;
 }
@@ -187,6 +187,7 @@
   background: transparent !important;
   overflow: visible !important;
   transition: border-color var(--transition-base), background var(--transition-base) !important;
+  opacity: var(--appearance-handle-opacity, 1);
 }
 
 .node-handle:hover {
@@ -216,11 +217,13 @@
   --x: 50;
   --y: 50;
   --a: 0%;
-  --button: hsl(var(--hue), 66%, 66%);
+  --button: var(--appearance-handle-color, hsl(var(--hue), 66%, 66%));
+  --handle-image-opacity: var(--appearance-handle-image-opacity, 0);
+  --gooey-pad-y: clamp(6px, calc(var(--appearance-handle-size, 40px) * 0.475), 19px);
 
   display: block; /* 避免 inline-block 基线空隙撑高 wrapper，导致按钮整体偏上 */
-  width: 40px;
-  height: 40px;
+  width: var(--appearance-handle-size, 40px);
+  height: var(--appearance-handle-size, 40px);
   border-radius: 50%;
   background: transparent;
   border: none;
@@ -231,6 +234,7 @@
 }
 
 .gooey-btn:hover {
+  --button: var(--appearance-handle-hover, var(--appearance-handle-color, hsl(var(--hue), 66%, 66%)));
   --a: 100%;
   scale: 1.1;
   cursor: none;
@@ -252,6 +256,20 @@
   background-clip: content-box, border-box;
   padding: 18px;
   z-index: -1;
+  opacity: calc(1 - var(--handle-image-opacity));
+}
+
+.gooey-btn::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-image: var(--appearance-handle-image, none);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: var(--appearance-handle-image-fit, contain);
+  opacity: var(--handle-image-opacity);
+  pointer-events: none;
 }
 
 .gooey-btn-wrapper {
@@ -322,7 +340,7 @@
 
 .canvas-selection-connect-preview path {
   fill: none;
-  stroke: var(--canvas-edge);
+  stroke: var(--appearance-edge-preview, var(--canvas-edge));
   stroke-width: 1.5;
 }
 
@@ -375,11 +393,11 @@
 }
 
 .gooey-btn-left .gooey-btn::before {
-  padding: 19px 10px 19px 26px;
+  padding: var(--gooey-pad-y) 10px var(--gooey-pad-y) 26px;
 }
 
 .gooey-btn-right .gooey-btn::before {
-  padding: 19px 26px 19px 10px;
+  padding: var(--gooey-pad-y) 26px var(--gooey-pad-y) 10px;
 }
 
 /* ── 操作记录浮层（画布右上角） ── */

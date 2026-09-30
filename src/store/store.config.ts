@@ -24,10 +24,13 @@ import {
 import { setLocale } from '../i18n';
 import { applyConfigPatch, ConfigConflictError, configValuesEqual, configWithoutSecrets, createConfigPatch } from '../services/configPatch';
 import { areSettingsMutationsFrozen, registerSettingsPersistence } from '../services/configPersistenceQueue';
+import { getBuiltinAppearanceTheme, normalizeAppearanceTheme } from '../services/appearance/appearanceDefaults';
+import { migrateLegacyAppearance } from '../services/appearance/appearanceMigration';
 
 const defaultConfig: AppConfig = {
   providers: {},
   theme: 'dark',
+  appearance: getBuiltinAppearanceTheme('standard-dark'),
   canvasBackground: 'default',
   comfyUIUrl: 'http://127.0.0.1:8188',
   comfyUIPath: '',
@@ -691,8 +694,15 @@ export const createConfigSlice: StateCreator<AppState, [], [], ConfigSlice> = (r
       // eslint-disable-next-line preserve-caught-error -- 原始错误可能含凭据或路径，不保留 cause。
       throw new Error(message);
     }
-    const saved = loaded.config;
-    const cfg = saved ? migrateLegacyGeneralModels({ ...defaultConfig, ...migrateLegacyPerformanceMode(saved as AppConfig) }) : { ...defaultConfig };
+    const saved = loaded.config as AppConfig | null;
+    const cfg = saved
+      ? (() => {
+          const merged = migrateLegacyGeneralModels({ ...defaultConfig, ...migrateLegacyPerformanceMode(saved as AppConfig) });
+          return { ...merged, appearance: saved.appearance
+            ? normalizeAppearanceTheme(merged.appearance)
+            : migrateLegacyAppearance(merged) };
+        })()
+      : { ...defaultConfig };
     const ordinary = configWithoutSecrets(cfg);
     // 显式重新加载采用磁盘值；加载期间的新编辑单独重放，不能被迟到结果清掉。
     const latest = get();

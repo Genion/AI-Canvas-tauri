@@ -34,6 +34,8 @@ import type { AppConfig } from '../types';
 import { setLocale } from '../i18n';
 import { useResourceVideoPreview } from '../hooks/useResourceVideoPreview';
 import { distributeToColumns } from './assets/waterfallColumns';
+import { applyAppearanceTheme } from '../services/appearance/appearanceRuntime';
+import { getAppearanceForConfig } from '../services/appearance/appearanceMigration';
 
 /** 单页渲染数量（增量加载步长）*/
 const PAGE_SIZE = 60;
@@ -67,8 +69,8 @@ export default function AssetSearchWindow() {
     setLoading(true);
     try {
       const cfg = (await loadConfig()) as AppConfig | null;
-      // 主题（独立窗口需自行应用 data-theme）
-      document.documentElement.setAttribute('data-theme', cfg?.theme === 'light' ? 'light' : 'dark');
+      // 独立窗口需自行应用完整外观
+      applyAppearanceTheme(cfg?.appearance ?? getAppearanceForConfig(cfg));
       document.documentElement.toggleAttribute('data-native-cursor', cfg?.customCursor === false);
       setLocale(cfg?.language);
       // 同步用户自定义数据根目录到 fileService

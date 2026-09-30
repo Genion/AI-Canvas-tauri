@@ -10,6 +10,7 @@ import { useT } from '../../i18n';
 
 const SETTINGS_TABS: { id: SettingsTab; label: string }[] = [
   { id: 'general', label: '常规' },
+  { id: 'appearance', label: '外观' },
   { id: 'files', label: '文件与应用' },
   { id: 'api', label: 'API Key' },
   { id: 'storage', label: '存储健康' },
@@ -22,6 +23,7 @@ const SETTINGS_TABS: { id: SettingsTab; label: string }[] = [
 function SettingsTabIcon({ tab }: { tab: SettingsTab }) {
   if (tab === 'mcp') return <Icon icon="lucide:plug-zap" width="14" height="14" />;
   if (tab === 'plugins') return <Icon icon="lucide:blocks" width="14" height="14" />;
+  if (tab === 'appearance') return <Icon icon="lucide:palette" width="14" height="14" />;
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       {tab === 'storage' && (
@@ -85,8 +87,8 @@ export default function SettingsNavigation({
         <AnimatedButton
           key={id}
           onClick={() => onSelect(id)}
-          className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-left transition-colors ${
-            activeTab === id ? 'bg-indigo-500/15 text-indigo-400' : 'text-canvas-text-secondary hover:bg-canvas-hover'
+          className={`settings-navigation-tab w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-left transition-colors ${
+            activeTab === id ? 'settings-navigation-tab--active' : ''
           }`}
         >
           <SettingsTabIcon tab={id} />

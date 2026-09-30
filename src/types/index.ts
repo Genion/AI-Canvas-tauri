@@ -557,6 +557,105 @@ export type CanvasBackground =
   | 'frosted-glass'
   | 'custom';
 
+/** 外观模式；system 根据操作系统深浅色偏好解析为 dark 或 light。 */
+export type AppearanceMode = 'dark' | 'light' | 'system';
+
+export type AppearanceCanvasKind = CanvasBackground | 'color' | 'image';
+
+export interface AppearanceUiTokens {
+  background: string;
+  surface: string;
+  card: string;
+  hover: string;
+  border: string;
+  text: string;
+  textSecondary: string;
+  textMuted: string;
+  accent: string;
+  accentStrong: string;
+  accentSoft: string;
+  focus: string;
+  success: string;
+  warning: string;
+  danger: string;
+  info: string;
+  radius: number;
+  shadowOpacity: number;
+  glassOpacity: number;
+  glassBlur: number;
+  scrollbar: string;
+  scrollbarHover: string;
+}
+
+export interface AppearanceCanvasConfig {
+  kind: AppearanceCanvasKind;
+  color: string;
+  imageDataUrl?: string;
+  imageFit: 'cover' | 'contain' | 'fill';
+  imagePosition: string;
+  imageOpacity: number;
+  gridVisible: boolean;
+  gridColor: string;
+  gridSize: number;
+}
+
+export interface AppearanceNodeConfig {
+  background: string;
+  backgroundOpacity: number;
+  border: string;
+  borderWidth: number;
+  radius: number;
+  shadow: string;
+  headerBackground: string;
+  selectedBorder: string;
+  selectedGlow: string;
+  text: string;
+  handleColor: string;
+}
+
+export interface AppearanceEdgeConfig {
+  color: string;
+  width: number;
+  selectedColor: string;
+  selectedWidth: number;
+  flowColor: string;
+  previewColor: string;
+  animationEnabled: boolean;
+}
+
+export interface AppearanceHandleConfig {
+  /** 手柄视觉来源：纯色或上传图片。 */
+  kind: 'color' | 'image';
+  color: string;
+  hoverColor: string;
+  size: number;
+  imageDataUrl?: string;
+  imageFit: 'contain' | 'cover' | 'fill';
+  opacity: number;
+}
+
+export interface AppearanceMotionConfig {
+  enabled: boolean;
+  scale: number;
+}
+
+/** 可导入、可导出的完整外观快照。内置预设只读，编辑后生成自定义副本。 */
+export interface AppearanceTheme {
+  schemaVersion: 1;
+  id: string;
+  name: string;
+  builtin: boolean;
+  mode: AppearanceMode;
+  ui: AppearanceUiTokens;
+  canvas: AppearanceCanvasConfig;
+  node: AppearanceNodeConfig;
+  edge: AppearanceEdgeConfig;
+  handle: AppearanceHandleConfig;
+  motion: AppearanceMotionConfig;
+  createdAt: number;
+  updatedAt: number;
+}
+
 /** 画布交互模式：default = Figma 风格（左键框选 / 右键·中键平移 / 滚轮缩放）；classic = 传统（左键平移 / Shift+拖动框选 / 滚轮纵横平移 / Ctrl+滚轮缩放） */
 export type InteractionMode = 'default' | 'classic';
 
@@ -601,7 +700,9 @@ export interface AppConfig {
   providers: Record<string, ApiProviderConfig>;
   /** 当前用于 Agent 联网搜索的厂商；旧配置未设置时优先沿用 Tavily。 */
   webSearchProviderId?: WebSearchProviderId;
-  theme: 'dark' | 'light';
+  theme: AppearanceMode;
+  /** 当前完整外观快照；旧版本仅有 theme/canvasBackground 时由迁移层补齐。 */
+  appearance?: AppearanceTheme;
   language?: Locale; // 界面语言，未设置时跟随系统
   canvasBackground?: CanvasBackground; // 画布背景主题
   defaultDarkBackgroundShade?: number; // 默认暗色背景灰度，0-58；未设置时为 20

@@ -2,6 +2,22 @@
    Settings Panel — API Key Configuration
    ============================================ */
 
+/* 设置侧栏使用主题色的不同透明度区分选中与悬浮状态。 */
+.settings-navigation-tab {
+  color: var(--theme-text-secondary);
+}
+
+.settings-navigation-tab--active {
+  background: color-mix(in srgb, var(--brand) 24%, var(--theme-card));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 34%, transparent);
+  color: var(--brand-light);
+}
+
+.settings-navigation-tab:not(.settings-navigation-tab--active):hover {
+  background: color-mix(in srgb, var(--brand) 14%, var(--theme-card));
+  color: var(--theme-text);
+}
+
 /* ── Pane layout ── */
 .settings-pane {
   display: flex;
@@ -653,7 +669,7 @@
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--theme-text);
   box-shadow: 0 1px 3px var(--black-alpha-40);
   transition: transform 0.42s var(--ease-spring);
 }

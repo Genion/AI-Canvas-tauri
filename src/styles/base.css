@@ -28,6 +28,7 @@
   --brand-light: #818cf8;
   --brand-hover: #818cf8;
   --brand-pale: #a5b4fc;
+  --brand-contrast: #ffffff;
   --brand-alpha-04: rgba(99, 102, 241, 0.04);
   --brand-alpha-05: rgba(99, 102, 241, 0.05);
   --brand-alpha-08: rgba(99, 102, 241, 0.08);
@@ -275,21 +276,22 @@
   color-scheme: light;
 
   /* Theme Layer / 主题层 ── */
-  --theme-bg: #F4F6FB;
+  --theme-bg: #EEF2F7;
   --theme-surface: #FFFFFF;
-  --theme-card: #F8FAFD;
-  --theme-border: #E4E8F2;
-  --theme-hover: #EEF1F8;
-  --theme-text: #33364D;
-  --theme-text-secondary: #6E7488;
-  --theme-text-muted: #767D92;
-  --canvas-edge: #B1B1B7;
+  --theme-card: #F7F9FC;
+  --theme-border: #C7D0DF;
+  --theme-hover: #E5EAF2;
+  --theme-text: #252A38;
+  --theme-text-secondary: #4F5A6E;
+  --theme-text-muted: #657084;
+  --canvas-edge: #71809A;
 
   /* Brand — macaron periwinkle / 品牌色 — 马卡龙紫罗兰 ── */
-  --brand: #7280E4;
-  --brand-light: #5A69D4;
-  --brand-hover: #5F6DD8;
-  --brand-pale: #4F5ECB;
+  --brand: #5368D6;
+  --brand-light: #4053C0;
+  --brand-hover: #475BCB;
+  --brand-pale: #3D50B8;
+  --brand-contrast: #ffffff;
 
   /* Node type colors — macaron / 节点类型颜色 — 马卡龙 ── */
   --node-text: #7280E4;
@@ -429,15 +431,15 @@
   --white-alpha-15: rgba(51, 54, 77, 0.14);
 
   /* Border Variants / 边框变体 ── */
-  --separator-color: rgba(51, 54, 77, 0.12);
-  --border-subtle: rgba(51, 54, 77, 0.06);
-  --border-secondary: #DCE1EE;
-  --border-focus: rgba(114, 128, 228, 0.45);
+  --separator-color: rgba(37, 42, 56, 0.18);
+  --border-subtle: rgba(37, 42, 56, 0.12);
+  --border-secondary: #C7D0DF;
+  --border-focus: rgba(83, 104, 214, 0.52);
 
   /* Scrollbar / 滚动条 ── */
-  --scrollbar-thumb: #CBD1E0;
-  --scrollbar-thumb-hover: #B0B7CB;
-  --scrollbar-thumb-active: #949CB3;
+  --scrollbar-thumb: #B3BDCE;
+  --scrollbar-thumb-hover: #8996AA;
+  --scrollbar-thumb-active: #71809A;
 
   /* Glass / Frosted Surface / 毛玻璃表面 ── */
   --glass-bg: rgba(255, 255, 255, 0.95);
@@ -472,34 +474,59 @@
 }
 
 /* ════════════════════════════════════════════════════════════════════════
+   Theme-aware opacity utilities / 跟随主题的透明度工具类
+   Tailwind cannot emit opacity variants for colors backed by a plain CSS
+   variable (for example `bg-brand/15`). Define the variants here so they work
+   in dark, light, system, and imported themes alike.
+   ════════════════════════════════════════════════════════════════════════ */
+.text-canvas-text\/90 { color: color-mix(in srgb, var(--theme-text) 90%, transparent); }
+.text-canvas-text-secondary\/80 { color: color-mix(in srgb, var(--theme-text-secondary) 80%, transparent); }
+.bg-canvas-bg\/60 { background-color: color-mix(in srgb, var(--theme-bg) 60%, transparent); }
+.bg-canvas-surface\/60 { background-color: color-mix(in srgb, var(--theme-surface) 60%, transparent); }
+.bg-canvas-surface\/80 { background-color: color-mix(in srgb, var(--theme-surface) 80%, transparent); }
+.bg-canvas-surface\/95 { background-color: color-mix(in srgb, var(--theme-surface) 95%, transparent); }
+.bg-canvas-card\/80 { background-color: color-mix(in srgb, var(--theme-card) 80%, transparent); }
+.bg-canvas-card\/95 { background-color: color-mix(in srgb, var(--theme-card) 95%, transparent); }
+.bg-canvas-hover\/80 { background-color: color-mix(in srgb, var(--theme-hover) 80%, transparent); }
+.bg-canvas-text-muted\/60 { background-color: color-mix(in srgb, var(--theme-text-muted) 60%, transparent); }
+.bg-brand\/10 { background-color: var(--brand-alpha-10); }
+.bg-brand\/15 { background-color: var(--brand-alpha-15); }
+.border-brand\/30 { border-color: var(--brand-alpha-30); }
+.border-brand\/40 { border-color: color-mix(in srgb, var(--brand) 40%, transparent); }
+.border-brand-light\/50 { border-color: color-mix(in srgb, var(--brand-light) 50%, transparent); }
+.border-canvas-border\/80 { border-color: color-mix(in srgb, var(--theme-border) 80%, transparent); }
+.ring-brand\/15 { --tw-ring-color: var(--brand-alpha-15); }
+.shadow-brand\/30 { --tw-shadow-color: var(--brand-alpha-30); }
+
+/* ════════════════════════════════════════════════════════════════════════
    Light Theme — Tailwind Class Overrides / 浅色主题 — Tailwind 类覆盖
    Tailwind resolves colors at build time; override generated utility classes here.
    Tailwind 在构建时解析颜色，此处覆盖生成的工具类。
    ════════════════════════════════════════════════════════════════════════ */
-[data-theme='light'] .text-canvas-text { color: #33364D; }
-[data-theme='light'] .text-canvas-text\/90 { color: rgb(51 54 77 / 0.9); }
-[data-theme='light'] .focus\:text-canvas-text\/90:focus { color: rgb(51 54 77 / 0.9); }
-[data-theme='light'] .text-canvas-text-secondary { color: #6E7488; }
-[data-theme='light'] .text-canvas-text-secondary\/80 { color: rgb(110 116 136 / 0.8); }
-[data-theme='light'] .text-canvas-text-muted { color: #767D92; }
+[data-theme='light'] .text-canvas-text { color: var(--theme-text); }
+[data-theme='light'] .text-canvas-text\/90 { color: color-mix(in srgb, var(--theme-text) 90%, transparent); }
+[data-theme='light'] .focus\:text-canvas-text\/90:focus { color: color-mix(in srgb, var(--theme-text) 90%, transparent); }
+[data-theme='light'] .text-canvas-text-secondary { color: var(--theme-text-secondary); }
+[data-theme='light'] .text-canvas-text-secondary\/80 { color: color-mix(in srgb, var(--theme-text-secondary) 80%, transparent); }
+[data-theme='light'] .text-canvas-text-muted { color: var(--theme-text-muted); }
 [data-theme='light'] .hover\:text-canvas-text:hover { color: var(--theme-text); }
 [data-theme='light'] .hover\:text-canvas-text-secondary:hover { color: var(--theme-text-secondary); }
 
-[data-theme='light'] .bg-canvas-bg { background-color: #F4F6FB; }
-[data-theme='light'] .bg-canvas-bg\/60 { background-color: rgb(244 246 251 / 0.6); }
+[data-theme='light'] .bg-canvas-bg { background-color: var(--theme-bg); }
+[data-theme='light'] .bg-canvas-bg\/60 { background-color: color-mix(in srgb, var(--theme-bg) 60%, transparent); }
 /* app-box 在浅色主题下背景透明，由 CanvasBackground 的米白层负责 */
 [data-theme='light'] .app-box { background-color: transparent; }
-[data-theme='light'] .bg-canvas-surface { background-color: #FFFFFF; }
-[data-theme='light'] .bg-canvas-surface\/60 { background-color: rgb(255 255 255 / 0.6); }
-[data-theme='light'] .bg-canvas-surface\/80 { background-color: rgb(255 255 255 / 0.8); }
-[data-theme='light'] .bg-canvas-surface\/95 { background-color: rgb(255 255 255 / 0.95); }
-[data-theme='light'] .bg-canvas-card { background-color: #F8FAFD; }
-[data-theme='light'] .bg-canvas-card\/80 { background-color: rgb(248 250 253 / 0.8); }
-[data-theme='light'] .bg-canvas-card\/95 { background-color: rgb(248 250 253 / 0.95); }
-[data-theme='light'] .bg-canvas-hover { background-color: #EEF1F8; }
+[data-theme='light'] .bg-canvas-surface { background-color: var(--theme-surface); }
+[data-theme='light'] .bg-canvas-surface\/60 { background-color: color-mix(in srgb, var(--theme-surface) 60%, transparent); }
+[data-theme='light'] .bg-canvas-surface\/80 { background-color: color-mix(in srgb, var(--theme-surface) 80%, transparent); }
+[data-theme='light'] .bg-canvas-surface\/95 { background-color: color-mix(in srgb, var(--theme-surface) 95%, transparent); }
+[data-theme='light'] .bg-canvas-card { background-color: var(--theme-card); }
+[data-theme='light'] .bg-canvas-card\/80 { background-color: color-mix(in srgb, var(--theme-card) 80%, transparent); }
+[data-theme='light'] .bg-canvas-card\/95 { background-color: color-mix(in srgb, var(--theme-card) 95%, transparent); }
+[data-theme='light'] .bg-canvas-hover { background-color: var(--theme-hover); }
 [data-theme='light'] .hover\:bg-canvas-border:hover { background-color: var(--theme-border); }
 [data-theme='light'] .hover\:bg-canvas-card:hover { background-color: var(--theme-card); }
-[data-theme='light'] .hover\:bg-canvas-hover:hover { background-color: #EEF1F8; }
+[data-theme='light'] .hover\:bg-canvas-hover:hover { background-color: var(--theme-hover); }
 [data-theme='light'] .hover\:bg-canvas-hover\/80:hover {
   background-color: color-mix(in srgb, var(--theme-hover) 80%, transparent);
 }
@@ -509,9 +536,9 @@
   background-color: color-mix(in srgb, var(--theme-text-muted) 60%, transparent);
 }
 
-[data-theme='light'] .border-canvas-border { border-color: #E4E8F2; }
-[data-theme='light'] .border-border-subtle { border-color: rgba(51, 54, 77, 0.06); }
-[data-theme='light'] .border-border-secondary { border-color: #DCE1EE; }
+[data-theme='light'] .border-canvas-border { border-color: var(--theme-border); }
+[data-theme='light'] .border-border-subtle { border-color: var(--border-subtle); }
+[data-theme='light'] .border-border-secondary { border-color: var(--border-secondary); }
 [data-theme='light'] .hover\:border-canvas-border\/80:hover {
   border-color: color-mix(in srgb, var(--theme-border) 80%, transparent);
 }
@@ -520,9 +547,9 @@
   border-color: var(--theme-text-secondary);
 }
 
-[data-theme='light'] .shadow-canvas-border { --tw-shadow-color: #E4E8F2; }
-[data-theme='light'] .ring-canvas-border { --tw-ring-color: #E4E8F2; }
-[data-theme='light'] .divide-canvas-border { --tw-divide-opacity: 1; border-color: rgb(228 232 242 / var(--tw-divide-opacity, 1)); }
+[data-theme='light'] .shadow-canvas-border { --tw-shadow-color: var(--theme-border); }
+[data-theme='light'] .ring-canvas-border { --tw-ring-color: var(--theme-border); }
+[data-theme='light'] .divide-canvas-border { --tw-divide-opacity: 1; border-color: var(--theme-border); }
 
 /* Accent utilities resolve to dark-theme hexes at build time; re-point them at the
    macaron tokens so the light theme stays in one palette.

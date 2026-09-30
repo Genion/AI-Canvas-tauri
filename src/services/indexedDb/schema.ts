@@ -6,7 +6,7 @@
 import { toProjectSummaryRecord } from './projectSummary';
 
 export const DB_NAME = 'ai-canvas-db';
-export const DB_VERSION = 21;
+export const DB_VERSION = 22;
 
 export const STORE_PROJECTS = 'projects';
 export const STORE_PROJECT_SUMMARIES = 'projectSummaries';
@@ -30,6 +30,7 @@ export const STORE_SUB_AGENT_PROFILES = 'subAgentProfiles';
 export const STORE_VIDEO_EDITOR_PROJECTS = 'videoEditorProjects';
 export const STORE_PROJECT_VISUAL_DESCRIPTIONS = 'projectVisualDescriptions';
 export const STORE_PLUGINS = 'plugins';
+export const STORE_APPEARANCE_THEMES = 'appearanceThemes';
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -155,6 +156,9 @@ export function openDB(): Promise<IDBDatabase> {
       }
       if (!db.objectStoreNames.contains(STORE_PLUGINS)) {
         db.createObjectStore(STORE_PLUGINS, { keyPath: 'id' });
+      }
+      if (!db.objectStoreNames.contains(STORE_APPEARANCE_THEMES)) {
+        db.createObjectStore(STORE_APPEARANCE_THEMES, { keyPath: 'id' });
       }
     };
     request.onsuccess = () => {

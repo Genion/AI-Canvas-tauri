@@ -12,8 +12,11 @@ import type { AppConfig } from '../../types';
 import { loadConfigWithoutSecrets } from '../../services/fileService';
 import { setLocale, useT } from '../../i18n';
 import { StyleGuideContent } from './StyleGuideSections';
+import { applyAppearanceTheme, resolveAppearanceMode } from '../../services/appearance/appearanceRuntime';
+import { getBuiltinAppearanceTheme } from '../../services/appearance/appearanceDefaults';
+import { getAppearanceForConfig } from '../../services/appearance/appearanceMigration';
 
-type GuideTheme = AppConfig['theme'];
+type GuideTheme = 'dark' | 'light';
 
 interface GuideSection {
   id: string;
@@ -39,9 +42,7 @@ const SECTIONS: GuideSection[] = [
 
 /** 主题切换只在当前窗口生效，不写回配置，避免影响主窗口 */
 function resolveTheme(config: AppConfig | null): GuideTheme {
-  if (!config) return 'dark';
-  if (config.canvasBackground === 'off-white') return 'light';
-  return config.theme === 'light' ? 'light' : 'dark';
+  return resolveAppearanceMode(config?.appearance?.mode ?? config?.theme);
 }
 
 export default function StyleGuideWindow() {
@@ -61,7 +62,7 @@ export default function StyleGuideWindow() {
         if (cancelled) return;
         const nextTheme = resolveTheme(cfg);
         setTheme(nextTheme);
-        document.documentElement.setAttribute('data-theme', nextTheme);
+        applyAppearanceTheme(cfg?.appearance ?? getAppearanceForConfig(cfg));
         document.documentElement.toggleAttribute('data-native-cursor', cfg?.customCursor === false);
         setLocale(cfg?.language);
       } catch (error) {
@@ -73,7 +74,7 @@ export default function StyleGuideWindow() {
 
   const applyTheme = useCallback((next: GuideTheme) => {
     setTheme(next);
-    document.documentElement.setAttribute('data-theme', next);
+    applyAppearanceTheme({ ...getBuiltinAppearanceTheme(`standard-${next}`), mode: next });
   }, []);
 
   const scrollToSection = useCallback((id: string) => {

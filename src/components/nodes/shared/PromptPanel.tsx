@@ -29,6 +29,7 @@ import type {
   WorkflowDefinition,
 } from '../../../types';
 import { ANIMATION_ACTION_LABELS } from '../../../types';
+import { resolveAppearanceMode } from '../../../services/appearance/appearanceRuntime';
 import type { PresetOverride } from './SlashCommandMenu';
 import { useAppStore } from '../../../store/useAppStore';
 import ModelSelector from './ModelSelector';
@@ -505,7 +506,9 @@ export default function PromptPanel({
 }: PromptPanelProps) {
   const t = useT();
   const reduceMotion = useReducedMotion();
-  const theme = useAppStore((state) => state.config.theme);
+  const appearanceMode = useAppStore((state) => resolveAppearanceMode(
+    state.config.appearance?.mode ?? state.config.theme,
+  ));
   const effectivePlaceholder = placeholder ?? t('输入提示词开始创作   (Enter 生成，Shift+Enter 换行)');
   const [focused, setFocused] = useState(false);
   const [slashOpen, setSlashOpen] = useState(false);
@@ -844,7 +847,7 @@ export default function PromptPanel({
         />
       {polishButton && (
         <div className="prompt-polish-entry">
-          {performanceMode || reduceMotion ? polishButton : <LazyLoadBoundary label="润色按钮特效" errorFallback={polishButton}><Suspense fallback={polishButton}><MetalFx className="prompt-polish-metal" variant="button" preset={theme === 'light' ? 'silver' : 'chromatic'} theme={theme} strength={theme === 'light' ? 0.55 : 0.8} shaderScale={1.6} mask={paintPolishBadge} glowMode="ring" normalizeHostStyles={false} innerShadow>{polishButton}</MetalFx></Suspense></LazyLoadBoundary>}
+          {performanceMode || reduceMotion ? polishButton : <LazyLoadBoundary label="润色按钮特效" errorFallback={polishButton}><Suspense fallback={polishButton}><MetalFx className="prompt-polish-metal" variant="button" preset={appearanceMode === 'light' ? 'silver' : 'chromatic'} theme={appearanceMode} strength={appearanceMode === 'light' ? 0.55 : 0.8} shaderScale={1.6} mask={paintPolishBadge} glowMode="ring" normalizeHostStyles={false} innerShadow>{polishButton}</MetalFx></Suspense></LazyLoadBoundary>}
         </div>
       )}
       </div>
@@ -1099,9 +1102,9 @@ export default function PromptPanel({
                     <MetalFx
                       className="prompt-send-metal"
                       variant="circle"
-                      preset={theme === 'light' ? 'silver' : 'chromatic'}
-                      theme={theme}
-                      strength={theme === 'light' ? 0.65 : 0.81}
+                      preset={appearanceMode === 'light' ? 'silver' : 'chromatic'}
+                      theme={appearanceMode}
+                      strength={appearanceMode === 'light' ? 0.65 : 0.81}
                       paused={!canGenerate || !hasGenerationInput}
                       normalizeHostStyles={false}
                       innerShadow

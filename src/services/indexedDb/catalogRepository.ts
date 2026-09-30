@@ -2,7 +2,7 @@
  * indexedDb/catalogRepository — 配置目录仓库（配置、预设、风格、Skill、工作流、子智能体）。
  * 提供这些常驻对象的读写 CRUD，统一走 schema.ts 声明的 object store，是 catalog 类数据的单一入口。
  */
-import type { PresetAdvancedConfig, SkillManifest, UserPresetMode, WorkflowDefinition } from '../../types';
+import type { AppearanceTheme, PresetAdvancedConfig, SkillManifest, UserPresetMode, WorkflowDefinition } from '../../types';
 import { withRelocatedMedia } from './mediaRelocations';
 import type { InstalledPlugin } from '../../types/plugin';
 import {
@@ -15,6 +15,7 @@ import {
   STORE_SUB_AGENT_PROFILES,
   STORE_WORKFLOWS,
   STORE_PLUGINS,
+  STORE_APPEARANCE_THEMES,
 } from './schema';
 
 const CONFIG_KEY = 'app-config';
@@ -216,6 +217,15 @@ export const getAllPresets = (): Promise<PresetRecord[]> =>
 
 export const deletePresetFromDb = (id: string): Promise<void> =>
   deleteRecord(STORE_PRESETS, id);
+
+export const saveAppearanceThemeToDb = (theme: AppearanceTheme): Promise<void> =>
+  putRecord(STORE_APPEARANCE_THEMES, theme);
+
+export const getAllAppearanceThemes = (): Promise<AppearanceTheme[]> =>
+  getAllRecords(STORE_APPEARANCE_THEMES);
+
+export const deleteAppearanceThemeFromDb = (id: string): Promise<void> =>
+  deleteRecord(STORE_APPEARANCE_THEMES, id);
 
 export const saveSkillToDb = (record: SkillRecord): Promise<void> =>
   putRecord(STORE_SKILLS, record);

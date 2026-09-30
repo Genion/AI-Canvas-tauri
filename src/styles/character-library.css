@@ -60,13 +60,12 @@
 }
 
 .character-button-primary {
-  /* 不写 color 会继承面板的 --theme-text：浅色主题下变成深字压深底 */
-  color: #fff;
-  background: var(--node-text);
+  color: var(--brand-contrast, #fff);
+  background: var(--brand);
 }
 
 .character-button-primary:hover {
-  background: var(--node-text-light);
+  background: var(--brand-hover);
 }
 
 .character-button-primary:disabled {
@@ -178,7 +177,7 @@
 .character-library-new:hover {
   color: var(--theme-text);
   background: var(--theme-card);
-  border-color: color-mix(in srgb, var(--node-text-light) 58%, var(--theme-border));
+  border-color: color-mix(in srgb, var(--brand-light) 58%, var(--theme-border));
 }
 
 .character-library-tabs button {
@@ -206,7 +205,7 @@
 
 .character-library-tabs button.is-active {
   color: var(--theme-text);
-  border-bottom-color: var(--node-text-light);
+  border-bottom-color: var(--brand-light);
 }
 
 .character-library-search {
@@ -223,7 +222,7 @@
 }
 
 .character-library-search:focus-within {
-  border-color: color-mix(in srgb, var(--node-text) 65%, var(--theme-border));
+  border-color: color-mix(in srgb, var(--brand) 65%, var(--theme-border));
 }
 
 .character-library-search input {
@@ -438,7 +437,7 @@
 .character-node-picker > button:hover {
   color: var(--theme-text);
   background: var(--theme-card);
-  border-color: color-mix(in srgb, var(--node-text-light) 68%, var(--theme-border));
+  border-color: color-mix(in srgb, var(--brand-light) 68%, var(--theme-border));
 }
 
 .character-node-picker > button img {
@@ -502,11 +501,11 @@
 
 .character-reference-item:hover,
 .character-reference-item.is-selected {
-  border-color: color-mix(in srgb, var(--node-text-light) 68%, var(--theme-border));
+  border-color: color-mix(in srgb, var(--brand-light) 68%, var(--theme-border));
 }
 
 .character-reference-item.is-selected {
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--node-text) 48%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 48%, transparent);
 }
 
 /* 格子宽高比就是图片宽高比，cover 只吸收亚像素误差，不会真的裁到内容 */
@@ -623,7 +622,7 @@
 }
 
 .character-library-strip-list > button:focus-visible {
-  outline: 2px solid var(--node-text-light);
+  outline: 2px solid var(--brand-light);
   outline-offset: 2px;
 }
 
@@ -648,7 +647,7 @@
 }
 
 .character-library-strip-list > button.is-selected {
-  border-color: color-mix(in srgb, var(--node-text-light) 68%, var(--theme-border));
+  border-color: color-mix(in srgb, var(--brand-light) 68%, var(--theme-border));
 }
 
 .character-library-strip-list > button > span:last-child,
@@ -802,7 +801,7 @@
   width: 15px;
   height: 15px;
   flex: 0 0 auto;
-  accent-color: var(--node-text);
+  accent-color: var(--brand);
 }
 
 .character-dialog {
@@ -877,7 +876,7 @@
 .character-field input:focus,
 .character-field textarea:focus,
 .character-field select:focus {
-  border-color: color-mix(in srgb, var(--node-text) 65%, var(--theme-border));
+  border-color: color-mix(in srgb, var(--brand) 65%, var(--theme-border));
 }
 
 .character-dialog-references {
@@ -938,8 +937,8 @@
 }
 
 .character-dialog-reference-strip > button.is-selected {
-  border-color: var(--node-text-light);
-  box-shadow: inset 0 0 0 1px var(--node-text);
+  border-color: var(--brand-light);
+  box-shadow: inset 0 0 0 1px var(--brand);
 }
 
 .character-dialog-reference-strip img {
@@ -966,7 +965,7 @@
 
 .character-reference-add-empty:hover {
   color: var(--theme-text-secondary);
-  border-color: var(--node-text-light);
+  border-color: var(--brand-light);
 }
 
 .character-reference-editor {
@@ -1023,8 +1022,8 @@
 }
 
 .character-reference-actions > button.is-active {
-  color: var(--node-text-light);
-  border-color: color-mix(in srgb, var(--node-text-light) 58%, var(--theme-border));
+  color: var(--brand-light);
+  border-color: color-mix(in srgb, var(--brand-light) 58%, var(--theme-border));
 }
 
 .character-reference-actions > button.is-danger:hover {
@@ -1075,7 +1074,7 @@
 
 .character-crop-controls input[type='range'] {
   width: 100%;
-  accent-color: var(--node-text);
+  accent-color: var(--brand);
 }
 
 .character-dialog-footer {

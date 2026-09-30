@@ -905,7 +905,7 @@ function CharacterNodeCaptureDialog({
         <button type="button" className="character-button-secondary" onClick={onClose}>取消</button>
         <button
           type="button"
-          className="character-button-primary text-white"
+          className="character-button-primary"
           disabled={saving
             || !sourceNode
             || (captureTab === 'voice' && (!audioUrl || !effectiveCharacterId))
@@ -1567,7 +1567,7 @@ function CharacterAssetEditorDialog({
         <button type="button" className="character-button-secondary" onClick={onClose}>取消</button>
         <button
           type="button"
-          className="character-button-primary text-white"
+          className="character-button-primary"
           disabled={saving}
           onClick={() => void handleSave()}
         >

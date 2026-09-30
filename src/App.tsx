@@ -39,6 +39,8 @@ import { invoke } from '@tauri-apps/api/core';
 import { prepareSettingsClose, resumeSettingsPersistence } from './services/configPersistenceQueue';
 import { applyNativePerformanceMode, registerPerformanceRestartHost } from './services/nativePerformanceModeService';
 import { t } from './i18n';
+import { applyAppearanceTheme, installSystemAppearanceListener, resolveAppearanceMode } from './services/appearance/appearanceRuntime';
+import { getBuiltinAppearanceTheme, normalizeAppearanceTheme } from './services/appearance/appearanceDefaults';
 
 const isTauri = typeof window !== 'undefined' && '__TAURI__' in window;
 
@@ -408,10 +410,10 @@ export default function App() {
     store.toggleChat();
   };
 
-  // 同步主题到 document.documentElement，供 CSS [data-theme] 选择器生效
-  // 米白色背景时自动切换为 light，其余背景使用用户手动设置的主题
+  // 同步完整外观快照到 document.documentElement，所有 CSS 组件从这里读取变量。
   const configTheme = useAppStore((s) => s.config.theme);
-  const canvasBackground = useAppStore((s) => s.config.canvasBackground);
+  const appearance = useAppStore((s) => s.config.appearance);
+  const appearancePreview = useAppStore((s) => s.appearancePreview);
   const windowGlassFrame = useAppStore((s) => s.config.windowGlassFrame);
   const performanceMode = useAppStore((s) => s.config.performanceMode === true);
   const mascotVisible = useAppStore((s) => s.config.mascotVisible);
@@ -422,12 +424,16 @@ export default function App() {
   const mascotHandleRef = useRef<MascotHandle | null>(null);
   // 下载更新时显示的是吃豆人吉祥物，生命周期片段对不上，先停掉
   useMascotLifecycle(mascotHandleRef, Boolean(mascotVisible) && !updating);
-  const effectiveTheme = canvasBackground === 'off-white' ? 'light' : configTheme;
+  const effectiveTheme = resolveAppearanceMode(appearance?.mode ?? configTheme);
+  const managedCanvasBackground = Boolean((appearancePreview ?? appearance)?.canvas);
   const nativeCursor = useAppStore((s) => s.config.customCursor === false);
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', effectiveTheme);
-    return () => document.documentElement.removeAttribute('data-theme');
-  }, [effectiveTheme]);
+    const theme = appearancePreview ?? (appearance
+      ? normalizeAppearanceTheme(appearance)
+      : getBuiltinAppearanceTheme(effectiveTheme === 'light' ? 'standard-light' : 'standard-dark'));
+    applyAppearanceTheme(theme);
+    return installSystemAppearanceListener(() => applyAppearanceTheme(theme));
+  }, [appearance, appearancePreview, effectiveTheme]);
 
   // 关闭自定义指针时打标记，cursors.css 据此把 --cursor-* 清空、回落系统指针
   useEffect(() => {
@@ -497,7 +503,7 @@ export default function App() {
       }}
     >
       {/* Content area — clip-path clips ALL descendants including fixed-position backdrops */}
-      <div className="app-box app-shell__content absolute bg-canvas-bg/[0.988] shadow-2xl overflow-hidden">
+      <div className={`app-box app-shell__content absolute ${managedCanvasBackground ? 'bg-transparent' : 'bg-canvas-bg/[0.988]'} shadow-2xl overflow-hidden`}>
         <div className="app-canvas-viewport absolute inset-0">
           <CanvasBackground />
           <Canvas />
