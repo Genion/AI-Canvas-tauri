@@ -117,6 +117,38 @@ function appendConnectionMentions(
   };
 }
 
+/** 删除最后一条上游连接时，同步移除该素材及其宫格子图引用。 */
+function removeDisconnectedMentions(
+  nodes: Node<BaseNodeData>[],
+  removedEdges: readonly Edge[],
+  remainingEdges: readonly Edge[],
+): Node<BaseNodeData>[] {
+  if (removedEdges.length === 0) return nodes;
+  const byId = new Map(nodes.map((node) => [node.id, node]));
+  const sourceIds = (edge: Edge): string[] => byId.get(edge.source)?.type === 'group'
+    ? nodes.filter((node) => node.parentId === edge.source).map((node) => node.id)
+    : [edge.source];
+  return nodes.map((node) => {
+    if (!node.data.prompt) return node;
+    const targetIds = new Set([node.id, ...(node.parentId ? [node.parentId] : [])]);
+    const disconnected = new Set(removedEdges
+      .filter((edge) => targetIds.has(edge.target)).flatMap(sourceIds));
+    if (disconnected.size === 0) return node;
+    for (const edge of remainingEdges) {
+      if (targetIds.has(edge.target)) {
+        for (const id of sourceIds(edge)) disconnected.delete(id);
+      }
+    }
+    if (disconnected.size === 0) return node;
+    const prompt = node.data.prompt.replace(/@\{([^:]+):[^}]+\}/g, (token, id: string) => (
+      disconnected.has(id.replace(/\/cell\/\d+$/, '')) ? '' : token
+    ));
+    return prompt !== node.data.prompt
+      ? { ...node, data: { ...node.data, prompt: prompt.trim() ? prompt : '' } }
+      : node;
+  });
+}
+
 function resolveBatchSources(
   state: AppState,
   sourceIds: readonly string[],
@@ -1406,9 +1438,15 @@ export const createNodeSlice: StateCreator<AppState, [], [], NodeSlice> = (set, 
   onEdgesChange: (changes) => {
     const hasRemoval = changes.some((c) => c.type === 'remove');
     if (hasRemoval) get().commitToHistory();
-    set((s) => ({
-      edges: applyEdgeChanges(changes, s.edges) as Edge[],
-    }));
+    set((s) => {
+      const edges = applyEdgeChanges(changes, s.edges) as Edge[];
+      if (!hasRemoval) return { edges };
+      const remainingIds = new Set(edges.map((edge) => edge.id));
+      return {
+        edges,
+        nodes: removeDisconnectedMentions(s.nodes, s.edges.filter((edge) => !remainingIds.has(edge.id)), edges),
+      };
+    });
   },
 
   clearGroupedSelection: () => {

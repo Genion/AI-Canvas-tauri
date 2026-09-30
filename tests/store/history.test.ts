@@ -174,6 +174,63 @@ describe('automatic connection mentions', () => {
     expect(useAppStore.getState().nodes[0].data.prompt).toBeUndefined();
   });
 
+  it('removes disconnected mentions while preserving prose, other references and one history snapshot', () => {
+    useAppStore.setState({
+      nodes: [node('source'), node('other'), node('target', {
+        prompt: '保留描述\n@{source:旧名称} @{other:素材} @{source/cell/2:子图}\n@asset{library} @wf{6|提示词|prompt}(内容)',
+      })],
+      edges: [{ id: 'edge', source: 'source', target: 'target' }, { id: 'other-edge', source: 'other', target: 'target' }],
+    });
+    useAppStore.getState().onEdgesChange([{ type: 'remove', id: 'edge' }]);
+    expect(targetPrompt()).toBe('保留描述\n @{other:素材} \n@asset{library} @wf{6|提示词|prompt}(内容)');
+    expect(useAppStore.getState().edges.map((edge) => edge.id)).toEqual(['other-edge']);
+    expect(useAppStore.getState().history).toHaveLength(1);
+  });
+
+  it('clears references after the setting is disabled and leaves another target untouched', () => {
+    useAppStore.setState({
+      nodes: [node('source'), node('target', { prompt: '@{source:素材}' }), node('other', { prompt: '@{source:素材}' })],
+      edges: [{ id: 'edge', source: 'source', target: 'target' }, { id: 'other-edge', source: 'source', target: 'other' }],
+      config: { ...useAppStore.getState().config, autoMentionOnConnect: false },
+    });
+    useAppStore.getState().onEdgesChange([{ type: 'remove', id: 'edge' }]);
+    expect(targetPrompt()).toBe('');
+    expect(useAppStore.getState().nodes.find((item) => item.id === 'other')?.data.prompt).toBe('@{source:素材}');
+  });
+
+  it('keeps a reference until its last direct or inherited connection is removed', () => {
+    useAppStore.setState({
+      nodes: [node('source'), groupNode('group'), { ...node('target', { prompt: '@{source:素材}' }), parentId: 'group' }],
+      edges: [
+        { id: 'first', source: 'source', target: 'target' },
+        { id: 'second', source: 'source', target: 'target' },
+        { id: 'inherited', source: 'source', target: 'group' },
+      ],
+    });
+    useAppStore.getState().onEdgesChange([{ type: 'remove', id: 'first' }, { type: 'remove', id: 'second' }]);
+    expect(targetPrompt()).toBe('@{source:素材}');
+    useAppStore.getState().onEdgesChange([{ type: 'remove', id: 'inherited' }]);
+    expect(targetPrompt()).toBe('');
+  });
+
+  it('clears disconnected group children but retains a child with its own connection', () => {
+    useAppStore.setState({
+      nodes: [groupNode('source-group'), { ...node('source'), parentId: 'source-group' },
+        { ...node('other'), parentId: 'source-group' }, node('target', { prompt: '@{source:素材} @{other:其他}' })],
+      edges: [{ id: 'group-edge', source: 'source-group', target: 'target' }, { id: 'direct', source: 'other', target: 'target' }],
+    });
+    useAppStore.getState().onEdgesChange([{ type: 'remove', id: 'group-edge' }]);
+    expect(targetPrompt()).toBe(' @{other:其他}');
+  });
+
+  it('leaves prompts unchanged for edge selection and nonexistent removals', () => {
+    const target = node('target', { prompt: '@{source:素材}' });
+    useAppStore.setState({ nodes: [node('source'), target], edges: [{ id: 'edge', source: 'source', target: 'target' }] });
+    useAppStore.getState().onEdgesChange([{ type: 'select', id: 'edge', selected: true }]);
+    useAppStore.getState().onEdgesChange([{ type: 'remove', id: 'missing' }]);
+    expect(useAppStore.getState().nodes.find((item) => item.id === 'target')).toBe(target);
+  });
+
   it('adds batch mentions in connection order and keeps one history entry', () => {
     useAppStore.setState({ currentProjectId: 'p', nodes: [node('source'), node('other'), node('target', { prompt: '描述\n' })] });
     expect(useAppStore.getState().connectSelectedNodes(['other', 'source'], 'target', 'p')).toBe(2);

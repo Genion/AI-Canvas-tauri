@@ -963,26 +963,43 @@ export default function SettingsPanel() {
 
                 <section>
                   <h3 className="text-sm font-medium text-canvas-text mb-2">{t('素材引用')}</h3>
-                  <div className="ui-card p-3">
-                    <div className="flex items-center justify-between gap-4">
-                      <div>
-                        <div id="auto-mention-on-connect-label" className="text-sm font-medium text-canvas-text">{t('连线后自动 @ 素材')}</div>
-                        <p id="auto-mention-on-connect-desc" className="mt-1 text-xs text-canvas-text-secondary">{t('新建连线时，将上游素材追加到生成节点的提示词中，已有引用不会重复添加。')}</p>
-                      </div>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-labelledby="auto-mention-on-connect-label"
-                        aria-describedby="auto-mention-on-connect-desc"
-                        aria-checked={autoMentionOnConnect}
-                        className="ui-switch shrink-0"
-                        onClick={() => {
-                          updateConfig({ autoMentionOnConnect: !autoMentionOnConnect });
-                          void persist();
-                        }}
-                      />
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-labelledby="auto-mention-on-connect-label"
+                    aria-describedby="auto-mention-on-connect-desc"
+                    aria-checked={autoMentionOnConnect}
+                    className={`sidebar-pref-card${autoMentionOnConnect ? ' is-floating' : ''}`}
+                    onClick={() => {
+                      updateConfig({ autoMentionOnConnect: !autoMentionOnConnect });
+                      void persist();
+                    }}
+                  >
+                    <div className="sidebar-pref-window flex items-center justify-center gap-1 p-1.5" aria-hidden="true">
+                      <span className="flex h-5 w-4 shrink-0 items-center justify-center rounded-[3px] border border-canvas-border bg-canvas-bg text-canvas-text-muted">
+                        <Icon icon="mdi:image-outline" width="12" height="12" />
+                      </span>
+                      <span className="flex w-3 shrink-0 items-center text-canvas-text-muted">
+                        <span className="h-px flex-1 bg-canvas-text-muted" />
+                        <span className="text-[9px] leading-none">▸</span>
+                      </span>
+                      <span className="flex h-8 w-9 shrink-0 flex-col justify-center gap-1 rounded-[4px] border border-canvas-border bg-canvas-bg p-1">
+                        <span className={`rounded-sm bg-indigo-500/15 px-0.5 text-[7px] leading-[10px] text-indigo-400 transition-opacity motion-reduce:transition-none ${autoMentionOnConnect ? 'opacity-100' : 'opacity-0'}`}>
+                          @{t('素材')}
+                        </span>
+                        <span className="h-0.5 w-4 rounded-full bg-canvas-text-muted/40" />
+                      </span>
                     </div>
-                  </div>
+
+                    <div className="sidebar-pref-text">
+                      <div id="auto-mention-on-connect-label" className="sidebar-pref-title">{t('连线后自动 @ 素材')}</div>
+                      <div id="auto-mention-on-connect-desc" className="sidebar-pref-desc">{t('新建连线时，将上游素材追加到生成节点的提示词中，已有引用不会重复添加。')}</div>
+                    </div>
+
+                    <div className="sidebar-pref-switch" aria-hidden="true">
+                      <span />
+                    </div>
+                  </button>
                 </section>
 
                 {/* 节点标题（node-label）是否显示 */}
