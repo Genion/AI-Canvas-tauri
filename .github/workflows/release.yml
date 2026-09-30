@@ -68,46 +68,21 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
-      - name: Require macOS signing and notarization credentials
-        if: runner.os == 'macOS'
-        env:
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: |
-          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
-            if [ -z "${!name}" ]; then
-              echo "Missing required macOS release secret: $name" >&2
-              exit 1
-            fi
-          done
-          case "$APPLE_SIGNING_IDENTITY" in
-            "Developer ID Application: "*) ;;
-            *) echo 'APPLE_SIGNING_IDENTITY must be a Developer ID Application identity.' >&2; exit 1 ;;
-          esac
-
       - name: Build with Tauri Action
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          APPLE_CERTIFICATE: ${{ runner.os == 'macOS' && secrets.APPLE_CERTIFICATE || '' }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ runner.os == 'macOS' && secrets.APPLE_CERTIFICATE_PASSWORD || '' }}
-          APPLE_SIGNING_IDENTITY: ${{ runner.os == 'macOS' && secrets.APPLE_SIGNING_IDENTITY || '' }}
-          APPLE_ID: ${{ runner.os == 'macOS' && secrets.APPLE_ID || '' }}
-          APPLE_PASSWORD: ${{ runner.os == 'macOS' && secrets.APPLE_PASSWORD || '' }}
-          APPLE_TEAM_ID: ${{ runner.os == 'macOS' && secrets.APPLE_TEAM_ID || '' }}
+          # Tauri signs all macOS bundle components before packaging; no Apple credentials are needed.
+          APPLE_SIGNING_IDENTITY: ${{ runner.os == 'macOS' && '-' || '' }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'AI Canvas v0.9.21 - 逐镜工作台与视频批量生成'
           releaseBody: |
             ## ✨ 版本摘要
 
-            AI Canvas v0.9.21 新增逐镜工作台（底部悬浮样式）与视频批量生成，可逐镜规划分镜内容并批量产出视频；连线后可按开关自动 @ 上游素材并写入提示词；参考角色支持携带主音色作为参考音频，便于保持角色音色一致。同时修复宫格节点弹出 AI 对话框、删除连线时同步移除提示词素材引用、逐镜工作台检查，并加固 macOS 签名公证校验、调整 dev 编译配置、更新使用手册。
+            AI Canvas v0.9.21 新增逐镜工作台（底部悬浮样式）与视频批量生成，可逐镜规划分镜内容并批量产出视频；连线后可按开关自动 @ 上游素材并写入提示词；参考角色支持携带主音色作为参考音频，便于保持角色音色一致。同时修复宫格节点弹出 AI 对话框、删除连线时同步移除提示词素材引用、逐镜工作台检查，并将 macOS 构建改为临时签名、调整 dev 编译配置、更新使用手册。
 
             ## 🎬 逐镜工作台与视频批量生成
 
@@ -131,11 +106,12 @@ jobs:
 
             ## 🛠 构建与发布
 
-            - 加固 macOS 签名公证校验，并改为全部校验通过后再发布。
+            - macOS 安装包改用临时签名，无需 Apple 开发者证书；签名完整性与启动检查通过后，和其他平台一起发布。
             - 调整 dev 编译配置以减少中间文件体积。
 
             ## ⚠️ 升级与兼容性
 
+            - macOS 安装包未经过 Apple 公证，首次打开可能被系统拦截。安装到「应用程序」后，可在「系统设置 → 隐私与安全性」中选择「仍要打开」。若提示应用已损坏，确认下载来源后，可在终端运行 `xattr -dr com.apple.quarantine "/Applications/AI Canvas.app" && open "/Applications/AI Canvas.app"`。
             - 升级后已有插件会在首次加载时补全源码摘要，无需重新安装。
             - 私有注册表目录（`plugin-private`）被用户手动删除时，已有插件会停用并要求重新安装；这是预期的失败关闭行为，不会从浏览器存储静默恢复。
             - RunningHub 与 AutoDL 工作流需要配置对应的服务地址与凭据。
@@ -158,7 +134,7 @@ jobs:
           includeUpdaterJson: true
           args: --target ${{ matrix.target }}
 
-      - name: Verify notarized macOS app launches with quarantine
+      - name: Verify ad-hoc signature and macOS app startup
         if: runner.os == 'macOS'
         shell: bash
         run: |
@@ -172,16 +148,17 @@ jobs:
           fi
           app="${apps[0]}"
           codesign --verify --deep --strict --verbose=2 "$app"
-          xcrun stapler validate "$app"
-          spctl --assess --type execute --verbose=4 "$app"
+          signature="$(codesign --display --verbose=4 "$app" 2>&1)"
+          if ! grep -q '^Signature=adhoc$' <<< "$signature"; then
+            echo "Expected an ad-hoc signature on $app" >&2
+            exit 1
+          fi
 
+          # This checks runtime startup on the runner, not Gatekeeper approval after download.
           smoke_dir="$(mktemp -d "${RUNNER_TEMP}/ai-canvas-macos-smoke.XXXXXX")"
           trap 'rm -rf "$smoke_dir"' EXIT
           ditto "$app" "$smoke_dir/$(basename "$app")"
           smoke_app="$smoke_dir/$(basename "$app")"
-          xattr -w com.apple.quarantine "0083;$(printf '%x' "$(date +%s)");GitHubActions;" "$smoke_app"
-          test -n "$(xattr -p com.apple.quarantine "$smoke_app")"
-          spctl --assess --type execute --verbose=4 "$smoke_app"
           open -a "$smoke_app"
           executable="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$smoke_app/Contents/Info.plist")"
           for attempt in {1..20}; do
@@ -190,7 +167,7 @@ jobs:
             fi
             sleep 1
           done
-          echo "Quarantined app did not remain running: $executable" >&2
+          echo "Ad-hoc signed app did not remain running: $executable" >&2
           exit 1
 
   publish-windows-legacy:
