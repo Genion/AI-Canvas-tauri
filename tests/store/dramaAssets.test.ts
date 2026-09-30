@@ -793,7 +793,8 @@ describe('dramaAssets store', () => {
     const state = useAppStore.getState();
     const voiceOverNode = state.nodes.find((node) => node.id === voiceOverId);
     expect(voiceOverNode?.type).toBe('ai-audio');
-    expect(voiceOverNode?.data.prompt).toBe('你终于来了。');
+    // 连线后自动 @ 上游素材（autoMentionOnConnect 默认开启），提示词会带上声音节点引用
+    expect(voiceOverNode?.data.prompt).toBe('你终于来了。 @{audio-1:旁白音频}');
     // 连线即引用：音频生成会把这条线上的声音作为音色参考
     expect(state.edges.some((edge) => edge.source === 'audio-1' && edge.target === voiceOverId)).toBe(true);
   });
