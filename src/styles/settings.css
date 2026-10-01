@@ -1481,7 +1481,7 @@
   border-radius: 6px;
   outline: none;
   color: var(--theme-text);
-  background: var(--white-alpha-04);
+  background: var(--theme-input-bg);
   font: inherit;
   font-size: 11px;
   transition: border-color var(--transition-base), background var(--transition-base);
@@ -1491,7 +1491,7 @@
 .provider-manual-fields input:focus,
 .provider-manual-fields select:focus {
   border-color: var(--border-focus);
-  background: var(--white-alpha-06);
+  background: var(--theme-input-bg);
 }
 .provider-field input:disabled {
   cursor: var(--cursor-not-allowed, not-allowed);
@@ -1616,7 +1616,7 @@
   border: 1px solid var(--theme-border);
   border-radius: 6px;
   color: var(--theme-text-muted);
-  background: var(--white-alpha-04);
+  background: var(--theme-input-bg);
 }
 .provider-search input {
   height: 30px;
@@ -2019,7 +2019,7 @@
   border-radius: 6px;
   outline: none;
   color: var(--theme-text);
-  background: var(--white-alpha-04);
+  background: var(--theme-input-bg);
   font: inherit;
   font-size: 12px;
 }

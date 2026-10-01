@@ -1,4 +1,4 @@
-﻿/* ============================================
+/* ============================================
    AI Node Dialog — floating frosted-glass prompt
    ============================================ */
 .ai-dialog-float {
@@ -516,8 +516,8 @@
 .wf-input {
   width: 100%;
   padding: 5px 8px;
-  background: var(--white-alpha-04);
-  border: 1px solid var(--white-alpha-08);
+  background: var(--theme-input-bg);
+  border: 1px solid var(--theme-border);
   border-radius: 7px;
   color: var(--theme-text);
   font-size: 13px;
@@ -914,9 +914,9 @@
   height: auto;
   min-height: 18px;
   padding: 0 14px 0 4px;
-  border: 1px solid var(--white-alpha-08);
+  border: 1px solid var(--theme-border);
   border-radius: 5px;
-  background: var(--white-alpha-04);
+  background: var(--theme-input-bg);
   color: inherit;
   font: inherit;
   font-size: 10px;

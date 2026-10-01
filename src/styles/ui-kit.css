@@ -36,6 +36,8 @@
   --ui-font: 12px;
   --ui-font-lg: 14px;
   --ui-font-input: 13px;
+  --ui-pad-sm: 8px;
+  --ui-pad: 12px;
 }
 
 /* ==========================================================================
@@ -327,13 +329,14 @@
   min-width: 0;
   padding: 0 10px;
   height: var(--ui-control-h);
-  border: 1px solid var(--white-alpha-08);
+  border: 1px solid var(--theme-border);
   border-radius: var(--ui-radius-md);
-  background: var(--white-alpha-04);
+  background: var(--theme-input-bg);
   color: var(--theme-text);
   font-family: inherit;
   font-size: var(--ui-font-input);
   outline: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   transition:
     border-color var(--transition-base),
     background var(--transition-base),
@@ -345,14 +348,14 @@
 }
 .ui-input:hover:not(:disabled):not(:focus),
 .ui-textarea:hover:not(:disabled):not(:focus) {
-  border-color: var(--white-alpha-12);
-  background: var(--white-alpha-06);
+  border-color: var(--border-secondary);
+  background: var(--theme-input-bg);
 }
 .ui-input:focus,
 .ui-textarea:focus,
 .ui-select__control:focus {
   border-color: var(--border-focus);
-  background: var(--white-alpha-08);
+  background: var(--theme-input-bg);
   box-shadow: 0 0 0 3px var(--brand-alpha-12);
 }
 .ui-input:disabled,
@@ -388,10 +391,14 @@
 .ui-input-group {
   display: flex;
   align-items: stretch;
-  border: 1px solid var(--white-alpha-08);
+  border: 1px solid var(--theme-border);
   border-radius: var(--ui-radius-md);
-  background: var(--white-alpha-04);
+  background: var(--theme-input-bg);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   transition: border-color var(--transition-base), box-shadow var(--transition-base);
+}
+.ui-input-group:hover:not(:focus-within) {
+  border-color: var(--border-secondary);
 }
 .ui-input-group:focus-within {
   border-color: var(--border-focus);
@@ -418,6 +425,204 @@
 }
 .ui-input-affix--leading { border-right: 1px solid var(--separator-color); }
 .ui-input-affix--trailing { border-left: 1px solid var(--separator-color); }
+
+/* ==========================================================================
+   Stepper / 数字微调步进输入框 (Number Stepper Input)
+   结构：
+     <div class="ui-stepper">
+       <div class="ui-stepper__drag">
+         <input type="text" inputmode="decimal" class="ui-stepper__input" />
+       </div>
+       <div class="ui-stepper__actions">
+         <button class="ui-stepper__btn ui-stepper__btn--up">…</button>
+         <span class="ui-stepper__divider"></span>
+         <button class="ui-stepper__btn ui-stepper__btn--down">…</button>
+       </div>
+       <span class="ui-stepper__unit">px</span>
+     </div>
+   ========================================================================== */
+.ui-stepper {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  flex-shrink: 0;
+  border: 1px solid var(--theme-border);
+  border-radius: var(--ui-radius-lg);
+  background: var(--theme-input-bg);
+  color: var(--theme-text);
+  padding: 0 6px 0 10px;
+  height: var(--ui-control-h);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  user-select: none;
+  transition:
+    border-color var(--transition-base),
+    box-shadow var(--transition-base),
+    background var(--transition-base);
+}
+.ui-field > .ui-stepper {
+  align-self: flex-start;
+}
+.ui-stepper--block,
+.ui-stepper.w-full {
+  width: 100%;
+  align-self: stretch;
+}
+.ui-stepper--block .ui-stepper__drag,
+.ui-stepper.w-full .ui-stepper__drag {
+  flex: 1;
+  min-width: 0;
+  justify-content: center;
+}
+.ui-stepper--block .ui-stepper__input,
+.ui-stepper.w-full .ui-stepper__input {
+  width: 100%;
+}
+.ui-stepper:hover:not(.is-disabled) {
+  border-color: var(--border-secondary);
+}
+.ui-stepper:focus-within:not(.is-disabled) {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px var(--brand-alpha-15);
+}
+.ui-stepper.is-scrubbing {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 2px var(--brand-alpha-25);
+}
+.ui-stepper.is-disabled {
+  opacity: 0.5;
+  cursor: var(--cursor-not-allowed, not-allowed);
+  pointer-events: none;
+}
+
+.ui-stepper__drag {
+  display: flex;
+  align-items: center;
+  cursor: ew-resize;
+  min-width: 0;
+}
+
+.ui-stepper__input {
+  width: 44px;
+  border: none;
+  background: transparent;
+  padding: 0;
+  text-align: center;
+  font-family: inherit;
+  font-size: var(--ui-font);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--theme-text);
+  outline: none;
+  cursor: text;
+  -moz-appearance: textfield;
+}
+.ui-stepper__input::-webkit-inner-spin-button,
+.ui-stepper__input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.ui-stepper__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin-left: 6px;
+  margin-right: 4px;
+  background: var(--theme-hover);
+  border: 1px solid var(--theme-border);
+  border-radius: var(--ui-radius-sm);
+  width: 22px;
+  height: 24px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.ui-stepper__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--theme-text-secondary);
+  padding: 0;
+  cursor: var(--cursor-pointer, pointer);
+  transition: background var(--transition-base), color var(--transition-base);
+}
+.ui-stepper__btn:hover:not(:disabled) {
+  background: var(--theme-hover);
+  color: var(--brand);
+}
+.ui-stepper__btn:active:not(:disabled) {
+  background: var(--brand-alpha-20);
+  color: var(--brand);
+}
+.ui-stepper__btn:disabled {
+  opacity: 0.35;
+  cursor: var(--cursor-not-allowed, not-allowed);
+}
+
+.ui-stepper__divider {
+  width: 12px;
+  height: 1px;
+  background: var(--separator-color);
+  flex-shrink: 0;
+}
+
+.ui-stepper__unit {
+  font-size: var(--ui-font-sm);
+  font-weight: 500;
+  color: var(--theme-text-muted);
+  padding-left: 2px;
+  padding-right: 2px;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+/* 尺寸变体 */
+.ui-stepper--sm {
+  height: var(--ui-control-h-sm);
+  padding: 0 4px 0 8px;
+  border-radius: var(--ui-radius-md);
+}
+.ui-stepper--sm .ui-stepper__input {
+  width: 34px;
+  font-size: var(--ui-font-sm);
+}
+.ui-stepper--sm .ui-stepper__actions {
+  width: 18px;
+  height: 20px;
+  margin-left: 4px;
+  margin-right: 2px;
+}
+.ui-stepper--sm .ui-stepper__divider {
+  width: 10px;
+}
+.ui-stepper--sm .ui-stepper__unit {
+  font-size: 10px;
+}
+
+.ui-stepper--lg {
+  height: var(--ui-control-h-lg);
+  padding: 0 8px 0 12px;
+  border-radius: var(--ui-radius-xl);
+}
+.ui-stepper--lg .ui-stepper__input {
+  width: 52px;
+  font-size: 15px;
+}
+.ui-stepper--lg .ui-stepper__actions {
+  width: 26px;
+  height: 28px;
+  margin-left: 8px;
+  margin-right: 4px;
+}
+.ui-stepper--lg .ui-stepper__divider {
+  width: 14px;
+}
 
 /* ==========================================================================
    Select / 下拉选择
@@ -460,12 +665,12 @@
 }
 /* hover / focus 时让触发框和输入框保持同一套反馈 */
 .ui-select:hover .ui-select__control:not(:disabled):not(:focus) {
-  border-color: var(--white-alpha-12);
-  background: var(--white-alpha-06);
+  border-color: var(--border-secondary);
+  background: var(--theme-input-bg);
 }
 .ui-select__control:focus {
   border-color: var(--border-focus);
-  background: var(--white-alpha-08);
+  background: var(--theme-input-bg);
   box-shadow: 0 0 0 3px var(--brand-alpha-12);
 }
 .ui-select__control:disabled {
@@ -493,27 +698,28 @@
   width: 100%;
   height: var(--ui-control-h);
   padding: 0 28px 0 10px;
-  border: 1px solid var(--white-alpha-08);
+  border: 1px solid var(--theme-border);
   border-radius: var(--ui-radius-md);
-  background: var(--white-alpha-04);
+  background: var(--theme-input-bg);
   color: var(--theme-text);
   font-family: inherit;
   font-size: var(--ui-font-input);
   line-height: 1;
   cursor: var(--cursor-pointer, pointer);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   transition:
     border-color var(--transition-base),
     background var(--transition-base),
     box-shadow var(--transition-base);
 }
 .ui-select--custom .ui-select__trigger:hover {
-  border-color: var(--white-alpha-12);
-  background: var(--white-alpha-06);
+  border-color: var(--border-secondary);
+  background: var(--theme-input-bg);
 }
 .ui-select--custom .ui-select__trigger:focus-visible {
   outline: none;
   border-color: var(--border-focus);
-  background: var(--white-alpha-08);
+  background: var(--theme-input-bg);
   box-shadow: 0 0 0 3px var(--brand-alpha-12);
 }
 .ui-select--custom .ui-select__trigger-text {
@@ -563,9 +769,9 @@
    仍以自身样式为准，这里只补充它们未定义的属性。
    需要完全一致的展开面板时，改用 <Select> 组件。 */
 select:not(.ui-select__control):not(.ui-select__native) {
-  border: 1px solid var(--white-alpha-08);
+  border: 1px solid var(--theme-border);
   border-radius: 5px;
-  background-color: var(--white-alpha-04);
+  background-color: var(--theme-input-bg);
   color: inherit;
   cursor: var(--cursor-pointer, pointer);
   color-scheme: dark;
@@ -574,7 +780,7 @@ select:not(.ui-select__control):not(.ui-select__native) {
   color-scheme: light;
 }
 select:not(.ui-select__control):not(.ui-select__native):hover:not(:disabled) {
-  border-color: var(--white-alpha-12);
+  border-color: var(--border-secondary);
 }
 select:not(.ui-select__control):not(.ui-select__native):disabled {
   opacity: 0.45;
@@ -1365,6 +1571,8 @@ select:not(.ui-select__control):not(.ui-select__native):disabled {
 .ui-row--loose { gap: 14px; }
 .ui-row--baseline { align-items: baseline; }
 .ui-row--between { justify-content: space-between; }
+.ui-row--pad-sm { padding: var(--ui-pad-sm); }
+.ui-row--pad { padding: var(--ui-pad); }
 
 .ui-stack {
   display: flex;
@@ -1374,6 +1582,12 @@ select:not(.ui-select__control):not(.ui-select__native):disabled {
 }
 .ui-stack--tight { gap: 4px; }
 .ui-stack--loose { gap: 18px; }
+.ui-stack--pad-sm { padding: var(--ui-pad-sm); }
+.ui-stack--pad { padding: var(--ui-pad); }
+
+/* 内边距辅助：默认推荐 p-2（8px）或 p-3（12px），避免过大内边距 */
+.ui-pad-sm { padding: var(--ui-pad-sm); }
+.ui-pad { padding: var(--ui-pad); }
 
 .ui-divider {
   height: 1px;

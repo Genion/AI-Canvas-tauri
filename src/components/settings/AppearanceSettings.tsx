@@ -12,6 +12,7 @@ import { registerSettingsProducer } from '../../services/configPersistenceQueue'
 import AnimatedButton from '../shared/AnimatedButton';
 import ModalOverlay from '../shared/ModalOverlay';
 import Select from '../shared/Select';
+import NumberStepper from '../shared/NumberStepper';
 import { useT } from '../../i18n';
 import mercuryImg from '../../assets/images/bg/1_mercury.png';
 import venusImg from '../../assets/images/bg/2_venus.png';
@@ -1622,23 +1623,21 @@ export default function AppearanceSettings() {
           <div className="p-4 settings-sub-card rounded-xl space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-canvas-text">{t('手柄尺寸')}</span>
-              <div className="flex items-center space-x-1 settings-sub-card-inner px-2.5 py-1 rounded-lg">
-                <input
-                  className="w-10 text-xs font-semibold text-canvas-text border-none p-0 focus:ring-0 text-center bg-transparent focus:outline-none"
-                  id="portSizeInput"
-                  max={64}
-                  min={16}
-                  type="number"
-                  value={active.handle.size}
-                  onChange={(e) =>
-                    update((theme) => ({
-                      ...theme,
-                      handle: { ...theme.handle, size: Math.min(64, Math.max(16, Number(e.target.value) || 16)) },
-                    }))
-                  }
-                />
-                <span className="text-xs text-canvas-text-muted">px</span>
-              </div>
+              <NumberStepper
+                id="portSizeInput"
+                value={active.handle.size}
+                min={16}
+                max={64}
+                step={1}
+                unit="px"
+                size="sm"
+                onChange={(size) =>
+                  update((theme) => ({
+                    ...theme,
+                    handle: { ...theme.handle, size },
+                  }))
+                }
+              />
             </div>
             <input
               className="w-full h-1.5 bg-canvas-border rounded-lg appearance-none cursor-pointer accent-brand"
@@ -1809,17 +1808,15 @@ export default function AppearanceSettings() {
               <div className="p-3 settings-sub-card rounded-xl space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-canvas-text">{t('节点圆角')}</span>
-                  <div className="flex items-center space-x-1 settings-sub-card-inner px-2 py-0.5 rounded">
-                    <input
-                      type="number"
-                      min={0}
-                      max={24}
-                      value={active.node.radius}
-                      onChange={(e) => update((theme) => ({ ...theme, node: { ...theme.node, radius: Math.min(24, Math.max(0, Number(e.target.value) || 0)) } }))}
-                      className="w-10 text-xs text-center bg-transparent border-none p-0 text-canvas-text focus:outline-none"
-                    />
-                    <span className="text-xs text-canvas-text-muted">px</span>
-                  </div>
+                  <NumberStepper
+                    value={active.node.radius}
+                    min={0}
+                    max={24}
+                    step={1}
+                    unit="px"
+                    size="sm"
+                    onChange={(radius) => update((theme) => ({ ...theme, node: { ...theme.node, radius } }))}
+                  />
                 </div>
                 <input
                   type="range"
@@ -1834,18 +1831,16 @@ export default function AppearanceSettings() {
               <div className="p-3 settings-sub-card rounded-xl space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-canvas-text">{t('节点边框宽度')}</span>
-                  <div className="flex items-center space-x-1 settings-sub-card-inner px-2 py-0.5 rounded">
-                    <input
-                      type="number"
-                      min={0}
-                      max={3}
-                      step={0.5}
-                      value={active.node.borderWidth}
-                      onChange={(e) => update((theme) => ({ ...theme, node: { ...theme.node, borderWidth: Math.min(3, Math.max(0, Number(e.target.value) || 0)) } }))}
-                      className="w-10 text-xs text-center bg-transparent border-none p-0 text-canvas-text focus:outline-none"
-                    />
-                    <span className="text-xs text-canvas-text-muted">px</span>
-                  </div>
+                  <NumberStepper
+                    value={active.node.borderWidth}
+                    min={0}
+                    max={3}
+                    step={0.5}
+                    precision={1}
+                    unit="px"
+                    size="sm"
+                    onChange={(borderWidth) => update((theme) => ({ ...theme, node: { ...theme.node, borderWidth } }))}
+                  />
                 </div>
                 <input
                   type="range"

@@ -204,6 +204,7 @@ AI-Canvas-tauri/
 
 ### 样式规则
 
+- 编写界面与样式时，**必须优先去 UI Kit（`src/styles/ui-kit.css` 与 `src/components/styleGuide/` 样式预览窗口）中查找**已有的公用类、度量刻度与结构模板，禁止随意手写或另造一套
 - 业务样式优先使用 Tailwind class，禁止新增 `!important`、硬编码颜色值、内联 `style.cssText`
 - 视觉状态优先通过 class 切换，不要用内联样式承载业务规则
 - 复用 `tailwind.config.js` 中定义的 `canvas-*` 颜色 token（暗色基线）：
@@ -212,7 +213,8 @@ AI-Canvas-tauri/
 - 浅色主题是低饱和马卡龙配色，统一由 `src/styles/base.css` 中的 `[data-theme='light']` 覆盖；新增可见面板必须同时确认两种主题
 - `src/index.css` 只做入口聚合；React Flow 样式覆盖统一放在 `src/styles/reactflow.css`，新增功能样式在 `src/styles/` 新建 partial 并在入口 `@import`
 - 新增节点类型时，Header 区域使用对应语义色：文本=indigo、图像=green、视频=blue、音频=orange、全景=cyan
-- 公用控件（按钮、输入框、卡片、下拉、开关、徽标、提示条、表格等）优先复用 `src/styles/ui-kit.css` 里的 `ui-*` 类，不要另造一套；写新界面前先看一遍它们的命名与变体
+- 公用控件（按钮、输入框、卡片、下拉、开关、徽标、提示条、表格、布局辅助等）优先复用 `src/styles/ui-kit.css` 里的 `ui-*` 类，不要另造一套；写新界面前先看一遍它们的命名与变体
+- 内边距规范：统一优先使用 Tailwind `p-2`（8px · 紧凑/子卡片/列表项）或 `p-3`（12px · 默认容器/面板/卡片），避免使用过大 padding
 - 新增或修改 `ui-*` 类时继续只引用 `base.css` 的 CSS 变量，并在样式预览窗口补一个样例
 - 样式预览窗口（UI Kit 一览，含可复制类名）由「关于 → 连点 logo 4 次」打开；入口工具是 `src/utils/styleGuideWindow.ts`，内容在 `src/components/styleGuide/`
 

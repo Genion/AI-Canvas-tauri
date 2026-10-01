@@ -1,4 +1,4 @@
-﻿@tailwind base;
+@tailwind base;
 @tailwind components;
 @tailwind utilities;
 
@@ -21,6 +21,7 @@
   --theme-text: #dddde4;
   --theme-text-secondary: #8888a0;
   --theme-text-muted: #7d7d91;
+  --theme-input-bg: rgba(0, 0, 0, 0.25);
   --canvas-edge: #33334a;
 
   /* Brand (Indigo) / 品牌色（靛蓝）── */
@@ -284,6 +285,7 @@
   --theme-text: #252A38;
   --theme-text-secondary: #4F5A6E;
   --theme-text-muted: #657084;
+  --theme-input-bg: #FFFFFF;
   --canvas-edge: #71809A;
 
   /* Brand — macaron periwinkle / 品牌色 — 马卡龙紫罗兰 ── */

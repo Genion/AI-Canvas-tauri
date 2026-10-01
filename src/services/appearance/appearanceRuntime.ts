@@ -150,7 +150,7 @@ export function applyAppearanceTheme(theme: AppearanceTheme | null | undefined):
     '--theme-text': ui.text,
     '--theme-text-secondary': ui.textSecondary,
     '--theme-text-muted': ui.textMuted,
-    '--theme-input-bg': themeCard,
+    '--theme-input-bg': mode === 'light' ? '#FFFFFF' : 'rgba(0, 0, 0, 0.25)',
     '--theme-border-subtle': themeBorder === 'transparent' ? 'transparent' : `color-mix(in srgb, ${themeBorder} 58%, transparent)`,
     '--separator-color': themeBorder === 'transparent' ? 'transparent' : `color-mix(in srgb, ${themeBorder} 72%, transparent)`,
     '--border-subtle': themeBorder === 'transparent' ? 'transparent' : `color-mix(in srgb, ${themeBorder} 58%, transparent)`,

@@ -8,6 +8,7 @@
  * 与 AssetSearchWindow 一样不做逐条 i18n。
  */
 import Select from '../shared/Select';
+import NumberStepper from '../shared/NumberStepper';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import StyleGuideMascot from './StyleGuideMascot';
 
@@ -406,7 +407,178 @@ function InputsSection() {
           <input id="sg-input-disabled" className="ui-input" defaultValue="由系统生成，不可编辑" disabled />
         </div>
       </Demo>
+
+      <Demo
+        label="数字微调步进输入框 (Number Stepper)"
+        code="<NumberStepper value={val} onChange={setVal} min={0} max={100} unit=&quot;px&quot; size=&quot;sm|md|lg&quot; /> / .ui-stepper"
+      >
+        <NumberStepperDemo />
+      </Demo>
     </Section>
+  );
+}
+
+/** 数字微调步进输入框展示：包含实时试验台、尺寸与状态矩阵、单位与联动场景 */
+function NumberStepperDemo() {
+  const [val, setVal] = useState(40);
+  const [scrubbing, setScrubbing] = useState(false);
+  const [opacity, setOpacity] = useState(85);
+  const [angle, setAngle] = useState(90);
+  const [duration, setDuration] = useState(350);
+  const [scale, setScale] = useState(1.2);
+
+  const clampedSize = Math.max(28, Math.min(val, 96));
+  const dynamicRadius = Math.min(val / 3, 20);
+
+  return (
+    <div className="ui-stack ui-stack--loose">
+      {/* 实时交互试验台 */}
+      <div className="rounded-xl border border-canvas-border bg-canvas-surface p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-canvas-border pb-2.5">
+          <div className="text-xs font-semibold text-canvas-text">实时交互试验台</div>
+          <div className="flex items-center gap-1.5 text-[11px] text-canvas-text-muted">
+            <span>快捷操作:</span>
+            <kbd className="rounded border border-canvas-border bg-canvas-card px-1 py-0.5 font-mono text-[10px] text-canvas-text-secondary">↑ / ↓ (±1)</kbd>
+            <kbd className="rounded border border-canvas-border bg-canvas-card px-1 py-0.5 font-mono text-[10px] text-canvas-text-secondary">Shift + ↑ / ↓ (±10)</kbd>
+            <kbd className="rounded border border-canvas-border bg-canvas-card px-1 py-0.5 font-mono text-[10px] text-canvas-text-secondary">左右拖拽</kbd>
+            <kbd className="rounded border border-canvas-border bg-canvas-card px-1 py-0.5 font-mono text-[10px] text-canvas-text-secondary">滚轮微调</kbd>
+          </div>
+        </div>
+
+        {/* 视口预览节点 */}
+        <div className="mb-4 flex flex-col items-center justify-center rounded-lg border border-dashed border-canvas-border bg-canvas-card/60 p-6">
+          <div
+            className="flex items-center justify-center bg-gradient-to-tr from-brand to-indigo-500 font-mono text-xs font-bold text-white shadow-md transition-all duration-150"
+            style={{ width: clampedSize, height: clampedSize, borderRadius: dynamicRadius }}
+          >
+            {val}
+          </div>
+          <span className="mt-2.5 font-mono text-[11px] text-canvas-text-muted">
+            实时尺寸渲染: <strong className="text-canvas-text">{val} × {val} px</strong>
+          </span>
+        </div>
+
+        {/* 主控 Stepper */}
+        <div className="flex flex-col items-center gap-2">
+          <NumberStepper
+            value={val}
+            onChange={setVal}
+            min={4}
+            max={180}
+            step={1}
+            unit="px"
+            size="lg"
+            onScrubStateChange={setScrubbing}
+            aria-label="试验台尺寸控制"
+          />
+          <div className="flex items-center gap-2 text-[11px] text-canvas-text-muted">
+            <span className={`inline-block h-1.5 w-1.5 rounded-full ${scrubbing ? 'bg-brand animate-pulse' : 'bg-canvas-text-muted'}`} />
+            <span>{scrubbing ? '左右滑动微调中… (按住 Shift 加速)' : '直接点击数字编辑，或左右拖拽、滚轮、上下按键调节'}</span>
+            <button
+              type="button"
+              onClick={() => setVal(40)}
+              className="ml-2 text-xs text-brand hover:underline"
+            >
+              重置 40px
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 尺寸规格与状态 */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="flex flex-col justify-between gap-3 rounded-lg border border-canvas-border bg-canvas-card p-3">
+          <div>
+            <div className="text-xs font-semibold text-canvas-text">紧凑型 · Mini 26px</div>
+            <div className="mt-0.5 text-[11px] text-canvas-text-muted">密集浮动弹窗、节点内部</div>
+          </div>
+          <div className="flex items-center justify-center py-1">
+            <NumberStepper value={24} onChange={() => {}} min={0} max={100} unit="px" size="sm" />
+          </div>
+        </div>
+
+        <div className="flex flex-col justify-between gap-3 rounded-lg border border-canvas-border bg-canvas-card p-3">
+          <div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-semibold text-canvas-text">标准型 · 32px</span>
+              <span className="rounded bg-brand/15 px-1 py-0.2 text-[9px] font-bold text-brand">默认</span>
+            </div>
+            <div className="mt-0.5 text-[11px] text-canvas-text-muted">侧边属性栏、坐标调节首选</div>
+          </div>
+          <div className="flex items-center justify-center py-1">
+            <NumberStepper value={40} onChange={() => {}} min={0} max={100} unit="px" size="md" />
+          </div>
+        </div>
+
+        <div className="flex flex-col justify-between gap-3 rounded-lg border border-canvas-border bg-canvas-card p-3">
+          <div>
+            <div className="text-xs font-semibold text-canvas-text">突出型 · Prominent 40px</div>
+            <div className="mt-0.5 text-[11px] text-canvas-text-muted">全局画布缩放、主工具栏</div>
+          </div>
+          <div className="flex items-center justify-center py-1">
+            <NumberStepper value={100} onChange={() => {}} min={0} max={200} unit="%" size="lg" />
+          </div>
+        </div>
+
+        <div className="flex flex-col justify-between gap-3 rounded-lg border border-canvas-border bg-canvas-card p-3">
+          <div>
+            <div className="text-xs font-semibold text-canvas-text">只读锁定 · Disabled</div>
+            <div className="mt-0.5 text-[11px] text-canvas-text-muted">图层锁定或计算只读项</div>
+          </div>
+          <div className="flex items-center justify-center py-1">
+            <NumberStepper value={40} onChange={() => {}} unit="px" disabled />
+          </div>
+        </div>
+      </div>
+
+      {/* 工程场景与多单位 */}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="flex flex-col justify-between rounded-lg border border-canvas-border bg-canvas-card p-3">
+          <div className="mb-2 text-xs font-semibold text-canvas-text">双向滑块联动 (Slider Sync)</div>
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-xs text-canvas-text-secondary">不透明度</span>
+            <NumberStepper value={opacity} onChange={setOpacity} min={0} max={100} unit="%" size="sm" />
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            value={opacity}
+            onChange={(e) => setOpacity(Number(e.target.value))}
+            className="mt-3 h-1.5 w-full cursor-pointer appearance-none rounded-lg bg-canvas-border accent-brand"
+          />
+        </div>
+
+        <div className="rounded-lg border border-canvas-border bg-canvas-card p-3">
+          <div className="mb-2 text-xs font-semibold text-canvas-text">物理工程单位适配</div>
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between gap-2 rounded-md bg-canvas-surface/60 px-2.5 py-1.5">
+              <div>
+                <span className="text-xs font-medium text-canvas-text">旋转角度</span>
+                <span className="ml-1.5 text-[10px] text-canvas-text-muted">0° ~ 360°</span>
+              </div>
+              <NumberStepper value={angle} onChange={setAngle} min={0} max={360} unit="deg" size="sm" />
+            </div>
+
+            <div className="flex items-center justify-between gap-2 rounded-md bg-canvas-surface/60 px-2.5 py-1.5">
+              <div>
+                <span className="text-xs font-medium text-canvas-text">动画过渡</span>
+                <span className="ml-1.5 text-[10px] text-canvas-text-muted">步进 50ms</span>
+              </div>
+              <NumberStepper value={duration} onChange={setDuration} min={50} max={2000} step={50} unit="ms" size="sm" />
+            </div>
+
+            <div className="flex items-center justify-between gap-2 rounded-md bg-canvas-surface/60 px-2.5 py-1.5">
+              <div>
+                <span className="text-xs font-medium text-canvas-text">缩放倍率</span>
+                <span className="ml-1.5 text-[10px] text-canvas-text-muted">浮点 0.1x</span>
+              </div>
+              <NumberStepper value={scale} onChange={setScale} min={0.1} max={10} step={0.1} precision={1} unit="x" size="sm" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -952,7 +1124,7 @@ function LayoutSection() {
       title="布局辅助"
       desc="只把跨模块反复出现的排布收进类里；业务自己的布局仍然优先用 Tailwind。"
     >
-      <Demo label="行与栈" code=".ui-row（--tight / --loose / --between / --baseline）/ .ui-stack（--tight / --loose）">
+      <Demo label="行与栈" code=".ui-row（--tight / --loose / --between / --baseline）/ .ui-stack（--tight / --loose / --pad-sm / --pad）">
         <div className="ui-stack">
           <div className="ui-row">
             <span className="ui-badge">默认 8px</span>
@@ -965,6 +1137,28 @@ function LayoutSection() {
           <div className="ui-row ui-row--between">
             <span className="text-xs text-canvas-text-secondary">两端对齐</span>
             <span className="ui-badge ui-badge--primary">右侧</span>
+          </div>
+        </div>
+      </Demo>
+
+      <Demo
+        label="默认内边距"
+        code="默认使用 p-2（8px · 紧凑/列表/子卡片）或 p-3（12px · 默认容器/卡片/弹窗）；避免使用过大 padding"
+      >
+        <div className="ui-row ui-row--loose">
+          <div className="ui-stack ui-stack--tight">
+            <div className="rounded-md border border-canvas-border bg-canvas-surface p-2 text-center text-xs">
+              <span className="font-mono font-medium text-canvas-text">p-2</span>
+              <span className="ml-1 text-[11px] text-canvas-text-muted">8px · 紧凑 / 子卡片 / 列表项</span>
+            </div>
+            <span className="text-[10px] text-canvas-text-muted">.ui-pad-sm / p-2</span>
+          </div>
+          <div className="ui-stack ui-stack--tight">
+            <div className="rounded-md border border-canvas-border bg-canvas-surface p-3 text-center text-xs">
+              <span className="font-mono font-medium text-canvas-text">p-3</span>
+              <span className="ml-1 text-[11px] text-canvas-text-muted">12px · 默认容器 / 面板 / 卡片</span>
+            </div>
+            <span className="text-[10px] text-canvas-text-muted">.ui-pad / p-3（推荐默认）</span>
           </div>
         </div>
       </Demo>
