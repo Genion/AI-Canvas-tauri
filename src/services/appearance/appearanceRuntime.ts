@@ -15,6 +15,18 @@ export function resolveAppearanceTheme(theme: AppearanceTheme): AppearanceTheme 
   return normalized;
 }
 
+export function isTransparentColor(val: string | undefined | null): boolean {
+  if (!val) return false;
+  const lower = val.trim().toLowerCase();
+  return (
+    lower === 'transparent' ||
+    lower === 'none' ||
+    lower === '无' ||
+    lower === 'rgba(0, 0, 0, 0)' ||
+    lower === 'rgba(0,0,0,0)'
+  );
+}
+
 function setVar(root: HTMLElement, name: string, value: string | number): void {
   root.style.setProperty(name, String(value));
 }
@@ -109,11 +121,11 @@ export function applyAppearanceTheme(theme: AppearanceTheme | null | undefined):
   const resolvedTheme = resolveAppearanceTheme(theme);
   const { ui, node, edge, handle } = resolvedTheme;
   // 背景、面板、卡片和边框保持预设原值；主题色只用于选中态和强调控件。
-  const themeBackground = ui.background;
-  const themeSurface = ui.surface;
-  const themeCard = ui.card;
-  const themeHover = ui.hover;
-  const themeBorder = ui.border;
+  const themeBackground = isTransparentColor(ui.background) ? 'transparent' : ui.background;
+  const themeSurface = isTransparentColor(ui.surface) ? 'transparent' : ui.surface;
+  const themeCard = isTransparentColor(ui.card) ? 'transparent' : ui.card;
+  const themeHover = isTransparentColor(ui.hover) ? 'transparent' : ui.hover;
+  const themeBorder = isTransparentColor(ui.border) ? 'transparent' : ui.border;
   // 未改动的太阳系预设保留旧版玻璃层次；用户改动任一界面底色后，组件直接呈现配置值。
   const solarGlass = resolvedTheme.id === 'solar-system'
     && themeSurface.toLowerCase() === '#14141c'
@@ -139,9 +151,9 @@ export function applyAppearanceTheme(theme: AppearanceTheme | null | undefined):
     '--theme-text-secondary': ui.textSecondary,
     '--theme-text-muted': ui.textMuted,
     '--theme-input-bg': themeCard,
-    '--theme-border-subtle': `color-mix(in srgb, ${themeBorder} 58%, transparent)`,
-    '--separator-color': `color-mix(in srgb, ${themeBorder} 72%, transparent)`,
-    '--border-subtle': `color-mix(in srgb, ${themeBorder} 58%, transparent)`,
+    '--theme-border-subtle': themeBorder === 'transparent' ? 'transparent' : `color-mix(in srgb, ${themeBorder} 58%, transparent)`,
+    '--separator-color': themeBorder === 'transparent' ? 'transparent' : `color-mix(in srgb, ${themeBorder} 72%, transparent)`,
+    '--border-subtle': themeBorder === 'transparent' ? 'transparent' : `color-mix(in srgb, ${themeBorder} 58%, transparent)`,
     '--border-secondary': themeBorder,
     '--brand': ui.accent,
     '--brand-light': ui.accentStrong,
@@ -160,23 +172,26 @@ export function applyAppearanceTheme(theme: AppearanceTheme | null | undefined):
     '--danger-light': ui.danger,
     '--info': ui.info,
     '--info-light': ui.info,
-    '--canvas-edge': edge.color,
-    '--appearance-edge-color': edge.color,
-    '--appearance-edge-selected': edge.selectedColor,
-    '--appearance-edge-flow': edge.flowColor,
-    '--appearance-edge-preview': edge.previewColor,
+    '--canvas-edge': isTransparentColor(edge.color) ? 'transparent' : edge.color,
+    '--appearance-edge-color': isTransparentColor(edge.color) ? 'transparent' : edge.color,
+    '--appearance-edge-selected': isTransparentColor(edge.selectedColor) ? 'transparent' : edge.selectedColor,
+    '--appearance-edge-flow': isTransparentColor(edge.flowColor) ? 'transparent' : edge.flowColor,
+    '--appearance-edge-preview': isTransparentColor(edge.previewColor) ? 'transparent' : edge.previewColor,
     '--appearance-edge-width': edge.width,
     '--appearance-edge-selected-width': edge.selectedWidth,
-    '--appearance-node-background': `color-mix(in srgb, ${node.background} ${Math.round(node.backgroundOpacity * 100)}%, transparent)`,
-    '--appearance-node-border': node.border,
-    '--appearance-node-header': node.headerBackground,
+    '--appearance-node-background': isTransparentColor(node.background)
+      ? 'transparent'
+      : `color-mix(in srgb, ${node.background} ${Math.round(node.backgroundOpacity * 100)}%, transparent)`,
+    '--appearance-node-border': isTransparentColor(node.border) ? 'transparent' : node.border,
+    '--appearance-node-header': isTransparentColor(node.headerBackground) ? 'transparent' : node.headerBackground,
     '--appearance-node-text': node.text,
-    '--appearance-node-selected-border': node.selectedBorder,
-    '--appearance-node-selected-glow': node.selectedGlow,
+    '--appearance-node-selected-border': isTransparentColor(node.selectedBorder) ? 'transparent' : node.selectedBorder,
+    '--appearance-node-selected-glow': isTransparentColor(node.selectedGlow) ? 'transparent' : node.selectedGlow,
     '--appearance-node-radius': `${node.radius}px`,
+    '--appearance-node-radius-inner': `${Math.max(0, node.radius - 4)}px`,
     '--appearance-node-border-width': `${node.borderWidth}px`,
-    '--appearance-handle-color': handle.color,
-    '--appearance-handle-hover': handle.hoverColor,
+    '--appearance-handle-color': isTransparentColor(handle.color) ? 'transparent' : handle.color,
+    '--appearance-handle-hover': isTransparentColor(handle.hoverColor) ? 'transparent' : handle.hoverColor,
     '--appearance-handle-size': `${handle.size}px`,
     '--appearance-handle-opacity': handle.opacity,
     '--appearance-radius': `${ui.radius}px`,
@@ -197,7 +212,7 @@ export function applyAppearanceTheme(theme: AppearanceTheme | null | undefined):
     '--glass-blur-lg': `${Math.round(ui.glassBlur * 1.5)}px`,
     '--scrollbar-thumb': ui.scrollbar,
     '--scrollbar-thumb-hover': ui.scrollbarHover,
-    '--canvas-grid-color': resolvedTheme.canvas.gridColor,
+    '--canvas-grid-color': isTransparentColor(resolvedTheme.canvas.gridColor) ? 'transparent' : resolvedTheme.canvas.gridColor,
     '--canvas-grid-size': `${resolvedTheme.canvas.gridSize}px`,
     '--floating-surface-bg': glassSurface,
   };

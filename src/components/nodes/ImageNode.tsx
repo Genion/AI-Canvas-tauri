@@ -871,7 +871,7 @@ function AIImageNode({ id, data, selected }: { id: string; data: BaseNodeData; s
               <div className="image-preview-container">
                 {shouldSuspendCanvasPreview && (
                   <div
-                    className="image-preview-suspended pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 overflow-hidden rounded-xl bg-gradient-to-br from-canvas-card via-canvas-bg to-canvas-surface text-canvas-text-muted"
+                    className="image-preview-suspended pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 overflow-hidden [border-radius:inherit] bg-gradient-to-br from-canvas-card via-canvas-bg to-canvas-surface text-canvas-text-muted"
                     aria-hidden="true"
                   >
                     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.25" opacity="0.42">

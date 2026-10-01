@@ -1,5 +1,4 @@
 import type { AppearanceTheme, AppearanceMode } from '../../types';
-import libTvThemeJson from './libtv-theme.json?raw';
 
 const DARK_UI = {
   background: '#0a0a0f',
@@ -27,22 +26,22 @@ const DARK_UI = {
 } as const;
 
 const LIGHT_UI = {
-  background: '#eef2f7',
-  surface: '#ffffff',
-  card: '#f7f9fc',
-  hover: '#e5eaf2',
-  border: '#c7d0df',
-  text: '#252a38',
-  textSecondary: '#4f5a6e',
-  textMuted: '#657084',
-  accent: '#5368d6',
-  accentStrong: '#4053c0',
-  accentSoft: '#3d50b8',
-  focus: '#5368d6',
-  success: '#23937a',
-  warning: '#c06e33',
-  danger: '#ce4f62',
-  info: '#3b7ec4',
+  background: '#F4F6FB',
+  surface: '#FFFFFF',
+  card: '#F8FAFD',
+  hover: '#EEF1F8',
+  border: '#E4E8F2',
+  text: '#33364D',
+  textSecondary: '#6E7488',
+  textMuted: '#767D92',
+  accent: '#7280E4',
+  accentStrong: '#5A69D4',
+  accentSoft: '#4F5ECB',
+  focus: '#7280E4',
+  success: '#23937A',
+  warning: '#C06E33',
+  danger: '#CE4F62',
+  info: '#3B7EC4',
   radius: 8,
   shadowOpacity: 0.18,
   glassOpacity: 0.7,
@@ -67,27 +66,26 @@ function completeTheme(
     mode,
     ui: { ...ui },
     canvas,
-    // These values intentionally match the current node defaults. Preset backgrounds
-    // do not introduce a second node/edge/handle visual language.
+    // These values intentionally match the pre-appearance baseline node defaults.
     node: {
       background: ui.surface,
       backgroundOpacity: 0.94,
       border: ui.border,
-      borderWidth: 1,
-      radius: ui.radius,
+      borderWidth: 0,
+      radius: 12,
       shadow: `0 12px 32px color-mix(in srgb, #000 42%, transparent)`,
       headerBackground: ui.card,
       selectedBorder: ui.accent,
-      selectedGlow: `color-mix(in srgb, ${ui.accent} 24%, transparent)`,
+      selectedGlow: `color-mix(in srgb, ${ui.accent} 20%, transparent)`,
       text: ui.text,
       handleColor: ui.accent,
     },
     edge: {
-      color: mode === 'light' ? '#71809a' : '#33334a',
+      color: mode === 'light' ? '#B1B1B7' : '#33334a',
       width: 1.5,
       selectedColor: ui.accent,
       selectedWidth: 2.5,
-      flowColor: ui.accentSoft,
+      flowColor: mode === 'light' ? '#5A69D4' : '#818cf8',
       previewColor: ui.accent,
       animationEnabled: true,
     },
@@ -104,25 +102,16 @@ function completeTheme(
     updatedAt: now,
   };
 }
-function createLibTvDarkTheme(): AppearanceTheme {
-  const imported = JSON.parse(libTvThemeJson) as AppearanceTheme;
-  return {
-    ...imported,
-    id: 'standard-dark',
-    name: '深色',
-    builtin: true,
-    mode: 'dark',
-    createdAt: 0,
-    updatedAt: 0,
-  };
-}
 
 export function createBuiltinAppearanceThemes(): AppearanceTheme[] {
   return [
-    createLibTvDarkTheme(),
+    completeTheme('standard-dark', '深色', 'dark', DARK_UI, {
+      kind: 'color', color: '#0a0a0f', imageFit: 'cover', imagePosition: 'center',
+      imageOpacity: 1, gridVisible: true, gridColor: '#585868', gridSize: 8,
+    }),
     completeTheme('standard-light', '浅色', 'light', LIGHT_UI, {
-      kind: 'color', color: '#eef2f7', imageFit: 'cover', imagePosition: 'center',
-      imageOpacity: 1, gridVisible: true, gridColor: '#a7b1c0', gridSize: 8,
+      kind: 'color', color: '#F4F6FB', imageFit: 'cover', imagePosition: 'center',
+      imageOpacity: 1, gridVisible: true, gridColor: '#B1B1B7', gridSize: 8,
     }),
     completeTheme('solar-system', '太阳系', 'dark', DARK_UI, {
       kind: 'solar-system', color: '#000000', imageFit: 'cover', imagePosition: 'center',
@@ -151,6 +140,43 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function cleanLegacyLibTvTokens(
+  source: Record<string, unknown>,
+  base: AppearanceTheme,
+): {
+  ui: Record<string, unknown>;
+  canvas: Record<string, unknown>;
+  node: Record<string, unknown>;
+  edge: Record<string, unknown>;
+} {
+  const ui = isRecord(source.ui) ? { ...source.ui } : {};
+  const canvas = isRecord(source.canvas) ? { ...source.canvas } : {};
+  const node = isRecord(source.node) ? { ...source.node } : {};
+  const edge = isRecord(source.edge) ? { ...source.edge } : {};
+
+  // 清洗旧版 LibTV 脏数据残留色值，统一恢复至项目原生深色基准
+  if (ui.accent === '#ffffff') ui.accent = base.ui.accent;
+  if (ui.accentStrong === '#ffffff') ui.accentStrong = base.ui.accentStrong;
+  if (ui.accentSoft === '#ffffff') ui.accentSoft = base.ui.accentSoft;
+  if (ui.focus === '#ffffff') ui.focus = base.ui.focus;
+  if (ui.surface === '#141414') ui.surface = base.ui.surface;
+  if (ui.card === '#171717') ui.card = base.ui.card;
+
+  if (canvas.color === '#141414' && source.builtin) canvas.color = base.canvas.color;
+  if (canvas.gridColor === '#474747') canvas.gridColor = base.canvas.gridColor;
+
+  if (node.background === '#262626') node.background = base.node.background;
+  if (node.border === '#363636') node.border = base.node.border;
+  if (node.selectedBorder === '#a8a8a8') node.selectedBorder = base.node.selectedBorder;
+  if (node.radius === 8 && source.builtin) node.radius = base.node.radius;
+
+  if (edge.color === '#86909C') edge.color = base.edge.color;
+  if (edge.flowColor === '#6bb6fb') edge.flowColor = base.edge.flowColor;
+  if (edge.previewColor === '#86909C') edge.previewColor = base.edge.previewColor;
+
+  return { ui, canvas, node, edge };
+}
+
 /**
  * 补齐旧版或外部导入的半成品快照。持久化数据是不可信输入，运行时不能只依赖 TS 类型。
  */
@@ -159,10 +185,11 @@ export function normalizeAppearanceTheme(input: unknown): AppearanceTheme {
   const mode = source.mode === 'light' || source.mode === 'system' ? source.mode : 'dark';
   const requestedId = typeof source.id === 'string' ? source.id : '';
   const base = getBuiltinAppearanceTheme(requestedId, mode === 'light' ? 'light' : 'dark');
-  const ui = isRecord(source.ui) ? source.ui : {};
-  const canvas = isRecord(source.canvas) ? source.canvas : {};
-  const node = isRecord(source.node) ? source.node : {};
-  const edge = isRecord(source.edge) ? source.edge : {};
+  const cleaned = cleanLegacyLibTvTokens(source, base);
+  const ui = cleaned.ui;
+  const canvas = cleaned.canvas;
+  const node = cleaned.node;
+  const edge = cleaned.edge;
   const handle = isRecord(source.handle) ? source.handle : {};
   const motion = isRecord(source.motion) ? source.motion : {};
   return {

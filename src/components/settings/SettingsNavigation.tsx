@@ -21,11 +21,11 @@ const SETTINGS_TABS: { id: SettingsTab; label: string }[] = [
 ];
 
 function SettingsTabIcon({ tab }: { tab: SettingsTab }) {
-  if (tab === 'mcp') return <Icon icon="lucide:plug-zap" width="14" height="14" />;
-  if (tab === 'plugins') return <Icon icon="lucide:blocks" width="14" height="14" />;
-  if (tab === 'appearance') return <Icon icon="lucide:palette" width="14" height="14" />;
+  if (tab === 'mcp') return <Icon icon="lucide:plug-zap" width="18" height="18" />;
+  if (tab === 'plugins') return <Icon icon="lucide:blocks" width="18" height="18" />;
+  if (tab === 'appearance') return <Icon icon="lucide:palette" width="18" height="18" />;
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       {tab === 'storage' && (
         <>
           <ellipse cx="12" cy="5" rx="9" ry="3" />
@@ -82,19 +82,34 @@ export default function SettingsNavigation({
 }) {
   const t = useT();
   return (
-    <nav className="w-44 border-r border-canvas-border p-3 space-y-0.5 shrink-0">
-      {SETTINGS_TABS.map(({ id, label }) => (
-        <AnimatedButton
-          key={id}
-          onClick={() => onSelect(id)}
-          className={`settings-navigation-tab w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-left transition-colors ${
-            activeTab === id ? 'settings-navigation-tab--active' : ''
-          }`}
-        >
-          <SettingsTabIcon tab={id} />
-          {t(label)}
-        </AnimatedButton>
-      ))}
-    </nav>
+    <aside className="w-60 settings-sidebar p-3 flex flex-col justify-between shrink-0 select-none">
+      <nav aria-label={t('设置菜单')} className="space-y-1">
+        {SETTINGS_TABS.map(({ id, label }) => {
+          const isActive = activeTab === id;
+          return (
+            <AnimatedButton
+              key={id}
+              onClick={() => onSelect(id)}
+              className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-[14px] font-medium transition-all group ${
+                isActive ? 'settings-sidebar-btn--active' : 'settings-sidebar-btn'
+              }`}
+            >
+              <span className="w-[18px] h-[18px] flex items-center justify-center shrink-0 settings-sidebar-icon">
+                <SettingsTabIcon tab={id} />
+              </span>
+              <span>{t(label)}</span>
+            </AnimatedButton>
+          );
+        })}
+      </nav>
+
+      <div className="settings-sidebar-footer px-3 py-2 text-[11px] flex items-center justify-between pt-3">
+        <span>v0.9.21 Pro</span>
+        <span className="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-medium">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+          {t('运行正常')}
+        </span>
+      </div>
+    </aside>
   );
 }

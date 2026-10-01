@@ -333,15 +333,16 @@ export default function SettingsPanel() {
       isOpen={settingsOpen}
       onClose={() => setSettingsOpen(false)}
       ariaLabel={t('设置')}
-      className="w-[640px] h-[80vh]"
+      className="w-[min(900px,90vw)] h-[90vh] max-h-[940px] rounded-3xl settings-modal-shell border ring-1 ring-black/5 shadow-2xl"
       closeOnBackdrop={false}
     >
         {/* Header */}
-        <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-canvas-border">
-          <h2 className="text-base font-semibold text-canvas-text">{t('设置')}</h2>
+        <div className="flex items-center justify-between px-6 h-14 bg-canvas-surface border-b border-canvas-border settings-modal-header select-none shrink-0 z-20">
+          <h2 className="text-[17px] font-semibold text-canvas-text settings-modal-header-title tracking-tight">{t('设置')}</h2>
           <PopupCloseButton
             ariaLabel={t('关闭设置')}
             onClick={() => setSettingsOpen(false)}
+            className="settings-modal-close-btn rounded-full"
           />
         </div>
         {(saveError || !configHydrated || unreadSecretCount > 0 || (activeTab !== 'appearance' && saveStatus !== 'idle' && saveStatus !== 'saved')) && (
@@ -363,7 +364,7 @@ export default function SettingsPanel() {
           <SettingsNavigation activeTab={activeTab} onSelect={selectTab} />
 
           {/* Content */}
-          <div className="settings-content flex-1 overflow-y-auto overflow-x-hidden p-3">
+          <div className={`settings-content flex-1 overflow-y-auto overflow-x-hidden ${activeTab === 'appearance' ? 'p-0' : 'p-4 sm:p-6'}`}>
             {activeTab === 'api' && (
               <ApiKeySettings onClose={() => setSettingsOpen(false)} />
             )}

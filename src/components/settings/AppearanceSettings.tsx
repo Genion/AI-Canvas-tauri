@@ -3,13 +3,14 @@ import { Icon } from '@iconify/react';
 import { useAppStore } from '../../store/useAppStore';
 import type { AppearanceTheme } from '../../types';
 import { getBuiltinAppearanceTheme, normalizeAppearanceTheme } from '../../services/appearance/appearanceDefaults';
-import { resolveAppearanceMode, resolveAppearanceTheme } from '../../services/appearance/appearanceRuntime';
+import { isTransparentColor, resolveAppearanceMode, resolveAppearanceTheme } from '../../services/appearance/appearanceRuntime';
 import { exportAppearanceTheme, importAppearanceTheme } from '../../services/appearance/appearanceThemeService';
 import { saveBinaryToLocalFile } from '../../services/fileService';
 import { isTauriEnv } from '../../services/fs/core';
 import { registerSettingsProducer } from '../../services/configPersistenceQueue';
 import AnimatedButton from '../shared/AnimatedButton';
 import ModalOverlay from '../shared/ModalOverlay';
+import Select from '../shared/Select';
 import { useT } from '../../i18n';
 
 function readFileAsDataUrl(file: File): Promise<string> {
@@ -20,127 +21,179 @@ function readFileAsDataUrl(file: File): Promise<string> {
     reader.readAsDataURL(file);
   });
 }
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <label className="flex items-center justify-between gap-3 text-xs text-canvas-text-secondary">
-      <span className="shrink-0">{label}</span>
-      <span className="flex min-w-0 items-center gap-2">{children}</span>
-    </label>
-  );
-}
 
-const THEME_COLOR_SWATCHES = [
-  '#5368d6', '#2563eb', '#0f766e', '#b45309', '#be4b78', '#7c3aed',
+const DARK_THEME_COLOR_SWATCHES = [
+  '#6366f1', // Indigo (Brand default)
+  '#22c55e', // Emerald (Image)
+  '#3b82f6', // Blue (Video)
+  '#f97316', // Orange (Audio)
+  '#06b6d4', // Cyan (Panorama)
+  '#a855f7', // Purple (Markdown)
+  '#f59e0b', // Amber (Workflow chip)
+  '#ec4899', // Pink (Track color)
 ] as const;
 
-function ColorSwatches({ colors, value, onChange, label }: {
+const LIGHT_THEME_COLOR_SWATCHES = [
+  '#7280E4', // Macaron Indigo
+  '#5368d6', // Brand
+  '#23937A', // Macaron Green
+  '#3B7EC4', // Macaron Blue
+  '#C06E33', // Macaron Orange
+  '#D9943B', // Macaron Amber
+  '#9867D8', // Macaron Purple
+  '#CE4F62', // Macaron Red
+] as const;
+
+function imagePreviewStyle(imageDataUrl: string | undefined, size: CSSProperties['backgroundSize'] = 'cover'): CSSProperties | undefined {
+  return imageDataUrl
+    ? { backgroundImage: `url(${imageDataUrl})`, backgroundPosition: 'center', backgroundSize: size === 'fill' ? '100% 100%' : size }
+    : undefined;
+}
+
+function ColorCardInput({
+  label,
+  value,
+  onChange,
+  allowNone = true,
+  fallbackColor = '#6366f1',
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  allowNone?: boolean;
+  fallbackColor?: string;
+}) {
+  const isNone = isTransparentColor(value);
+  const safeHex = /^#[0-9a-f]{6}$/i.test(value) ? value : fallbackColor;
+
+  return (
+    <div className="p-3 settings-sub-card rounded-xl flex items-center justify-between transition-colors">
+      <span className="text-xs font-semibold text-canvas-text">{label}</span>
+      <div className="flex items-center space-x-1.5 settings-sub-card-inner px-2 py-1.5 rounded-lg shadow-2xs">
+        <label
+          className="relative w-6 h-5 rounded cursor-pointer block border border-black/10 shrink-0 overflow-hidden shadow-2xs"
+          style={
+            isNone
+              ? {
+                  background:
+                    'linear-gradient(to top right, transparent calc(50% - 1px), #ef4444 calc(50% - 1px), #ef4444 calc(50% + 1px), transparent calc(50% + 1px)), #ffffff',
+                }
+              : { backgroundColor: safeHex }
+          }
+          title={isNone ? '无颜色（点击选择颜色）' : '点击选择颜色'}
+        >
+          <input
+            className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+            type="color"
+            value={safeHex}
+            onChange={(e) => onChange(e.target.value)}
+          />
+        </label>
+        <input
+          className={`w-16 text-xs font-medium bg-transparent border-none p-0 focus:ring-0 uppercase focus:outline-none ${
+            isNone ? 'text-canvas-text-muted font-sans' : 'text-canvas-text font-mono'
+          }`}
+          type="text"
+          value={isNone ? '无' : value}
+          onChange={(e) => {
+            const raw = e.target.value;
+            if (isTransparentColor(raw) || raw.trim() === '') {
+              onChange('transparent');
+            } else if (/^#?[0-9a-f]{6}$/i.test(raw.trim())) {
+              onChange(raw.trim().startsWith('#') ? raw.trim() : `#${raw.trim()}`);
+            } else {
+              onChange(raw);
+            }
+          }}
+          placeholder={isNone ? '无' : '#HEX'}
+          aria-label={`${label}颜色值`}
+        />
+        {allowNone && (
+          <button
+            type="button"
+            onClick={() => onChange(isNone ? safeHex : 'transparent')}
+            className={`text-[11px] px-1.5 py-0.5 rounded transition-all select-none ${
+              isNone
+                ? 'bg-brand/15 text-brand-light font-bold ring-1 ring-brand/30'
+                : 'text-canvas-text-muted hover:text-canvas-text hover:bg-canvas-hover'
+            }`}
+            title={isNone ? '当前已为无，点击恢复颜色' : '设为无'}
+          >
+            无
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function QuickSwatches({
+  colors,
+  value,
+  onChange,
+  title,
+}: {
   colors: readonly string[];
   value: string;
-  onChange: (value: string) => void;
-  label: string;
+  onChange: (val: string) => void;
+  title?: string;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-1.5" aria-label={`${label}常用颜色`}>
-      {colors.map((color) => (
-        <button
-          key={color}
-          type="button"
-          className={`h-6 w-6 rounded-md border transition-transform hover:scale-110 ${value.toLowerCase() === color.toLowerCase() ? 'border-canvas-text ring-2 ring-brand/30' : 'border-canvas-border'}`}
-          style={{ backgroundColor: color }}
-          aria-label={`${label} ${color}`}
-          title={color}
-          onClick={() => onChange(color)}
-        />
-      ))}
+    <div className="flex items-center space-x-3 pt-1" aria-label={title}>
+      {colors.map((color) => {
+        const isSelected = value.toLowerCase() === color.toLowerCase();
+        return (
+          <button
+            key={color}
+            type="button"
+            onClick={() => onChange(color)}
+            style={{ backgroundColor: color }}
+            className={`w-8 h-8 rounded-lg transition-transform ${
+              isSelected
+                ? 'ring-2 ring-brand ring-offset-2 ring-offset-canvas-card flex items-center justify-center text-white shadow-xs'
+                : 'hover:scale-105'
+            }`}
+            title={color}
+          >
+            {isSelected && (
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            )}
+          </button>
+        );
+      })}
     </div>
   );
 }
 
-function ColorField({ label, value, onChange, colors }: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  colors?: readonly string[];
+function SectionCard({
+  title,
+  description,
+  icon,
+  children,
+  dataPurpose,
+  className = '',
+}: {
+  title: string;
+  description: string;
+  icon: ReactNode;
+  children: ReactNode;
+  dataPurpose?: string;
+  className?: string;
 }) {
   return (
-    <div className="grid gap-1.5">
-      <Field label={label}>
-        <input type="color" value={/^#[0-9a-f]{6}$/i.test(value) ? value : '#5368d6'} onChange={(event) => onChange(event.target.value)} className="h-7 w-9 cursor-pointer rounded border border-canvas-border bg-transparent p-0.5" />
-        <input value={value} onChange={(event) => onChange(event.target.value)} className="ui-input w-28 text-xs" />
-      </Field>
-      {colors && <ColorSwatches colors={colors} value={value} onChange={onChange} label={label} />}
-    </div>
-  );
-}
-
-function CompactColorField({ label, value, onChange }: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label className="grid min-w-0 gap-1.5 rounded-xl border border-canvas-border/70 bg-canvas-card/50 px-3 py-2.5">
-      <span className="text-[11px] font-medium text-canvas-text-secondary">{label}</span>
-      <span className="flex min-w-0 items-center gap-2">
-        <input type="color" value={/^#[0-9a-f]{6}$/i.test(value) ? value : '#5368d6'} onChange={(event) => onChange(event.target.value)} className="h-7 w-9 shrink-0 cursor-pointer rounded border border-canvas-border bg-transparent p-0.5" />
-        <input value={value} onChange={(event) => onChange(event.target.value)} aria-label={`${label}颜色代码`} className="ui-input min-w-0 flex-1 text-xs" />
-      </span>
-    </label>
-  );
-}
-
-function RangeNumberField({ label, value, min, max, step = 1, onChange }: {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  step?: number;
-  onChange: (value: number) => void;
-}) {
-  return (
-    <label className="grid min-w-0 gap-2 rounded-xl border border-canvas-border/70 bg-canvas-card/50 px-3 py-2.5">
-      <span className="flex items-center justify-between gap-2 text-[11px] font-medium text-canvas-text-secondary">
-        <span>{label}</span>
-        <span className="flex shrink-0 items-center gap-1">
-        <input
-          type="number"
-          inputMode="decimal"
-          min={min}
-          max={max}
-          step={step}
-          value={value}
-          onChange={(event) => onChange(Number(event.target.value))}
-          className="ui-input w-16 text-xs"
-          aria-label={`${label}数值`}
-        />
-          <span className="text-xs text-canvas-text-muted">px</span>
-        </span>
-      </span>
-      <input type="range" min={min} max={max} step={step} value={value} onChange={(event) => onChange(Number(event.target.value))} aria-label={`${label}滑块`} className="w-full" />
-    </label>
-  );
-}
-
-const SECTION_ICONS: Record<string, string> = {
-  '外观预设': 'lucide:layers-3',
-  '主题模式': 'lucide:sun-moon',
-  '主题色': 'lucide:palette',
-  '画布': 'lucide:layout-dashboard',
-  '节点外观': 'lucide:box',
-  '连接线': 'lucide:route',
-  '连接手柄': 'lucide:mouse-pointer-2',
-};
-
-function EditorSection({ title, description, children }: { title: string; description: string; children: ReactNode }) {
-  return (
-    <section className="rounded-2xl border border-canvas-border bg-canvas-surface/80 p-4 shadow-sm">
-      <div className="mb-3 flex items-start gap-3">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand/10 text-brand">
-          <Icon icon={SECTION_ICONS[title] ?? 'lucide:sliders-horizontal'} width="16" height="16" />
-        </span>
-        <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-canvas-text">{title}</h3>
-          <p className="mt-0.5 text-[11px] leading-4 text-canvas-text-muted">{description}</p>
+    <section
+      className={`settings-section-card rounded-2xl p-5 shadow-xs transition-colors ${className}`}
+      data-purpose={dataPurpose}
+    >
+      <div className="flex items-center space-x-3 mb-4">
+        <div className="w-8 h-8 rounded-lg settings-section-icon-box flex items-center justify-center shrink-0">
+          {icon}
+        </div>
+        <div>
+          <h3 className="text-sm font-bold settings-section-title">{title}</h3>
+          <p className="text-xs settings-section-desc">{description}</p>
         </div>
       </div>
       {children}
@@ -150,41 +203,12 @@ function EditorSection({ title, description, children }: { title: string; descri
 
 function TrashIcon() {
   return (
-    <svg viewBox="0 0 1024 1024" width="15" height="15" fill="currentColor" aria-hidden="true">
+    <svg viewBox="0 0 1024 1024" width="14" height="14" fill="currentColor" aria-hidden="true">
       <path d="M757.934 1024H205.213c-37.08 0-70.971-31.966-70.971-68.162V323.102l67.245-31.593h557.249l67.243 31.593v632.736c0 36.196-30.971 68.162-68.045 68.162zM196.95 330.778v625.06c0 1.968 3.714 5.577 9.774 5.577h546.681c6.06 0 9.773-3.615 9.773-5.577v-625.06H196.95z" />
       <path d="M885.083 331.135H75.482c-37.077 0-67.24-27.443-67.24-61.172v-66.397c0-33.723 30.163-61.161 67.24-61.161h809.601c37.079 0 67.243 27.438 67.243 61.161v66.397c0 33.729-30.164 61.172-67.243 61.172zM71.073 268.228h817.832v-63.324H71.073v63.324z" />
       <path d="M633.102 201.67H332.368c-37.083 0-71.877-27.443-71.877-61.172V77.607c0-33.723 34.794-61.161 71.877-61.161h300.734c37.08 0 67.244 27.438 67.244 61.161v62.891c0 33.729-92.972 61.172-67.244 61.172zM638.024 140.295V79.427H323.2v60.868h314.824z" />
       <path d="M322.84 457.025h62.985v377.63H322.84zM449.015 457.025H512v377.63h-62.985zM574.832 457.025h62.985v377.63h-62.985z" />
     </svg>
-  );
-}
-
-function imagePreviewStyle(imageDataUrl: string | undefined, size: CSSProperties['backgroundSize'] = 'cover'): CSSProperties | undefined {
-  return imageDataUrl
-    ? { backgroundImage: `url(${imageDataUrl})`, backgroundPosition: 'center', backgroundSize: size === 'fill' ? '100% 100%' : size }
-    : undefined;
-}
-
-function ThemePreview({ theme }: { theme: AppearanceTheme }) {
-  const resolved = resolveAppearanceTheme(theme);
-  const canvasStyle = resolved.canvas.kind === 'color'
-    ? { backgroundColor: resolved.canvas.color }
-    : resolved.canvas.kind === 'image'
-      ? imagePreviewStyle(resolved.canvas.imageDataUrl)
-      : { backgroundColor: resolved.ui.background };
-  const gridColor = /^#[0-9a-f]{6}$/i.test(resolved.canvas.gridColor) ? resolved.canvas.gridColor : '#ffffff';
-  const handleStyle = resolved.handle.kind === 'image' && resolved.handle.imageDataUrl
-    ? imagePreviewStyle(resolved.handle.imageDataUrl, resolved.handle.imageFit)
-    : { backgroundColor: resolved.handle.color };
-  return (
-    <div className="relative h-20 overflow-hidden rounded-xl border border-canvas-border/70" style={canvasStyle}>
-      <div className="absolute inset-0 opacity-35" style={{ backgroundImage: `radial-gradient(circle, ${gridColor} 1px, transparent 1px)`, backgroundSize: '14px 14px' }} />
-      <div className="absolute bottom-2 left-3 right-3 flex items-end gap-2">
-        <span className="h-8 w-20 rounded-md border" style={{ backgroundColor: resolved.node.background, borderColor: resolved.node.border }} />
-        <span className="mb-2 h-5 flex-1 rounded-full" style={{ backgroundColor: resolved.ui.accent, opacity: 0.8 }} />
-        <span className="h-5 w-5 rounded-full border-2 bg-center bg-no-repeat" style={{ ...handleStyle, borderColor: resolved.handle.hoverColor }} />
-      </div>
-    </div>
   );
 }
 
@@ -200,18 +224,25 @@ export default function AppearanceSettings() {
   const renameTheme = useAppStore((state) => state.renameAppearanceTheme);
   const deleteTheme = useAppStore((state) => state.deleteAppearanceTheme);
   const showToast = useAppStore((state) => state.showToast);
+  const updateConfig = useAppStore((state) => state.updateConfig);
+  const saveConfig = useAppStore((state) => state.saveConfig);
+  const customCursor = config.customCursor !== false;
+
   const importRef = useRef<HTMLInputElement>(null);
   const canvasImageRef = useRef<HTMLInputElement>(null);
   const handleImageRef = useRef<HTMLInputElement>(null);
+
   const [draft, setDraft] = useState<AppearanceTheme | null>(null);
   const draftRef = useRef<AppearanceTheme | null>(null);
   const pendingSaveRef = useRef<Promise<void> | null>(null);
+
   const [presetName, setPresetName] = useState('');
   const [isNamingPreset, setIsNamingPreset] = useState(false);
   const [editingPresetId, setEditingPresetId] = useState<string | null>(null);
   const [editingPresetName, setEditingPresetName] = useState('');
   const [confirmation, setConfirmation] = useState<{ kind: 'delete' | 'overwrite'; theme: AppearanceTheme } | null>(null);
   const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+
   const persistedTheme = config.appearance
     ? normalizeAppearanceTheme(config.appearance)
     : themes.find((theme) => theme.id === config.theme)
@@ -220,6 +251,7 @@ export default function AppearanceSettings() {
   const active = draft ?? savedActive;
   const presetThemes = themes;
   const currentPreset = themes.find((theme) => theme.id === savedActive.id);
+
   useEffect(() => () => {
     if (useAppStore.getState().appearancePreview) clearPreview();
   }, [clearPreview]);
@@ -270,6 +302,14 @@ export default function AppearanceSettings() {
   }, [draft, flushDraft]);
 
   if (!active) return null;
+
+  const resolved = resolveAppearanceTheme(active);
+
+  const canvasStyle = resolved.canvas.kind === 'color'
+    ? { backgroundColor: resolved.canvas.color }
+    : resolved.canvas.kind === 'image'
+      ? imagePreviewStyle(resolved.canvas.imageDataUrl)
+      : { backgroundColor: resolved.ui.background };
 
   const updateMode = async (mode: AppearanceTheme['mode']) => {
     const resolvedMode = resolveAppearanceMode(mode);
@@ -394,211 +434,1189 @@ export default function AppearanceSettings() {
   };
 
   return (
-    <div className="space-y-7 pb-3">
-      <header className="border-b border-canvas-border/80 pb-5">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="flex min-w-0 items-start gap-3">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-canvas-border bg-canvas-card text-brand shadow-sm">
-              <Icon icon="lucide:sparkles" width="21" height="21" />
-            </span>
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <h3 className="text-lg font-semibold tracking-tight text-canvas-text">{t('外观')}</h3>
-                <span className="rounded-full border border-canvas-border bg-canvas-card px-2 py-0.5 text-[10px] text-canvas-text-muted">{active.name}</span>
+    <main className="flex-1 overflow-y-auto px-6 sm:px-6 py-6 space-y-6 settings-appearance-view" data-purpose="appearance-settings-view">
+      {/* Top Header & Primary Action Bar */}
+      <div className="space-y-4 pb-2">
+        <div className="flex items-start justify-between">
+          <div className="flex items-center space-x-3.5">
+            <div className="w-12 h-12 rounded-2xl settings-header-icon-box flex items-center justify-center shadow-xs">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
+                <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
+              </svg>
+            </div>
+            <div>
+              <div className="flex items-center space-x-2.5">
+                <h2 className="text-xl font-bold text-canvas-text tracking-tight">{t('外观')}</h2>
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold settings-theme-pill">
+                  {active.mode === 'dark' ? t('深色') : active.mode === 'light' ? t('浅色') : t('跟随系统')}
+                </span>
               </div>
-              <p className="mt-1 max-w-xl text-xs leading-5 text-canvas-text-muted">{t('外观预设包含画布、节点、连接线、连接手柄和所有页面配色')}</p>
+              <p className="text-xs text-canvas-text-muted mt-1">{t('外观预设包含画布、节点、连接线、连接手柄和所有页面配色')}</p>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className={`inline-flex w-36 shrink-0 items-center gap-1.5 whitespace-nowrap text-[11px] ${autoSaveStatus === 'error' ? 'text-danger' : 'text-canvas-text-muted'}`} role="status">
-              <span className={`h-1.5 w-1.5 rounded-full ${autoSaveStatus === 'saving' ? 'animate-pulse bg-brand' : autoSaveStatus === 'error' ? 'bg-danger' : 'bg-emerald-400'}`} />
-              {autoSaveStatus === 'saving' ? t('正在自动保存…') : autoSaveStatus === 'saved' ? t('已自动保存') : autoSaveStatus === 'error' ? t('自动保存失败，请重试') : t('自动保存')}
-            </span>
-            <AnimatedButton type="button" className="ui-btn ui-btn--secondary ui-btn--sm" onClick={() => importRef.current?.click()}><Icon icon="lucide:upload" />{t('导入')}</AnimatedButton>
-            <AnimatedButton type="button" className="ui-btn ui-btn--secondary ui-btn--sm" onClick={() => void exportTheme()}><Icon icon="lucide:download" />{t('导出')}</AnimatedButton>
-            {isNamingPreset && <input autoFocus value={presetName} onChange={(event) => setPresetName(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void savePreset(); if (event.key === 'Escape') { setPresetName(''); setIsNamingPreset(false); } }} placeholder={t('输入预设名称')} className="ui-input w-44 text-xs" />}
-            {isNamingPreset && <AnimatedButton type="button" className="ui-btn ui-btn--primary ui-btn--sm" onClick={() => void savePreset()}><Icon icon="lucide:check" />{t('确认保存')}</AnimatedButton>}
-            {isNamingPreset && <AnimatedButton type="button" className="ui-btn ui-btn--ghost ui-btn--sm" onClick={() => { setPresetName(''); setIsNamingPreset(false); }}>{t('取消')}</AnimatedButton>}
-            {!isNamingPreset && <AnimatedButton type="button" className="ui-btn ui-btn--secondary ui-btn--sm" onClick={() => { setPresetName(''); setIsNamingPreset(true); }}><Icon icon="lucide:save" />{t('保存预设')}</AnimatedButton>}
-            {!isNamingPreset && <AnimatedButton type="button" className="ui-btn ui-btn--secondary ui-btn--sm" disabled={!currentPreset || currentPreset.builtin} title={currentPreset?.builtin ? t('内置预设不可覆盖') : t('覆盖当前预设')} onClick={() => { if (currentPreset && !currentPreset.builtin) setConfirmation({ kind: 'overwrite', theme: currentPreset }); }}><Icon icon="lucide:refresh-cw" />{t('覆盖当前预设')}</AnimatedButton>}
-            <input ref={importRef} type="file" accept=".aicanvas-theme,.json,application/json" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) void importTheme(file); event.currentTarget.value = ''; }} />
-          </div>
-        </div>
-        <div className="mt-5 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-          <ThemePreview theme={active} />
-          <div className="flex items-center gap-2 sm:flex-col sm:items-end">
-            <span className="text-[10px] uppercase tracking-[0.16em] text-canvas-text-muted">{t('当前主题')}</span>
-            <span className="text-xs font-medium text-canvas-text">{active.mode === 'dark' ? t('深色') : active.mode === 'light' ? t('浅色') : t('跟随系统')}</span>
-          </div>
-        </div>
-      </header>
 
-      <EditorSection title={t('外观预设')} description={t('选择、保存或管理完整外观配置')}>
-        <div className="grid max-h-[18rem] grid-cols-1 gap-3 overflow-y-auto pr-1 sm:grid-cols-2">
-          {presetThemes.map((theme) => (
-            <div key={theme.id} className={`group rounded-xl border p-2 transition-colors ${theme.id === active.id ? 'border-brand/70 bg-brand/5 shadow-sm' : 'border-canvas-border bg-canvas-card/70 hover:border-canvas-hover'}`}>
-              <button type="button" onClick={() => { draftRef.current = null; setDraft(null); setAutoSaveStatus('idle'); void activate(theme); }} className="w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50">
-                <ThemePreview theme={theme} />
+          {/* Auto-save state indicator */}
+          <div className="flex items-center space-x-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-medium bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
+            <span className={`w-1.5 h-1.5 rounded-full ${autoSaveStatus === 'saving' ? 'animate-pulse bg-brand' : autoSaveStatus === 'error' ? 'bg-danger' : 'bg-emerald-500'}`} />
+            <span>
+              {autoSaveStatus === 'saving' ? t('正在自动保存…') : autoSaveStatus === 'saved' ? t('已自动保存') : autoSaveStatus === 'error' ? t('自动保存失败') : t('自动保存')}
+            </span>
+          </div>
+        </div>
+
+        {/* Action buttons group */}
+        <div className="flex items-center justify-between pt-1">
+          <div className="flex items-center space-x-2">
+            <button
+              type="button"
+              onClick={() => importRef.current?.click()}
+              className="inline-flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium rounded-lg settings-action-btn transition-all shadow-xs"
+            >
+              <svg className="w-3.5 h-3.5 text-canvas-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+              </svg>
+              <span>{t('导入')}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => void exportTheme()}
+              className="inline-flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium rounded-lg settings-action-btn transition-all shadow-xs"
+            >
+              <svg className="w-3.5 h-3.5 text-canvas-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+              </svg>
+              <span>{t('导出')}</span>
+            </button>
+
+            {isNamingPreset ? (
+              <div className="flex items-center space-x-1.5">
+                <input
+                  autoFocus
+                  value={presetName}
+                  onChange={(e) => setPresetName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void savePreset();
+                    if (e.key === 'Escape') {
+                      setPresetName('');
+                      setIsNamingPreset(false);
+                    }
+                  }}
+                  placeholder={t('输入预设名称')}
+                  className="px-2.5 py-1 text-xs bg-canvas-surface border border-brand rounded-lg text-canvas-text focus:outline-none w-36"
+                />
+                <button
+                  type="button"
+                  onClick={() => void savePreset()}
+                  className="px-2.5 py-1 text-xs font-medium text-white bg-brand rounded-lg hover:opacity-90"
+                >
+                  {t('确定')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPresetName('');
+                    setIsNamingPreset(false);
+                  }}
+                  className="px-2.5 py-1 text-xs font-medium text-canvas-text-muted hover:text-canvas-text"
+                >
+                  {t('取消')}
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsNamingPreset(true)}
+                className="inline-flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium rounded-lg settings-action-btn transition-all shadow-xs"
+              >
+                <svg className="w-3.5 h-3.5 text-canvas-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+                </svg>
+                <span>{t('保存预设')}</span>
               </button>
-              <div className="mt-2 space-y-2 px-1">
-                {editingPresetId === theme.id ? (
-                  <input autoFocus value={editingPresetName} onChange={(event) => setEditingPresetName(event.target.value)} onBlur={() => void renamePreset(theme)} onKeyDown={(event) => { if (event.key === 'Enter') void renamePreset(theme); if (event.key === 'Escape') setEditingPresetId(null); }} className="ui-input w-full py-1 text-xs" aria-label={t('预设名称')} />
-                ) : (
-                  theme.builtin ? (
-                    <span className="block w-full whitespace-normal break-all text-xs font-medium leading-4 text-canvas-text" title={theme.name}>{theme.name}</span>
-                  ) : (
-                    <button type="button" className="group/name flex w-full min-w-0 items-start gap-1 rounded px-1 py-0.5 text-left text-xs font-medium leading-4 text-canvas-text transition-colors hover:bg-brand/10 hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50" title={t('双击修改名称')} aria-label={`${theme.name}，${t('双击修改名称')}`} onDoubleClick={() => { setEditingPresetId(theme.id); setEditingPresetName(theme.name); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === 'F2') { event.preventDefault(); setEditingPresetId(theme.id); setEditingPresetName(theme.name); } }}>
-                      <span className="min-w-0 flex-1 whitespace-normal break-all group-hover/name:underline group-hover/name:underline-offset-2">{theme.name}</span>
-                      <Icon icon="lucide:pencil" width="11" height="11" className="shrink-0 opacity-0 transition-opacity group-hover/name:opacity-100 group-focus-visible/name:opacity-100" />
-                    </button>
-                  )
-                )}
-                <div className="flex min-h-6 items-center gap-2">
-                  {theme.id === active.id && <span className="rounded-full bg-brand/10 px-1.5 py-0.5 text-[9px] font-medium text-brand">{t('当前使用')}</span>}
-                  <span className="rounded-full border border-canvas-border px-1.5 py-0.5 text-[9px] text-canvas-text-muted">{theme.builtin ? t('内置') : t('自定义')}</span>
-                  {!theme.builtin && <button type="button" className="ui-icon-btn ui-icon-btn--sm ml-auto text-canvas-text-muted opacity-60 transition-opacity hover:text-danger group-hover:opacity-100" aria-label={t('删除预设')} data-tooltip={t('删除预设')} onClick={() => { setConfirmation({ kind: 'delete', theme }); }}><TrashIcon /></button>}
-                </div>
-              </div>
-            </div>
-          ))}
+            )}
+            <input
+              ref={importRef}
+              type="file"
+              accept=".aicanvas-theme,.json,application/json"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void importTheme(file);
+                e.currentTarget.value = '';
+              }}
+            />
+          </div>
+
+          <button
+            type="button"
+            disabled={!currentPreset || currentPreset.builtin}
+            title={currentPreset?.builtin ? t('内置预设不可覆盖') : t('覆盖当前预设')}
+            onClick={() => {
+              if (currentPreset && !currentPreset.builtin) {
+                setConfirmation({ kind: 'overwrite', theme: currentPreset });
+              }
+            }}
+            className="inline-flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium rounded-lg settings-overwrite-btn disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+          >
+            <svg className="w-3.5 h-3.5 text-canvas-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+            </svg>
+            <span>{t('覆盖当前预设')}</span>
+          </button>
         </div>
-      </EditorSection>
-
-      <div className="space-y-3">
-        <EditorSection title={t('主题模式')} description={t('选择整套界面的明暗基调')}>
-          <div className="grid grid-cols-3 gap-2 rounded-xl bg-canvas-card/70 p-1.5">
-            {(['dark', 'light', 'system'] as const).map((mode) => (
-              <AnimatedButton key={mode} type="button" className={`ui-btn ui-btn--secondary ui-btn--sm w-full ${active.mode === mode ? 'is-active' : ''}`} onClick={() => void updateMode(mode)}>
-                <Icon icon={mode === 'dark' ? 'lucide:moon' : mode === 'light' ? 'lucide:sun' : 'lucide:monitor'} width="14" height="14" />
-                {mode === 'dark' ? t('深色') : mode === 'light' ? t('浅色') : t('跟随系统')}
-              </AnimatedButton>
-            ))}
-          </div>
-        </EditorSection>
-
-        <EditorSection title={t('主题色')} description={t('统一按钮和选中态强调色')}>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="min-w-0 space-y-2">
-              <CompactColorField label={t('主题色')} value={active.ui.accent} onChange={(value) => update((theme) => ({ ...theme, ui: { ...theme.ui, accent: value, accentStrong: value, accentSoft: value, focus: value } }))} />
-              <ColorSwatches colors={THEME_COLOR_SWATCHES} value={active.ui.accent} onChange={(value) => update((theme) => ({ ...theme, ui: { ...theme.ui, accent: value, accentStrong: value, accentSoft: value, focus: value } }))} label={t('主题色')} />
-            </div>
-          </div>
-        </EditorSection>
-
-        <EditorSection title={t('界面底色')} description={t('分别配置页面、窗口和组件各层底色')}>
-          <div className="grid grid-cols-2 gap-2">
-            <CompactColorField label={t('页面背景')} value={active.ui.background} onChange={(value) => update((theme) => ({ ...theme, ui: { ...theme.ui, background: value } }))} />
-            <CompactColorField label={t('窗口背景')} value={active.ui.surface} onChange={(value) => update((theme) => ({ ...theme, ui: { ...theme.ui, surface: value } }))} />
-            <CompactColorField label={t('组件底色')} value={active.ui.card} onChange={(value) => update((theme) => ({ ...theme, ui: { ...theme.ui, card: value } }))} />
-            <CompactColorField label={t('组件悬浮底色')} value={active.ui.hover} onChange={(value) => update((theme) => ({ ...theme, ui: { ...theme.ui, hover: value } }))} />
-            <CompactColorField label={t('组件边框')} value={active.ui.border} onChange={(value) => update((theme) => ({ ...theme, ui: { ...theme.ui, border: value } }))} />
-          </div>
-        </EditorSection>
-
-        <EditorSection title={t('画布')} description={t('背景与网格')}>
-          <div className="space-y-3">
-            <Field label={t('背景类型')}><select className="ui-select w-40" value={active.canvas.kind} onChange={(event) => update((theme) => ({ ...theme, canvas: { ...theme.canvas, kind: event.target.value as AppearanceTheme['canvas']['kind'] } }))}><option value="color">{t('纯色')}</option><option value="image">{t('图片')}</option><option value="solar-system">{t('太阳系')}</option><option value="frosted-glass">{t('磨砂暖光')}</option></select></Field>
-            {active.canvas.kind === 'color' && <CompactColorField label={t('自定义颜色')} value={active.canvas.color} onChange={(value) => update((theme) => ({ ...theme, canvas: { ...theme.canvas, color: value, kind: 'color' } }))} />}
-            {active.canvas.kind === 'image' && (
-              <div className="flex flex-wrap items-center gap-3 rounded-xl border border-canvas-border/70 bg-canvas-card/50 p-3">
-                <div className="h-16 w-24 shrink-0 overflow-hidden rounded-md border border-canvas-border bg-canvas-surface bg-cover bg-center" style={imagePreviewStyle(active.canvas.imageDataUrl)}>
-                  {!active.canvas.imageDataUrl && <span className="flex h-full items-center justify-center px-2 text-center text-[10px] text-canvas-text-muted">{t('未上传图片')}</span>}
-                </div>
-                <div className="flex flex-wrap gap-2"><AnimatedButton type="button" className="ui-btn ui-btn--secondary ui-btn--sm" onClick={() => canvasImageRef.current?.click()}>{t('选择画布图片')}</AnimatedButton>{active.canvas.imageDataUrl && <AnimatedButton type="button" className="ui-btn ui-btn--ghost ui-btn--sm" onClick={() => update((theme) => ({ ...theme, canvas: { ...theme.canvas, imageDataUrl: undefined } }))}>{t('移除图片')}</AnimatedButton>}<input ref={canvasImageRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) void setCanvasImage(file); event.currentTarget.value = ''; }} /></div>
-              </div>
-            )}
-            {(active.canvas.kind === 'color' || active.canvas.kind === 'image') && (
-              <div className="grid grid-cols-2 items-center gap-3 rounded-xl border border-canvas-border/70 bg-canvas-card/50 p-3">
-                <Field label={t('网格')}><input type="checkbox" checked={active.canvas.gridVisible} onChange={(event) => update((theme) => ({ ...theme, canvas: { ...theme.canvas, gridVisible: event.target.checked } }))} /></Field>
-                <CompactColorField label={t('网格颜色')} value={active.canvas.gridColor} onChange={(value) => update((theme) => ({ ...theme, canvas: { ...theme.canvas, gridColor: value } }))} />
-              </div>
-            )}
-          </div>
-        </EditorSection>
-
-        <EditorSection title={t('节点外观')} description={t('所有节点共用同一套样式')}>
-          <div className="grid grid-cols-2 gap-2">
-            {([['background', '节点底色'], ['border', '节点边框'], ['selectedBorder', '选中边框']] as const).map(([key, label]) => <CompactColorField key={key} label={t(label)} value={active.node[key]} onChange={(value) => update((theme) => ({ ...theme, node: { ...theme.node, [key]: value } }))} />)}
-          </div>
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <RangeNumberField label={t('节点圆角')} min={0} max={24} value={active.node.radius} onChange={(value) => update((theme) => ({ ...theme, node: { ...theme.node, radius: Math.min(24, Math.max(0, value || 0)) } }))} />
-            <RangeNumberField label={t('节点边框宽度')} min={0} max={3} step={0.5} value={active.node.borderWidth} onChange={(value) => update((theme) => ({ ...theme, node: { ...theme.node, borderWidth: Math.min(3, Math.max(0, value || 0)) } }))} />
-          </div>
-        </EditorSection>
-
-        <EditorSection title={t('连接线')} description={t('普通连线、流光与拖拽预览')}>
-          <div className="grid grid-cols-2 gap-2">
-            <CompactColorField label={t('连接线颜色')} value={active.edge.color} onChange={(value) => update((theme) => ({ ...theme, edge: { ...theme.edge, color: value } }))} />
-            <CompactColorField label={t('高亮动画颜色')} value={active.edge.flowColor} onChange={(value) => update((theme) => ({ ...theme, edge: { ...theme.edge, flowColor: value } }))} />
-            <CompactColorField label={t('拖拽时连线颜色')} value={active.edge.previewColor} onChange={(value) => update((theme) => ({ ...theme, edge: { ...theme.edge, previewColor: value } }))} />
-            <label className="flex items-center justify-between gap-2 rounded-xl border border-canvas-border/70 bg-canvas-card/50 px-3 py-2.5 text-[11px] font-medium text-canvas-text-secondary"><span>{t('启用高亮动画')}</span><input type="checkbox" checked={active.edge.animationEnabled} onChange={(event) => update((theme) => ({ ...theme, edge: { ...theme.edge, animationEnabled: event.target.checked } }))} /></label>
-          </div>
-        </EditorSection>
-
-        <EditorSection title={t('连接手柄')} description={t('设置节点连接入口的颜色或图片样式')}>
-          <div className="space-y-3">
-            <div className="rounded-xl border border-canvas-border/70 bg-canvas-card/50 p-3">
-              <Field label={t('手柄类型')}>
-                <select className="ui-select w-full max-w-[180px]" value={active.handle.kind} onChange={(event) => update((theme) => ({ ...theme, handle: { ...theme.handle, kind: event.target.value as AppearanceTheme['handle']['kind'] } }))}>
-                  <option value="color">{t('纯色')}</option>
-                  <option value="image">{t('图片')}</option>
-                </select>
-              </Field>
-            </div>
-
-            {active.handle.kind === 'color' && (
-              <div className="space-y-2 rounded-xl border border-canvas-border/70 bg-canvas-card/50 p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[11px] font-medium text-canvas-text-secondary">{t('颜色设置')}</span>
-                  <span className="text-[10px] text-canvas-text-muted">{t('普通状态与悬浮状态')}</span>
-                </div>
-                <div className="grid gap-2">
-                  <ColorField label={t('手柄颜色')} value={active.handle.color} colors={THEME_COLOR_SWATCHES} onChange={(value) => update((theme) => ({ ...theme, handle: { ...theme.handle, kind: 'color', color: value } }))} />
-                  <ColorField label={t('悬浮颜色')} value={active.handle.hoverColor} colors={THEME_COLOR_SWATCHES} onChange={(value) => update((theme) => ({ ...theme, handle: { ...theme.handle, kind: 'color', hoverColor: value } }))} />
-                </div>
-              </div>
-            )}
-
-            {active.handle.kind === 'image' && (
-              <div className="space-y-3 rounded-xl border border-canvas-border/70 bg-canvas-card/50 p-3">
-                <div className="flex min-w-0 items-start gap-3">
-                  <div className="h-16 w-16 shrink-0 overflow-hidden rounded-full border border-canvas-border bg-canvas-surface bg-center bg-no-repeat" style={imagePreviewStyle(active.handle.imageDataUrl, active.handle.imageFit)}>
-                    {!active.handle.imageDataUrl && <span className="flex h-full items-center justify-center px-1 text-center text-[9px] text-canvas-text-muted">{t('未上传')}</span>}
-                  </div>
-                  <div className="min-w-0 flex-1 space-y-2">
-                    <div className="flex flex-wrap gap-2">
-                      <AnimatedButton type="button" className="ui-btn ui-btn--secondary ui-btn--sm" onClick={() => handleImageRef.current?.click()}>{t('选择手柄图片')}</AnimatedButton>
-                      {active.handle.imageDataUrl && <AnimatedButton type="button" className="ui-btn ui-btn--ghost ui-btn--sm" onClick={() => update((theme) => ({ ...theme, handle: { ...theme.handle, imageDataUrl: undefined } }))}>{t('移除图片')}</AnimatedButton>}
-                      <input ref={handleImageRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) void setHandleImage(file); event.currentTarget.value = ''; }} />
-                    </div>
-                    <p className="text-[10px] leading-4 text-canvas-text-muted">{t('上传图片后会立即应用到节点连接手柄')}</p>
-                  </div>
-                </div>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <Field label={t('图片适配')}>
-                    <select className="ui-select w-full" value={active.handle.imageFit} onChange={(event) => update((theme) => ({ ...theme, handle: { ...theme.handle, imageFit: event.target.value as AppearanceTheme['handle']['imageFit'] } }))}>
-                      <option value="contain">{t('完整显示')}</option>
-                      <option value="cover">{t('铺满')}</option>
-                      <option value="fill">{t('拉伸')}</option>
-                    </select>
-                  </Field>
-                  <Field label={t('图片不透明度')}>
-                    <input type="range" min="0.2" max="1" step="0.05" value={active.handle.opacity} onChange={(event) => update((theme) => ({ ...theme, handle: { ...theme.handle, opacity: Number(event.target.value) } }))} className="w-full" />
-                    <span className="w-10 shrink-0 text-right tabular-nums">{Math.round(active.handle.opacity * 100)}%</span>
-                  </Field>
-                </div>
-              </div>
-            )}
-
-            <RangeNumberField label={t('手柄尺寸')} min={24} max={64} value={active.handle.size} onChange={(value) => update((theme) => ({ ...theme, handle: { ...theme.handle, size: Math.min(64, Math.max(24, value || 24)) } }))} />
-          </div>
-        </EditorSection>
       </div>
+
+      {/* BEGIN: LiveCanvasPreviewCard */}
+      <section className="relative settings-preview-card rounded-2xl p-4 overflow-hidden shadow-xs" data-purpose="interactive-live-preview" style={canvasStyle}>
+        {/* Dot Grid Backdrop */}
+        <div
+          className={`absolute inset-0 ${active.mode === 'dark' ? 'bg-dot-pattern-dark' : 'bg-dot-pattern'} opacity-60`}
+          style={
+            resolved.canvas.gridColor && !isTransparentColor(resolved.canvas.gridColor)
+              ? { backgroundImage: `radial-gradient(${resolved.canvas.gridColor} 1px, transparent 1px)` }
+              : (isTransparentColor(resolved.canvas.gridColor) ? { backgroundImage: 'none' } : undefined)
+          }
+        />
+        <div className="relative flex items-center justify-between min-h-[96px] px-4">
+          {/* Left: Node representation with input socket */}
+          <div
+            className="w-48 settings-preview-node rounded-xl p-3 shadow-md backdrop-blur transition-all"
+            style={{
+              backgroundColor: isTransparentColor(resolved.node.background) ? 'transparent' : resolved.node.background,
+              borderColor: isTransparentColor(resolved.node.border) ? 'transparent' : resolved.node.border,
+              borderWidth: `${resolved.node.borderWidth}px`,
+              borderRadius: `${resolved.node.radius}px`,
+            }}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-semibold text-canvas-text">{t('节点预览')}</span>
+              <span className="w-2 h-2 rounded-full bg-emerald-400" />
+            </div>
+            {/* 内部输入框：跟随节点圆角 */}
+            <div
+              className="px-2.5 py-1.5 text-[10px] bg-canvas-card border border-canvas-border text-canvas-text-muted flex items-center justify-between transition-all"
+              style={{
+                borderRadius: `${Math.max(0, resolved.node.radius - 4)}px`,
+              }}
+            >
+              <span className="truncate">{t('输入提示词…')}</span>
+              <span className="text-[9px] opacity-40 font-mono shrink-0 ml-1">12字</span>
+            </div>
+            {/* 内部图片/媒体预览：跟随节点圆角 */}
+            <div
+              className="mt-2 h-12 w-full bg-canvas-card border border-canvas-border overflow-hidden relative flex items-center justify-center transition-all"
+              style={{
+                borderRadius: `${Math.max(0, resolved.node.radius - 3)}px`,
+              }}
+            >
+              <div className="absolute inset-0 bg-gradient-to-tr from-brand-500/20 via-transparent to-purple-500/15" />
+              <svg className="w-4 h-4 text-canvas-text-muted opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <rect width="18" height="18" x="3" y="3" rx="2" strokeWidth="1.5" />
+                <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor" />
+                <path d="M21 15l-5-5L5 21" strokeWidth="1.5" />
+              </svg>
+              <span className="absolute bottom-1 right-1.5 text-[8px] px-1 py-0.2 rounded bg-black/50 text-white/80 font-mono">IMG / MP4</span>
+            </div>
+          </div>
+
+          {/* Center: Spline wire flow preview */}
+          <div className="flex-1 mx-4 h-12 relative flex items-center justify-center">
+            <svg className="w-full h-12 overflow-visible" preserveAspectRatio="none" viewBox="0 0 300 40">
+              <defs>
+                <linearGradient id="liveSplineGradient" x1="0%" x2="100%" y1="0%" y2="0%">
+                  <stop offset="0%" stopColor={resolved.edge.color} />
+                  <stop offset="50%" stopColor={resolved.edge.flowColor || resolved.ui.accent} />
+                  <stop offset="100%" stopColor={resolved.edge.color} />
+                </linearGradient>
+              </defs>
+              {/* Background wire shadow */}
+              <path
+                d="M 0,20 C 120,20 180,20 300,20"
+                fill="none"
+                stroke={resolved.edge.color}
+                strokeOpacity="0.25"
+                strokeLinecap="round"
+                strokeWidth="7"
+              />
+              {/* Active glowing spline wire */}
+              <path
+                d="M 0,20 C 120,20 180,20 300,20"
+                fill="none"
+                stroke="url(#liveSplineGradient)"
+                strokeLinecap="round"
+                strokeWidth="4.5"
+              />
+              {/* Animated flow particle highlight */}
+              {resolved.edge.animationEnabled && (
+                <path
+                  className="animate-flow-dash"
+                  d="M 0,20 C 120,20 180,20 300,20"
+                  fill="none"
+                  stroke="#ffffff"
+                  strokeLinecap="round"
+                  strokeWidth="2"
+                  opacity="0.9"
+                />
+              )}
+            </svg>
+          </div>
+
+          {/* Right: Interactive Port / Socket preview with pulse effect */}
+          <div className="relative flex items-center pl-2">
+            <div className="relative flex items-center justify-center">
+              <span
+                className="absolute w-8 h-8 rounded-full animate-pulse-subtle"
+                style={{ backgroundColor: resolved.handle.color, opacity: 0.25 }}
+              />
+              <span
+                className="w-6 h-6 rounded-full border-2 border-white shadow-md flex items-center justify-center overflow-hidden bg-cover bg-center"
+                style={
+                  resolved.handle.kind === 'image' && resolved.handle.imageDataUrl
+                    ? imagePreviewStyle(resolved.handle.imageDataUrl, resolved.handle.imageFit)
+                    : { backgroundColor: resolved.handle.color, borderColor: '#ffffff' }
+                }
+              >
+                {resolved.handle.kind !== 'image' && <span className="w-2 h-2 rounded-full bg-white" />}
+              </span>
+            </div>
+            <div className="ml-4 text-right">
+              <div className="text-[11px] font-medium text-canvas-text-muted">{t('当前主题')}</div>
+              <div className="text-sm font-bold text-canvas-text">
+                {active.mode === 'dark' ? t('深色') : active.mode === 'light' ? t('浅色') : t('跟随系统')}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+      {/* END: LiveCanvasPreviewCard */}
+
+      <div className="h-px settings-h-divider my-2" />
+
+      {/* BEGIN: PresetsSection */}
+      <SectionCard
+        title={t('外观预设')}
+        description={t('选择、保存或管理完整外观配置')}
+        icon={
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+            <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+            <line x1="12" x2="12" y1="22.08" y2="12" />
+          </svg>
+        }
+        dataPurpose="theme-presets-picker"
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {presetThemes.map((theme) => {
+            const isCurrent = theme.id === active.id;
+            const themeResolved = resolveAppearanceTheme(theme);
+            const isDark = themeResolved.mode === 'dark';
+
+            return (
+              <div
+                key={theme.id}
+                onClick={() => {
+                  draftRef.current = null;
+                  setDraft(null);
+                  setAutoSaveStatus('idle');
+                  void activate(theme);
+                }}
+                className={`group relative rounded-xl p-3 transition-all cursor-pointer ${
+                  isCurrent ? 'settings-preset-card--active' : 'settings-preset-card'
+                }`}
+              >
+                {/* Preset Mini-Canvas Preview */}
+                <div
+                  className="relative h-28 rounded-xl px-3 py-2.5 overflow-hidden flex items-center justify-between border border-canvas-border select-none"
+                  style={{
+                    background:
+                      themeResolved.canvas.kind === 'solar-system'
+                        ? 'radial-gradient(ellipse at 85% 15%, rgba(99, 102, 241, 0.28) 0%, transparent 60%), radial-gradient(ellipse at 15% 85%, rgba(139, 92, 246, 0.2) 0%, transparent 50%), #0c101c'
+                        : themeResolved.canvas.kind === 'frosted-glass'
+                          ? 'radial-gradient(ellipse at 80% 20%, rgba(245, 158, 11, 0.12) 0%, transparent 60%), radial-gradient(ellipse at 20% 80%, rgba(234, 88, 12, 0.08) 0%, transparent 50%), #f8f6f0'
+                          : themeResolved.canvas.kind === 'color'
+                            ? themeResolved.canvas.color
+                            : themeResolved.ui.background,
+                  }}
+                >
+                  <div className={`absolute inset-0 ${isDark ? 'bg-dot-pattern-dark' : 'bg-dot-pattern-dense'} opacity-40 pointer-events-none`} />
+
+                  {/* Left: 提示词节点 (Prompt/Text Node) */}
+                  <div className="relative flex flex-col z-10 w-[112px] sm:w-[124px] shrink-0">
+                    <div className="flex items-center gap-1 mb-1 px-0.5">
+                      <span
+                        className="w-1.5 h-1.5 rounded-full shrink-0"
+                        style={{ backgroundColor: themeResolved.ui.accent }}
+                      />
+                      <span
+                        className="text-[9px] font-semibold truncate leading-none tracking-tight"
+                        style={{ color: themeResolved.ui.text, opacity: 0.85 }}
+                      >
+                        {t('提示词')}
+                      </span>
+                    </div>
+
+                    <div
+                      className="relative h-[62px] p-2 flex flex-col justify-between shadow-xs transition-all"
+                      style={{
+                        backgroundColor: isTransparentColor(themeResolved.node.background)
+                          ? 'transparent'
+                          : themeResolved.node.background,
+                        borderColor: isTransparentColor(themeResolved.node.border)
+                          ? 'transparent'
+                          : themeResolved.node.border,
+                        borderWidth: `${Math.max(1, themeResolved.node.borderWidth)}px`,
+                        borderRadius: `${Math.min(10, Math.max(3, themeResolved.node.radius * 0.75))}px`,
+                      }}
+                    >
+                      <div className="space-y-1.5">
+                        <div
+                          className="h-1.5 rounded-full"
+                          style={{
+                            width: '80%',
+                            backgroundColor: themeResolved.ui.text,
+                            opacity: 0.55,
+                          }}
+                        />
+                        <div
+                          className="h-1.5 rounded-full"
+                          style={{
+                            width: '95%',
+                            backgroundColor: themeResolved.ui.text,
+                            opacity: 0.32,
+                          }}
+                        />
+                        <div
+                          className="h-1.5 rounded-full"
+                          style={{
+                            width: '56%',
+                            backgroundColor: themeResolved.ui.text,
+                            opacity: 0.2,
+                          }}
+                        />
+                      </div>
+
+                      {/* Output Handle / Port */}
+                      <span
+                        className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border border-white/80 shadow-xs flex items-center justify-center z-10"
+                        style={{
+                          backgroundColor: themeResolved.handle.color,
+                        }}
+                      >
+                        <span className="w-1 h-1 rounded-full bg-white/90" />
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Center: Bezier Connection Wire (Spline Edge) */}
+                  <div className="flex-1 mx-0.5 h-8 relative flex items-center justify-center z-0">
+                    <svg className="w-full h-8 overflow-visible" preserveAspectRatio="none" viewBox="0 0 80 24">
+                      <defs>
+                        <linearGradient id={`preset-edge-${theme.id}`} x1="0%" x2="100%" y1="0%" y2="0%">
+                          <stop offset="0%" stopColor={themeResolved.edge.color} />
+                          <stop offset="50%" stopColor={themeResolved.edge.flowColor || themeResolved.ui.accent} />
+                          <stop offset="100%" stopColor={themeResolved.edge.color} />
+                        </linearGradient>
+                      </defs>
+                      <path
+                        d="M 0,12 C 35,12 45,12 80,12"
+                        fill="none"
+                        stroke={themeResolved.edge.color}
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        opacity="0.45"
+                      />
+                      <path
+                        d="M 0,12 C 35,12 45,12 80,12"
+                        fill="none"
+                        stroke={`url(#preset-edge-${theme.id})`}
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                        opacity="0.95"
+                      />
+                    </svg>
+                  </div>
+
+                  {/* Right: 图像生成节点 (Image Node) */}
+                  <div className="relative flex flex-col z-10 w-[112px] sm:w-[124px] shrink-0">
+                    <div className="flex items-center gap-1 mb-1 px-0.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                      <span
+                        className="text-[9px] font-semibold truncate leading-none tracking-tight"
+                        style={{ color: themeResolved.ui.text, opacity: 0.85 }}
+                      >
+                        {t('图像生成')}
+                      </span>
+                    </div>
+
+                    <div
+                      className="relative h-[62px] p-1 flex items-center justify-center shadow-xs transition-all overflow-hidden"
+                      style={{
+                        backgroundColor: isTransparentColor(themeResolved.node.background)
+                          ? 'transparent'
+                          : themeResolved.node.background,
+                        borderColor: isTransparentColor(themeResolved.node.border)
+                          ? 'transparent'
+                          : themeResolved.node.border,
+                        borderWidth: `${Math.max(1, themeResolved.node.borderWidth)}px`,
+                        borderRadius: `${Math.min(10, Math.max(3, themeResolved.node.radius * 0.75))}px`,
+                      }}
+                    >
+                      {/* Input Handle / Port */}
+                      <span
+                        className="absolute -left-1.5 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border border-white/80 shadow-xs flex items-center justify-center z-10"
+                        style={{
+                          backgroundColor: themeResolved.handle.color,
+                        }}
+                      >
+                        <span className="w-1 h-1 rounded-full bg-white/90" />
+                      </span>
+
+                      {/* Mini Image Preview Area */}
+                      <div
+                        className="w-full h-full relative overflow-hidden flex items-center justify-center"
+                        style={{
+                          borderRadius: `${Math.max(0, Math.min(10, themeResolved.node.radius * 0.75) - 2)}px`,
+                          background: isDark
+                            ? 'linear-gradient(135deg, rgba(83, 104, 214, 0.25) 0%, rgba(20, 20, 28, 0.85) 50%, rgba(16, 185, 129, 0.2) 100%)'
+                            : 'linear-gradient(135deg, rgba(147, 197, 253, 0.35) 0%, rgba(241, 245, 249, 0.9) 50%, rgba(167, 243, 208, 0.35) 100%)',
+                        }}
+                      >
+                        <svg
+                          className="w-4 h-4 opacity-60"
+                          style={{ color: themeResolved.ui.text }}
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <rect width="18" height="18" x="3" y="3" rx="2" strokeWidth="1.5" />
+                          <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor" />
+                          <path d="M21 15l-5-5L5 21" strokeWidth="1.5" />
+                        </svg>
+                        <span
+                          className="absolute bottom-1 right-1 text-[7px] font-mono px-1 py-0.2 rounded font-semibold leading-tight"
+                          style={{
+                            backgroundColor: isDark ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.75)',
+                            color: isDark ? '#ffffff' : '#1e293b',
+                          }}
+                        >
+                          IMG
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Preset Footer */}
+                <div className="mt-2.5 flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 min-w-0" onClick={(e) => e.stopPropagation()}>
+                    {editingPresetId === theme.id ? (
+                      <input
+                        autoFocus
+                        value={editingPresetName}
+                        onChange={(e) => setEditingPresetName(e.target.value)}
+                        onBlur={() => void renamePreset(theme)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') void renamePreset(theme);
+                          if (e.key === 'Escape') setEditingPresetId(null);
+                        }}
+                        className="px-2 py-0.5 text-xs bg-canvas-surface border border-brand rounded text-canvas-text focus:outline-none w-28"
+                        aria-label={t('预设名称')}
+                      />
+                    ) : theme.builtin ? (
+                      <span className="text-xs font-semibold text-canvas-text flex items-center gap-1.5">
+                        {theme.name}
+                        {isCurrent && <span className="w-1.5 h-1.5 rounded-full bg-brand" />}
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        className="group/name flex items-center gap-1 text-left text-xs font-semibold text-canvas-text hover:text-brand"
+                        title={t('双击修改名称')}
+                        onDoubleClick={() => {
+                          setEditingPresetId(theme.id);
+                          setEditingPresetName(theme.name);
+                        }}
+                      >
+                        <span>{theme.name}</span>
+                        {isCurrent && <span className="w-1.5 h-1.5 rounded-full bg-brand" />}
+                        <Icon icon="lucide:pencil" width="11" height="11" className="opacity-0 group-hover/name:opacity-100 text-canvas-text-muted" />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex items-center space-x-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                    {isCurrent && (
+                      <span className="text-[10px] settings-tag-active font-medium px-2 py-0.5 rounded">
+                        {t('当前使用')}
+                      </span>
+                    )}
+                    <span className="text-[10px] settings-tag-badge px-1.5 py-0.5 rounded">
+                      {theme.builtin ? t('内置') : t('自定义')}
+                    </span>
+                    {!theme.builtin && (
+                      <button
+                        type="button"
+                        onClick={() => setConfirmation({ kind: 'delete', theme })}
+                        className="p-1 text-canvas-text-muted hover:text-danger rounded transition-colors"
+                        title={t('删除预设')}
+                        aria-label={t('删除预设')}
+                      >
+                        <TrashIcon />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </SectionCard>
+      {/* END: PresetsSection */}
+
+      {/* BEGIN: ThemeModeSegmentedControl */}
+      <SectionCard
+        title={t('主题模式')}
+        description={t('选择整套界面的明暗基调')}
+        icon={
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+          </svg>
+        }
+        dataPurpose="theme-mode-selection"
+      >
+        <div className="grid grid-cols-3 gap-2.5">
+          {/* 1. 深色 */}
+          <button
+            type="button"
+            onClick={() => void updateMode('dark')}
+            className={`flex items-center justify-center space-x-2 py-2.5 px-4 rounded-xl text-xs font-semibold transition-all ${
+              active.mode === 'dark' ? 'settings-mode-btn--active' : 'settings-mode-btn'
+            }`}
+          >
+            <svg className="w-4 h-4 text-canvas-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+            </svg>
+            <span>{t('深色')}</span>
+          </button>
+
+          {/* 2. 浅色 */}
+          <button
+            type="button"
+            onClick={() => void updateMode('light')}
+            className={`flex items-center justify-center space-x-2 py-2.5 px-4 rounded-xl text-xs font-semibold transition-all ${
+              active.mode === 'light' ? 'settings-mode-btn--active' : 'settings-mode-btn'
+            }`}
+          >
+            <svg className="w-4 h-4 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+            </svg>
+            <span>{t('浅色')}</span>
+          </button>
+
+          {/* 3. 跟随系统 */}
+          <button
+            type="button"
+            onClick={() => void updateMode('system')}
+            className={`flex items-center justify-center space-x-2 py-2.5 px-4 rounded-xl text-xs font-semibold transition-all ${
+              active.mode === 'system' ? 'settings-mode-btn--active' : 'settings-mode-btn'
+            }`}
+          >
+            <svg className="w-4 h-4 text-canvas-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+            </svg>
+            <span>{t('跟随系统')}</span>
+          </button>
+        </div>
+      </SectionCard>
+      {/* END: ThemeModeSegmentedControl */}
+
+      {/* BEGIN: AccentColorSection */}
+      <SectionCard
+        title={t('主题色')}
+        description={t('统一按钮和选中态强调色')}
+        icon={
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path d="M7 21a4 4 0 01-4-4 4 4 0 014-4h4a4 4 0 014 4 4 4 0 01-4 4H7zm0 0l4-4m-4 4a4 4 0 00-4-4V7a4 4 0 014-4h8a4 4 0 014 4v2" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+          </svg>
+        }
+        dataPurpose="theme-accent-color"
+      >
+        <div className="space-y-3.5">
+          <ColorCardInput
+            label={t('主题色')}
+            value={active.ui.accent}
+            fallbackColor={active.mode === 'light' ? '#7280E4' : '#6366f1'}
+            onChange={(value) =>
+              update((theme) => ({
+                ...theme,
+                ui: { ...theme.ui, accent: value, accentStrong: value, accentSoft: value, focus: value },
+              }))
+            }
+          />
+          <QuickSwatches
+            colors={active.mode === 'light' ? LIGHT_THEME_COLOR_SWATCHES : DARK_THEME_COLOR_SWATCHES}
+            value={active.ui.accent}
+            onChange={(value) =>
+              update((theme) => ({
+                ...theme,
+                ui: { ...theme.ui, accent: value, accentStrong: value, accentSoft: value, focus: value },
+              }))
+            }
+            title={t('主题色调色板')}
+          />
+        </div>
+      </SectionCard>
+      {/* END: AccentColorSection */}
+
+      {/* BEGIN: SurfaceHierarchySection */}
+      <SectionCard
+        title={t('界面底色')}
+        description={t('分别配置页面、窗口和组件各层底色')}
+        icon={
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+          </svg>
+        }
+        dataPurpose="surface-background-colors"
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+          <ColorCardInput
+            label={t('页面背景')}
+            value={active.ui.background}
+            fallbackColor={active.mode === 'light' ? '#F4F6FB' : '#0a0a0f'}
+            onChange={(value) => update((theme) => ({ ...theme, ui: { ...theme.ui, background: value } }))}
+          />
+          <ColorCardInput
+            label={t('窗口背景')}
+            value={active.ui.surface}
+            fallbackColor={active.mode === 'light' ? '#FFFFFF' : '#14141c'}
+            onChange={(value) => update((theme) => ({ ...theme, ui: { ...theme.ui, surface: value } }))}
+          />
+          <ColorCardInput
+            label={t('组件底色')}
+            value={active.ui.card}
+            fallbackColor={active.mode === 'light' ? '#F8FAFD' : '#1a1a26'}
+            onChange={(value) => update((theme) => ({ ...theme, ui: { ...theme.ui, card: value } }))}
+          />
+          <ColorCardInput
+            label={t('组件悬浮底色')}
+            value={active.ui.hover}
+            fallbackColor={active.mode === 'light' ? '#EEF1F8' : '#252535'}
+            onChange={(value) => update((theme) => ({ ...theme, ui: { ...theme.ui, hover: value } }))}
+          />
+          <ColorCardInput
+            label={t('组件边框')}
+            value={active.ui.border}
+            fallbackColor={active.mode === 'light' ? '#E4E8F2' : '#2a2a3a'}
+            onChange={(value) => update((theme) => ({ ...theme, ui: { ...theme.ui, border: value } }))}
+          />
+        </div>
+      </SectionCard>
+      {/* END: SurfaceHierarchySection */}
+
+      {/* BEGIN: SplineConnectionLinesSection */}
+      <SectionCard
+        title={t('连接线')}
+        description={t('普通连线、流光与拖拽预览')}
+        icon={
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <circle cx="6" cy="19" r="3" />
+            <path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15" />
+            <circle cx="18" cy="5" r="3" />
+          </svg>
+        }
+        dataPurpose="connecting-lines-styling"
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+          <ColorCardInput
+            label={t('连接线颜色')}
+            value={active.edge.color}
+            fallbackColor={active.mode === 'light' ? '#B1B1B7' : '#33334a'}
+            onChange={(value) => update((theme) => ({ ...theme, edge: { ...theme.edge, color: value } }))}
+          />
+          <ColorCardInput
+            label={t('高亮动画颜色')}
+            value={active.edge.flowColor}
+            fallbackColor={active.mode === 'light' ? '#5A69D4' : '#818cf8'}
+            onChange={(value) => update((theme) => ({ ...theme, edge: { ...theme.edge, flowColor: value } }))}
+          />
+          <ColorCardInput
+            label={t('拖拽时连线颜色')}
+            value={active.edge.previewColor}
+            fallbackColor={active.mode === 'light' ? '#7280E4' : '#6366f1'}
+            onChange={(value) => update((theme) => ({ ...theme, edge: { ...theme.edge, previewColor: value } }))}
+          />
+          <div className="p-3 settings-sub-card rounded-xl flex items-center justify-between">
+            <label className="text-xs font-semibold text-canvas-text cursor-pointer select-none" htmlFor="enableGlowCheckbox">
+              {t('启用高亮动画')}
+            </label>
+            <input
+              id="enableGlowCheckbox"
+              type="checkbox"
+              checked={active.edge.animationEnabled}
+              onChange={(e) => update((theme) => ({ ...theme, edge: { ...theme.edge, animationEnabled: e.target.checked } }))}
+              className="w-4 h-4 text-brand rounded border-canvas-border focus:ring-brand cursor-pointer"
+            />
+          </div>
+        </div>
+      </SectionCard>
+      {/* END: SplineConnectionLinesSection */}
+
+      {/* BEGIN: ConnectionPortsSection */}
+      <SectionCard
+        title={t('连接手柄')}
+        description={t('设置节点连接入口的颜色或图片样式')}
+        icon={
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <polygon points="3 11 22 2 13 21 11 13 3 11" />
+          </svg>
+        }
+        dataPurpose="connection-handles-settings"
+        className="mb-4"
+      >
+        <div className="space-y-4">
+          {/* Port Type Selector */}
+          <div className="p-3 settings-sub-card rounded-xl flex items-center justify-between">
+            <span className="text-xs font-semibold text-canvas-text">{t('手柄类型')}</span>
+            <Select
+              fixedMenu
+              size="sm"
+              value={active.handle.kind}
+              onChange={(val) =>
+                update((theme) => ({
+                  ...theme,
+                  handle: { ...theme.handle, kind: val as AppearanceTheme['handle']['kind'] },
+                }))
+              }
+            >
+              <option value="color">{t('纯色')}</option>
+              <option value="image">{t('图片')}</option>
+            </Select>
+          </div>
+
+          {/* Color Mode Settings */}
+          {active.handle.kind === 'color' && (
+            <div className="p-4 settings-sub-card rounded-xl space-y-4">
+              <div className="flex items-center justify-between pb-1 border-b settings-h-divider">
+                <span className="text-xs font-bold text-canvas-text">{t('颜色设置')}</span>
+                <span className="text-[11px] text-canvas-text-muted">{t('普通状态与悬浮状态')}</span>
+              </div>
+
+              {/* Normal Handle Color */}
+              <div className="space-y-2">
+                <ColorCardInput
+                  label={t('手柄颜色')}
+                  value={active.handle.color}
+                  fallbackColor={active.mode === 'light' ? '#7280E4' : '#6366f1'}
+                  onChange={(val) => update((theme) => ({ ...theme, handle: { ...theme.handle, color: val } }))}
+                />
+                <QuickSwatches
+                  colors={active.mode === 'light' ? LIGHT_THEME_COLOR_SWATCHES : DARK_THEME_COLOR_SWATCHES}
+                  value={active.handle.color}
+                  onChange={(val) => update((theme) => ({ ...theme, handle: { ...theme.handle, color: val } }))}
+                />
+              </div>
+
+              {/* Hover Handle Color */}
+              <div className="space-y-2 pt-1">
+                <ColorCardInput
+                  label={t('悬浮颜色')}
+                  value={active.handle.hoverColor}
+                  fallbackColor={active.mode === 'light' ? '#5A69D4' : '#818cf8'}
+                  onChange={(val) => update((theme) => ({ ...theme, handle: { ...theme.handle, hoverColor: val } }))}
+                />
+                <QuickSwatches
+                  colors={active.mode === 'light' ? LIGHT_THEME_COLOR_SWATCHES : DARK_THEME_COLOR_SWATCHES}
+                  value={active.handle.hoverColor}
+                  onChange={(val) => update((theme) => ({ ...theme, handle: { ...theme.handle, hoverColor: val } }))}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Image Mode Settings */}
+          {active.handle.kind === 'image' && (
+            <div className="p-4 settings-sub-card rounded-xl space-y-3">
+              <div className="flex items-center space-x-3">
+                <div
+                  className="h-16 w-16 shrink-0 overflow-hidden rounded-full border border-canvas-border bg-canvas-surface bg-center bg-no-repeat shadow-xs"
+                  style={imagePreviewStyle(active.handle.imageDataUrl, active.handle.imageFit)}
+                >
+                  {!active.handle.imageDataUrl && (
+                    <span className="flex h-full items-center justify-center px-1 text-center text-[9px] text-canvas-text-muted">
+                      {t('未上传')}
+                    </span>
+                  )}
+                </div>
+                <div className="flex-1 space-y-1.5">
+                  <div className="flex items-center space-x-2">
+                    <button
+                      type="button"
+                      onClick={() => handleImageRef.current?.click()}
+                      className="px-3 py-1.5 text-xs font-medium bg-canvas-surface border border-canvas-border rounded-lg text-canvas-text hover:bg-canvas-hover"
+                    >
+                      {t('选择手柄图片')}
+                    </button>
+                    {active.handle.imageDataUrl && (
+                      <button
+                        type="button"
+                        onClick={() => update((theme) => ({ ...theme, handle: { ...theme.handle, imageDataUrl: undefined } }))}
+                        className="px-3 py-1.5 text-xs font-medium text-danger hover:bg-danger/10 rounded-lg"
+                      >
+                        {t('移除图片')}
+                      </button>
+                    )}
+                    <input
+                      ref={handleImageRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) void setHandleImage(file);
+                        e.currentTarget.value = '';
+                      }}
+                    />
+                  </div>
+                  <p className="text-[11px] text-canvas-text-muted">{t('上传图片后会立即应用到节点连接手柄')}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                <div className="flex items-center justify-between p-2.5 bg-canvas-surface rounded-lg border border-canvas-border">
+                  <span className="text-xs text-canvas-text-secondary">{t('图片适配')}</span>
+                  <Select
+                    fixedMenu
+                    size="sm"
+                    value={active.handle.imageFit}
+                    onChange={(val) =>
+                      update((theme) => ({
+                        ...theme,
+                        handle: { ...theme.handle, imageFit: val as AppearanceTheme['handle']['imageFit'] },
+                      }))
+                    }
+                  >
+                    <option value="contain">{t('完整显示')}</option>
+                    <option value="cover">{t('铺满')}</option>
+                    <option value="fill">{t('拉伸')}</option>
+                  </Select>
+                </div>
+
+                <div className="flex items-center justify-between p-2.5 bg-canvas-surface rounded-lg border border-canvas-border">
+                  <span className="text-xs text-canvas-text-secondary">{t('不透明度')}</span>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="range"
+                      min="0.2"
+                      max="1"
+                      step="0.05"
+                      value={active.handle.opacity}
+                      onChange={(e) => update((theme) => ({ ...theme, handle: { ...theme.handle, opacity: Number(e.target.value) } }))}
+                      className="w-24 accent-brand cursor-pointer"
+                    />
+                    <span className="text-xs text-canvas-text font-mono w-9 text-right">
+                      {Math.round(active.handle.opacity * 100)}%
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Handle Size Slider */}
+          <div className="p-4 settings-sub-card rounded-xl space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-canvas-text">{t('手柄尺寸')}</span>
+              <div className="flex items-center space-x-1 settings-sub-card-inner px-2.5 py-1 rounded-lg">
+                <input
+                  className="w-10 text-xs font-semibold text-canvas-text border-none p-0 focus:ring-0 text-center bg-transparent focus:outline-none"
+                  id="portSizeInput"
+                  max={64}
+                  min={16}
+                  type="number"
+                  value={active.handle.size}
+                  onChange={(e) =>
+                    update((theme) => ({
+                      ...theme,
+                      handle: { ...theme.handle, size: Math.min(64, Math.max(16, Number(e.target.value) || 16)) },
+                    }))
+                  }
+                />
+                <span className="text-xs text-canvas-text-muted">px</span>
+              </div>
+            </div>
+            <input
+              className="w-full h-1.5 bg-canvas-border rounded-lg appearance-none cursor-pointer accent-brand"
+              id="portSizeSlider"
+              max={64}
+              min={16}
+              type="range"
+              value={active.handle.size}
+              onChange={(e) => update((theme) => ({ ...theme, handle: { ...theme.handle, size: Number(e.target.value) } }))}
+            />
+          </div>
+        </div>
+      </SectionCard>
+      {/* END: ConnectionPortsSection */}
+
+      {/* BEGIN: Canvas & Node Appearance Section */}
+      <SectionCard
+        title={t('画布与节点外观')}
+        description={t('配置画布背景纹理与节点通用样式')}
+        icon={
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <rect width="18" height="18" x="3" y="3" rx="2" />
+            <path d="M3 9h18M9 21V9" />
+          </svg>
+        }
+        dataPurpose="canvas-and-nodes-styling"
+      >
+        <div className="space-y-4">
+          {/* Canvas Background Settings */}
+          <div className="p-4 settings-sub-card rounded-xl space-y-3">
+            <div className="flex items-center justify-between pb-1 border-b settings-h-divider">
+              <span className="text-xs font-bold text-canvas-text">{t('画布背景')}</span>
+              <span className="text-[11px] text-canvas-text-muted">{t('背景类型与网格')}</span>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-canvas-text-secondary">{t('背景类型')}</span>
+              <Select
+                fixedMenu
+                size="sm"
+                value={active.canvas.kind}
+                onChange={(val) =>
+                  update((theme) => ({
+                    ...theme,
+                    canvas: { ...theme.canvas, kind: val as AppearanceTheme['canvas']['kind'] },
+                  }))
+                }
+              >
+                <option value="color">{t('纯色')}</option>
+                <option value="image">{t('图片')}</option>
+                <option value="solar-system">{t('太阳系')}</option>
+                <option value="frosted-glass">{t('磨砂暖光')}</option>
+              </Select>
+            </div>
+
+            {active.canvas.kind === 'color' && (
+              <ColorCardInput
+                label={t('画布背景颜色')}
+                value={active.canvas.color}
+                fallbackColor={active.mode === 'light' ? '#F4F6FB' : '#0a0a0f'}
+                onChange={(value) => update((theme) => ({ ...theme, canvas: { ...theme.canvas, color: value, kind: 'color' } }))}
+              />
+            )}
+
+            {active.canvas.kind === 'image' && (
+              <div className="flex items-center space-x-3 p-3 settings-sub-card rounded-lg">
+                <div
+                  className="h-14 w-20 shrink-0 overflow-hidden rounded-md border border-canvas-border bg-canvas-card bg-cover bg-center"
+                  style={imagePreviewStyle(active.canvas.imageDataUrl)}
+                >
+                  {!active.canvas.imageDataUrl && (
+                    <span className="flex h-full items-center justify-center text-[10px] text-canvas-text-muted text-center px-1">
+                      {t('未选图片')}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => canvasImageRef.current?.click()}
+                    className="px-3 py-1.5 text-xs font-medium bg-canvas-card border border-canvas-border rounded-lg text-canvas-text hover:bg-canvas-hover"
+                  >
+                    {t('选择画布图片')}
+                  </button>
+                  {active.canvas.imageDataUrl && (
+                    <button
+                      type="button"
+                      onClick={() => update((theme) => ({ ...theme, canvas: { ...theme.canvas, imageDataUrl: undefined } }))}
+                      className="px-3 py-1.5 text-xs font-medium text-danger hover:bg-danger/10 rounded-lg"
+                    >
+                      {t('移除图片')}
+                    </button>
+                  )}
+                  <input
+                    ref={canvasImageRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) void setCanvasImage(file);
+                      e.currentTarget.value = '';
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              <div className="p-3 settings-sub-card rounded-xl flex items-center justify-between">
+                <label className="text-xs font-semibold text-canvas-text cursor-pointer select-none" htmlFor="canvasGridCheckbox">
+                  {t('显示网格')}
+                </label>
+                <input
+                  id="canvasGridCheckbox"
+                  type="checkbox"
+                  checked={active.canvas.gridVisible}
+                  onChange={(e) => update((theme) => ({ ...theme, canvas: { ...theme.canvas, gridVisible: e.target.checked } }))}
+                  className="w-4 h-4 text-brand rounded border-canvas-border focus:ring-brand cursor-pointer"
+                />
+              </div>
+              <ColorCardInput
+                label={t('网格颜色')}
+                value={active.canvas.gridColor}
+                fallbackColor={active.mode === 'light' ? '#B1B1B7' : '#585868'}
+                onChange={(value) => update((theme) => ({ ...theme, canvas: { ...theme.canvas, gridColor: value } }))}
+              />
+            </div>
+          </div>
+
+          {/* Node Appearance Settings */}
+          <div className="p-4 settings-sub-card rounded-xl space-y-3">
+            <div className="flex items-center justify-between pb-1 border-b settings-h-divider">
+              <span className="text-xs font-bold text-canvas-text">{t('节点外观')}</span>
+              <span className="text-[11px] text-canvas-text-muted">{t('所有节点共用样式')}</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <ColorCardInput
+                label={t('节点底色')}
+                value={active.node.background}
+                fallbackColor={active.mode === 'light' ? '#FFFFFF' : '#14141c'}
+                onChange={(value) => update((theme) => ({ ...theme, node: { ...theme.node, background: value } }))}
+              />
+              <ColorCardInput
+                label={t('节点边框')}
+                value={active.node.border}
+                fallbackColor={active.mode === 'light' ? '#E4E8F2' : '#2a2a3a'}
+                onChange={(value) => update((theme) => ({ ...theme, node: { ...theme.node, border: value } }))}
+              />
+              <ColorCardInput
+                label={t('选中边框')}
+                value={active.node.selectedBorder}
+                fallbackColor={active.mode === 'light' ? '#7280E4' : '#6366f1'}
+                onChange={(value) => update((theme) => ({ ...theme, node: { ...theme.node, selectedBorder: value } }))}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-2">
+              <div className="p-3 settings-sub-card rounded-xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-canvas-text">{t('节点圆角')}</span>
+                  <div className="flex items-center space-x-1 settings-sub-card-inner px-2 py-0.5 rounded">
+                    <input
+                      type="number"
+                      min={0}
+                      max={24}
+                      value={active.node.radius}
+                      onChange={(e) => update((theme) => ({ ...theme, node: { ...theme.node, radius: Math.min(24, Math.max(0, Number(e.target.value) || 0)) } }))}
+                      className="w-10 text-xs text-center bg-transparent border-none p-0 text-canvas-text focus:outline-none"
+                    />
+                    <span className="text-xs text-canvas-text-muted">px</span>
+                  </div>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={24}
+                  value={active.node.radius}
+                  onChange={(e) => update((theme) => ({ ...theme, node: { ...theme.node, radius: Number(e.target.value) } }))}
+                  className="w-full accent-brand cursor-pointer"
+                />
+              </div>
+
+              <div className="p-3 settings-sub-card rounded-xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-canvas-text">{t('节点边框宽度')}</span>
+                  <div className="flex items-center space-x-1 settings-sub-card-inner px-2 py-0.5 rounded">
+                    <input
+                      type="number"
+                      min={0}
+                      max={3}
+                      step={0.5}
+                      value={active.node.borderWidth}
+                      onChange={(e) => update((theme) => ({ ...theme, node: { ...theme.node, borderWidth: Math.min(3, Math.max(0, Number(e.target.value) || 0)) } }))}
+                      className="w-10 text-xs text-center bg-transparent border-none p-0 text-canvas-text focus:outline-none"
+                    />
+                    <span className="text-xs text-canvas-text-muted">px</span>
+                  </div>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={3}
+                  step={0.5}
+                  value={active.node.borderWidth}
+                  onChange={(e) => update((theme) => ({ ...theme, node: { ...theme.node, borderWidth: Number(e.target.value) } }))}
+                  className="w-full accent-brand cursor-pointer"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </SectionCard>
+      {/* END: Canvas & Node Appearance Section */}
+
+      {/* BEGIN: CursorSection */}
+      <SectionCard
+        title={t('鼠标指针')}
+        description={t('画布与界面指针交互样式')}
+        icon={
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <path d="m3 3 7.07 16.97 2.51-7.39 7.39-2.51L3 3z" />
+            <path d="m13 13 6 6" />
+          </svg>
+        }
+        dataPurpose="cursor-styling"
+      >
+        <button
+          type="button"
+          onClick={async () => {
+            const next = !customCursor;
+            updateConfig({ customCursor: next });
+            try {
+              await saveConfig({ silent: true });
+            } catch {
+              showToast(t('指针样式设置保存失败'), 'error');
+            }
+          }}
+          aria-pressed={customCursor}
+          className={`sidebar-pref-card w-full${customCursor ? ' is-floating' : ''}`}
+        >
+          <span
+            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+              customCursor ? 'bg-brand/15 text-brand-light' : 'bg-canvas-surface text-canvas-text-secondary'
+            }`}
+            aria-hidden="true"
+          >
+            <Icon icon="mdi:cursor-default-outline" width="16" height="16" />
+          </span>
+
+          <div className="sidebar-pref-text text-left">
+            <div className="sidebar-pref-title font-medium">{t('自定义指针样式')}</div>
+            <div className="sidebar-pref-desc text-canvas-text-muted mt-0.5">
+              {customCursor
+                ? t('使用内置指针，跟随明暗主题自动切换黑白')
+                : t('使用系统默认指针')}
+            </div>
+          </div>
+
+          <div className="sidebar-pref-switch" aria-hidden="true">
+            <span />
+          </div>
+        </button>
+      </SectionCard>
+      {/* END: CursorSection */}
+
+      {/* Confirmation Modal */}
       <ModalOverlay
         isOpen={confirmation !== null}
         onClose={() => setConfirmation(null)}
         ariaLabel={confirmation?.kind === 'delete' ? t('确认删除预设') : t('确认覆盖当前预设')}
-        className="w-[min(420px,calc(100vw-32px))] p-5"
+        className="w-[min(420px,calc(100vw-32px))] p-5 bg-canvas-surface border border-canvas-border rounded-2xl"
         motionPreset="quick"
       >
         <div className="flex items-start gap-3">
@@ -606,7 +1624,9 @@ export default function AppearanceSettings() {
             <Icon icon={confirmation?.kind === 'delete' ? 'lucide:trash-2' : 'lucide:refresh-cw'} width="19" height="19" />
           </span>
           <div className="min-w-0">
-            <h3 className="text-sm font-semibold text-canvas-text">{confirmation?.kind === 'delete' ? t('确认删除预设') : t('确认覆盖当前预设')}</h3>
+            <h3 className="text-sm font-semibold text-canvas-text">
+              {confirmation?.kind === 'delete' ? t('确认删除预设') : t('确认覆盖当前预设')}
+            </h3>
             <p className="mt-2 text-xs leading-5 text-canvas-text-secondary">
               {confirmation?.kind === 'delete'
                 ? t('确定要删除预设“{name}”吗？此操作无法恢复。', { name: confirmation.theme.name })
@@ -615,12 +1635,18 @@ export default function AppearanceSettings() {
           </div>
         </div>
         <div className="mt-5 flex justify-end gap-2">
-          <AnimatedButton type="button" className="ui-btn ui-btn--ghost ui-btn--sm" onClick={() => setConfirmation(null)}>{t('取消')}</AnimatedButton>
-          <AnimatedButton type="button" className={`ui-btn ui-btn--sm ${confirmation?.kind === 'delete' ? 'ui-btn--danger' : 'ui-btn--primary'}`} onClick={() => void confirmPresetAction()}>
+          <AnimatedButton type="button" className="ui-btn ui-btn--ghost ui-btn--sm" onClick={() => setConfirmation(null)}>
+            {t('取消')}
+          </AnimatedButton>
+          <AnimatedButton
+            type="button"
+            className={`ui-btn ui-btn--sm ${confirmation?.kind === 'delete' ? 'ui-btn--danger' : 'ui-btn--primary'}`}
+            onClick={() => void confirmPresetAction()}
+          >
             {confirmation?.kind === 'delete' ? t('确认删除') : t('确认覆盖')}
           </AnimatedButton>
         </div>
       </ModalOverlay>
-    </div>
+    </main>
   );
 }

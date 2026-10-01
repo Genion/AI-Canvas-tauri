@@ -21,34 +21,35 @@ describe('appearance themes', () => {
     expect(themes.find((theme) => theme.id === 'solar-system')?.node.background).toBe('#14141c');
     const dark = themes.find((theme) => theme.id === 'standard-dark');
     expect(dark?.ui).toEqual(expect.objectContaining({
-      surface: '#141414',
-      accent: '#ffffff',
-      card: '#171717',
+      surface: '#14141c',
+      accent: '#6366f1',
+      card: '#1a1a26',
     }));
     expect(dark?.canvas).toEqual(expect.objectContaining({
       kind: 'color',
-      color: '#141414',
-      gridColor: '#474747',
+      color: '#0a0a0f',
+      gridColor: '#585868',
     }));
     expect(dark?.node).toEqual(expect.objectContaining({
-      background: '#262626',
-      border: '#363636',
-      selectedBorder: '#a8a8a8',
+      background: '#14141c',
+      border: '#2a2a3a',
+      borderWidth: 0,
+      radius: 12,
+      selectedBorder: '#6366f1',
     }));
     expect(dark?.edge).toEqual(expect.objectContaining({
-      color: '#86909C',
-      flowColor: '#6bb6fb',
+      color: '#33334a',
+      flowColor: '#818cf8',
     }));
     expect(dark?.handle).toEqual(expect.objectContaining({
       kind: 'color',
       color: '#6366f1',
-      hoverColor: '#e8e8ed',
+      hoverColor: '#818cf8',
     }));
-    expect(dark?.handle.imageDataUrl).toBeTruthy();
     const light = themes.find((theme) => theme.id === 'standard-light');
-    expect(light?.canvas).toEqual(expect.objectContaining({ kind: 'color', color: '#eef2f7', gridColor: '#a7b1c0' }));
-    expect(light?.ui).toEqual(expect.objectContaining({ text: '#252a38', textSecondary: '#4f5a6e', border: '#c7d0df' }));
-    expect(light?.edge.color).toBe('#71809a');
+    expect(light?.canvas).toEqual(expect.objectContaining({ kind: 'color', color: '#F4F6FB', gridColor: '#B1B1B7' }));
+    expect(light?.ui).toEqual(expect.objectContaining({ text: '#33364D', textSecondary: '#6E7488', border: '#E4E8F2' }));
+    expect(light?.edge.color).toBe('#B1B1B7');
   });
 
   it('maps legacy canvas settings into one complete appearance snapshot', () => {
@@ -112,9 +113,9 @@ describe('appearance themes', () => {
       expect(values.get('--white-alpha-10')).toBe('color-mix(in srgb, #ffffff 10%, transparent)');
       expect(values.get('--black-alpha-50')).toBe('rgba(0, 0, 0, 0.5)');
       expect(values.get('--theme-bg')).toBe('#0a0a0f');
-      expect(values.get('--theme-surface')).toBe('#141414');
-      expect(values.get('--glass-panel-bg')).toBe('#141414');
-      expect(values.get('--theme-card')).toBe('#171717');
+      expect(values.get('--theme-surface')).toBe('#14141c');
+      expect(values.get('--glass-panel-bg')).toBe('#14141c');
+      expect(values.get('--theme-card')).toBe('#1a1a26');
       expect(values.get('--theme-hover')).toBe('#252535');
       expect(values.get('--theme-border')).toBe('#2a2a3a');
     } finally {
@@ -147,6 +148,45 @@ describe('appearance themes', () => {
       applyAppearanceTheme({ ...solar, ui: { ...solar.ui, surface: '#ffffff', card: '#f4f4f4' } });
       expect(values.get('--glass-panel-bg')).toBe('#ffffff');
       expect(values.get('--glass-bg-node')).toBe('#f4f4f4');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('correctly maps "transparent" / "none" / "无" border and background colors to transparent in CSS variables', () => {
+    const values = new Map<string, string>();
+    const root = {
+      dataset: {},
+      setAttribute: vi.fn(),
+      style: {
+        setProperty: (name: string, value: string) => values.set(name, value),
+        removeProperty: (name: string) => values.delete(name),
+      },
+    } as unknown as HTMLElement;
+    vi.stubGlobal('document', { documentElement: root });
+
+    try {
+      const base = createBuiltinAppearanceThemes()[0];
+      applyAppearanceTheme({
+        ...base,
+        node: {
+          ...base.node,
+          background: 'transparent',
+          border: 'none',
+          selectedBorder: '无',
+        },
+        canvas: {
+          ...base.canvas,
+          gridColor: 'transparent',
+        },
+      });
+
+      expect(values.get('--appearance-node-background')).toBe('transparent');
+      expect(values.get('--appearance-node-border')).toBe('transparent');
+      expect(values.get('--appearance-node-selected-border')).toBe('transparent');
+      expect(values.get('--canvas-grid-color')).toBe('transparent');
+      expect(values.get('--appearance-node-radius')).toBe(`${base.node.radius}px`);
+      expect(values.get('--appearance-node-radius-inner')).toBe(`${Math.max(0, base.node.radius - 4)}px`);
     } finally {
       vi.unstubAllGlobals();
     }
