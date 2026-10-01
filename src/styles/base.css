@@ -13,6 +13,10 @@
   color-scheme: dark;
 
   /* Theme Layer / 主题层 ── */
+  /* 外框用独立的玻璃色，避免跟着面板底色变成实心边条。 */
+  --window-glass-rgb: 255 255 255;
+  --window-glass-tint: rgb(var(--window-glass-rgb) / 0.10);
+
   --theme-bg: #0a0a0f;
   --theme-surface: #14141c;
   --theme-card: #1a1a26;
@@ -450,6 +454,7 @@
   --glass-panel-bg: rgba(252, 253, 255, 0.86);
   --glass-ring: rgba(51, 54, 77, 0.10);
   --glass-ring-strong: rgba(51, 54, 77, 0.06);
+  --floating-surface-bg: color-mix(in srgb, var(--theme-surface) 70%, transparent);
   --minimap-mask: color-mix(in srgb, var(--theme-text) 14%, transparent);
   --glass-bevel-border: linear-gradient(
     160deg,
@@ -794,7 +799,7 @@ body {
   -webkit-overflow-scrolling: auto;
 }
 
-/* 主窗口玻璃外框：真实留出 5px 透明带，内外高光分别勾勒窗口与内容边缘。 */
+/* 主窗口玻璃外框：留出 5px 透明磨砂带，不加内外轮廓高光。 */
 .app-shell {
   --app-shell-inset: 0px;
   /* 内置聊天助手面板尺寸；操作记录浮层按此让位 */
@@ -804,8 +809,7 @@ body {
   isolation: isolate;
 }
 
-.app-shell::before,
-.app-shell::after {
+.app-shell::before {
   position: absolute;
   pointer-events: none;
   content: '';
@@ -816,32 +820,20 @@ body {
 .app-shell::before {
   z-index: 0;
   inset: 0;
-  border: 1px solid var(--glass-ring);
+  padding: 5px;
   border-radius: 16px;
-  background:
-    linear-gradient(
-      145deg,
-      var(--glass-ring) 0%,
-      var(--white-alpha-04) 34%,
-      color-mix(in srgb, var(--brand) 18%, transparent) 68%,
-      var(--white-alpha-08) 100%
-    ),
-    var(--floating-surface-bg);
-  box-shadow:
-    inset 0 0 0 1px var(--white-alpha-08),
-    inset 0 0 0 4px var(--white-alpha-03),
-    0 18px 48px var(--black-alpha-30);
-  /* 避免画布变化时对整窗执行背景模糊；5px 色带仍由渐变和双层高光塑造。 */
-}
-
-.app-shell::after {
-  z-index: 2;
-  inset: 4px;
-  border: 1px solid var(--glass-ring-strong);
-  border-radius: 12px;
-  box-shadow:
-    inset 0 1px 0 var(--white-alpha-10),
-    0 0 10px var(--white-alpha-06);
+  background: var(--window-glass-tint);
+  /* 只露出 5px 外框的磨砂层，中间挖空，不给应用内容叠一层玻璃。 */
+  -webkit-mask:
+    linear-gradient(rgb(var(--window-glass-rgb)) 0 0) content-box,
+    linear-gradient(rgb(var(--window-glass-rgb)) 0 0);
+  mask:
+    linear-gradient(rgb(var(--window-glass-rgb)) 0 0) content-box,
+    linear-gradient(rgb(var(--window-glass-rgb)) 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  -webkit-backdrop-filter: blur(6px) saturate(115%);
+  backdrop-filter: blur(6px) saturate(115%);
 }
 
 .app-shell--glass-frame {
@@ -849,9 +841,13 @@ body {
   --app-shell-content-radius: 12px;
 }
 
-.app-shell--glass-frame::before,
-.app-shell--glass-frame::after {
+.app-shell--glass-frame::before {
   opacity: 1;
+}
+
+/* 浅色下稍微加强玻璃底色，仍然透出窗口后面的颜色。 */
+[data-theme='light'] .app-shell {
+  --window-glass-tint: rgb(var(--window-glass-rgb) / 0.16);
 }
 
 .app-shell__content {

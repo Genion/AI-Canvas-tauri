@@ -214,7 +214,7 @@ export function applyAppearanceTheme(theme: AppearanceTheme | null | undefined):
     '--scrollbar-thumb-hover': ui.scrollbarHover,
     '--canvas-grid-color': isTransparentColor(resolvedTheme.canvas.gridColor) ? 'transparent' : resolvedTheme.canvas.gridColor,
     '--canvas-grid-size': `${resolvedTheme.canvas.gridSize}px`,
-    '--floating-surface-bg': glassSurface,
+    '--floating-surface-bg': mode === 'light' ? 'color-mix(in srgb, #ffffff 70%, transparent)' : glassSurface,
   };
   for (const [name, value] of Object.entries(vars)) setVar(root, name, value);
   applyAccentScale(root, ui.accent, mode);
