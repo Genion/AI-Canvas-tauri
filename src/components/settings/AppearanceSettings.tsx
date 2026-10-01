@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Icon } from '@iconify/react';
 import { useAppStore } from '../../store/useAppStore';
-import type { AppearanceTheme } from '../../types';
+import { getNodeTypeConfig, type AppearanceTheme, type BaseNodeData } from '../../types';
+import type { Node } from '@xyflow/react';
 import { getBuiltinAppearanceTheme, normalizeAppearanceTheme } from '../../services/appearance/appearanceDefaults';
 import { isTransparentColor, resolveAppearanceMode, resolveAppearanceTheme } from '../../services/appearance/appearanceRuntime';
 import { exportAppearanceTheme, importAppearanceTheme } from '../../services/appearance/appearanceThemeService';
@@ -12,6 +13,25 @@ import AnimatedButton from '../shared/AnimatedButton';
 import ModalOverlay from '../shared/ModalOverlay';
 import Select from '../shared/Select';
 import { useT } from '../../i18n';
+import mercuryImg from '../../assets/images/bg/1_mercury.png';
+import venusImg from '../../assets/images/bg/2_venus.png';
+import earthImg from '../../assets/images/bg/3_earth.png';
+import marsImg from '../../assets/images/bg/4_mars.png';
+import jupiterImg from '../../assets/images/bg/5_jupiter.png';
+import saturnImg from '../../assets/images/bg/6_saturn.png';
+import uranusImg from '../../assets/images/bg/7_uranus.png';
+import neptuneImg from '../../assets/images/bg/8_neptune.png';
+
+const SOLAR_SYSTEM_PLANETS = [
+  { id: 'earth', name: '地球', image: earthImg },
+  { id: 'jupiter', name: '木星', image: jupiterImg },
+  { id: 'saturn', name: '土星', image: saturnImg },
+  { id: 'mars', name: '火星', image: marsImg },
+  { id: 'mercury', name: '水星', image: mercuryImg },
+  { id: 'venus', name: '金星', image: venusImg },
+  { id: 'uranus', name: '天王星', image: uranusImg },
+  { id: 'neptune', name: '海王星', image: neptuneImg },
+];
 
 function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -43,6 +63,407 @@ const LIGHT_THEME_COLOR_SWATCHES = [
   '#9867D8', // Macaron Purple
   '#CE4F62', // Macaron Red
 ] as const;
+
+const DARK_CANVAS_COLOR_SWATCHES = [
+  '#0a0a0f', // Baseline theme background
+  '#000000', // Shade 0
+  '#0F0F0F', // Shade 15
+  '#141414', // Shade 20 (Original default dark shade)
+  '#212121', // Shade 33
+  '#3A3A3A', // Shade 58
+] as const;
+
+const LIGHT_CANVAS_COLOR_SWATCHES = [
+  '#F4F6FB', // Baseline light theme background
+  '#FFFFFF', // Pure white
+  '#FAFBFD',
+  '#ECEFF5',
+  '#E4E9F2',
+] as const;
+
+function getThemeNodeSeed(themeId: string): number {
+  let hash = 0;
+  for (let i = 0; i < themeId.length; i++) {
+    hash = (hash << 5) - hash + themeId.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
+
+interface BlankNodeTemplate {
+  type: string;
+  label: string;
+  icon: string;
+  iconColor: string;
+  badge?: string;
+  kind: 'image' | 'text' | 'video' | 'audio' | 'storyboard';
+}
+
+const BLANK_NODE_TEMPLATES: BlankNodeTemplate[] = [
+  {
+    type: 'ai-image',
+    label: '生成图像',
+    icon: 'mdi:image-outline',
+    iconColor: '#22c55e',
+    badge: 'Nano',
+    kind: 'image',
+  },
+  {
+    type: 'ai-text',
+    label: '生成文本',
+    icon: 'mdi:text-box-outline',
+    iconColor: '#6366f1',
+    badge: 'LLM',
+    kind: 'text',
+  },
+  {
+    type: 'ai-video',
+    label: '生成视频',
+    icon: 'mdi:video-outline',
+    iconColor: '#3b82f6',
+    badge: '1080P',
+    kind: 'video',
+  },
+  {
+    type: 'ai-storyboard',
+    label: '宫格分镜',
+    icon: 'mdi:grid',
+    iconColor: '#ec4899',
+    badge: '4格',
+    kind: 'storyboard',
+  },
+  {
+    type: 'ai-audio',
+    label: '生成音频',
+    icon: 'mdi:volume-high',
+    iconColor: '#f97316',
+    badge: 'MP3',
+    kind: 'audio',
+  },
+];
+
+function PresetSingleNodePreview({
+  theme,
+  index,
+  realNodes,
+}: {
+  theme: AppearanceTheme;
+  index: number;
+  realNodes: Node<BaseNodeData>[];
+}) {
+  const themeResolved = resolveAppearanceTheme(theme);
+  const isDark = themeResolved.mode === 'dark';
+  const hasReal = realNodes.length > 0;
+  const seed = getThemeNodeSeed(theme.id) + index;
+  const pickedReal = hasReal ? realNodes[seed % realNodes.length] : null;
+
+  let label: string;
+  let icon: string;
+  let iconColor: string;
+  let displayId: number | undefined;
+  let badgeText: string;
+  let imageSrc: string | undefined;
+  let videoThumb: string | undefined;
+  let promptText = '';
+  let kind: 'image' | 'text' | 'video' | 'audio' | 'storyboard';
+
+  if (pickedReal) {
+    const data = (pickedReal.data || {}) as BaseNodeData;
+    const config = getNodeTypeConfig(pickedReal.type || 'ai-image');
+    label = data.label || config.label || '节点';
+    icon = config.icon || 'mdi:cube-outline';
+    iconColor = themeResolved.ui.accent;
+    displayId = data.displayId;
+    badgeText = data.model ? data.model.split('/').pop() || 'AI' : (config.label || '节点');
+
+    const rawOutput = data.output;
+    const outputStr = typeof rawOutput === 'string' ? rawOutput : '';
+    const rawImg = data.imageUrl || data.thumbnailUrl || (outputStr.startsWith('http') || outputStr.startsWith('data:') || outputStr.startsWith('asset:') ? outputStr : undefined);
+    imageSrc = typeof rawImg === 'string' ? rawImg : undefined;
+
+    const rawVideo = data.videoUrl || data.imageUrl || data.thumbnailUrl;
+    videoThumb = typeof rawVideo === 'string' ? rawVideo : undefined;
+    promptText = data.prompt || (!imageSrc && outputStr ? outputStr : '');
+
+    const nodeType = pickedReal.type || '';
+    if (nodeType.includes('image')) {
+      kind = 'image';
+    } else if (nodeType.includes('video')) {
+      kind = 'video';
+    } else if (nodeType.includes('audio')) {
+      kind = 'audio';
+    } else if (nodeType.includes('storyboard')) {
+      kind = 'storyboard';
+    } else {
+      kind = 'text';
+    }
+  } else {
+    const template = BLANK_NODE_TEMPLATES[seed % BLANK_NODE_TEMPLATES.length];
+    label = template.label;
+    icon = template.icon;
+    iconColor = template.iconColor;
+    badgeText = template.badge || '空白';
+    kind = template.kind;
+  }
+
+  const innerRadius = Math.max(0, themeResolved.node.radius - 3);
+  const innerBg = isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)';
+  const innerBorder = isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)';
+
+  return (
+    <div className="relative flex flex-col z-10 w-[214px] max-w-[94%] mx-auto shrink-0 select-none">
+      {/* Node Header Label */}
+      <div className="flex items-center justify-between mb-1 px-1">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span
+            className="w-4 h-4 rounded flex items-center justify-center shrink-0"
+            style={{ backgroundColor: `${themeResolved.ui.accent}20` }}
+          >
+            <Icon icon={icon} width="11" height="11" style={{ color: iconColor }} />
+          </span>
+          <span
+            className="text-[10px] font-semibold truncate leading-none"
+            style={{ color: themeResolved.ui.text }}
+          >
+            {label}
+          </span>
+          {displayId != null && (
+            <span className="text-[9px] font-mono opacity-50 tabular-nums" style={{ color: themeResolved.ui.text }}>
+              #{displayId}
+            </span>
+          )}
+        </div>
+        <span
+          className="text-[8px] px-1.5 py-0.5 rounded font-medium shrink-0 leading-tight"
+          style={{
+            backgroundColor: `${themeResolved.ui.accent}18`,
+            color: themeResolved.ui.accent,
+          }}
+        >
+          {badgeText}
+        </span>
+      </div>
+
+      {/* Node Card Shell */}
+      <div
+        className="relative p-2 shadow-xs transition-all flex flex-col justify-between"
+        style={{
+          backgroundColor: isTransparentColor(themeResolved.node.background)
+            ? 'transparent'
+            : themeResolved.node.background,
+          borderColor: isTransparentColor(themeResolved.node.border)
+            ? 'transparent'
+            : themeResolved.node.border,
+          borderWidth: `${Math.max(1, themeResolved.node.borderWidth)}px`,
+          borderRadius: `${themeResolved.node.radius}px`,
+          height: '62px',
+        }}
+      >
+        {/* Left Input Port */}
+        <span
+          className="absolute -left-1.5 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border border-white/80 shadow-xs flex items-center justify-center z-10"
+          style={{ backgroundColor: themeResolved.handle.color }}
+        >
+          <span className="w-1 h-1 rounded-full bg-white/90" />
+        </span>
+
+        {/* Right Output Port */}
+        <span
+          className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border border-white/80 shadow-xs flex items-center justify-center z-10"
+          style={{ backgroundColor: themeResolved.handle.color }}
+        >
+          <span className="w-1 h-1 rounded-full bg-white/90" />
+        </span>
+
+        {/* Inner Content */}
+        {kind === 'image' && (
+          imageSrc ? (
+            <div
+              className="w-full h-full relative overflow-hidden flex items-center justify-center"
+              style={{
+                borderRadius: `${innerRadius}px`,
+                backgroundColor: innerBg,
+                borderColor: innerBorder,
+                borderWidth: '1px',
+              }}
+            >
+              <img
+                src={imageSrc}
+                alt=""
+                className="w-full h-full object-cover"
+                onError={(e) => { e.currentTarget.style.display = 'none'; }}
+              />
+              <span
+                className="absolute bottom-1 right-1 text-[7px] font-mono px-1 py-0.2 rounded font-semibold leading-tight"
+                style={{
+                  backgroundColor: isDark ? 'rgba(0,0,0,0.65)' : 'rgba(255,255,255,0.85)',
+                  color: isDark ? '#ffffff' : '#1e293b',
+                }}
+              >
+                IMG
+              </span>
+            </div>
+          ) : (
+            <div className="flex flex-col justify-between h-full space-y-1">
+              <div
+                className="px-2 py-0.5 text-[9px] flex items-center justify-between"
+                style={{
+                  borderRadius: `${Math.max(0, innerRadius - 2)}px`,
+                  backgroundColor: innerBg,
+                  borderColor: innerBorder,
+                  borderWidth: '1px',
+                  color: themeResolved.ui.text,
+                }}
+              >
+                <span className="truncate opacity-75">{promptText || '输入提示词生成图像…'}</span>
+                <span className="text-[8px] font-mono opacity-50 shrink-0 ml-1">1:1</span>
+              </div>
+              <div
+                className="flex-1 w-full border border-dashed flex items-center justify-center gap-1.5 opacity-80"
+                style={{
+                  borderRadius: `${Math.max(0, innerRadius - 2)}px`,
+                  backgroundColor: innerBg,
+                  borderColor: innerBorder,
+                  color: themeResolved.ui.text,
+                }}
+              >
+                <Icon icon="mdi:image-outline" width="13" height="13" style={{ opacity: 0.6 }} />
+                <span className="text-[8px] opacity-75">等待生成图像</span>
+              </div>
+            </div>
+          )
+        )}
+
+        {kind === 'video' && (
+          videoThumb ? (
+            <div
+              className="w-full h-full relative overflow-hidden flex items-center justify-center"
+              style={{
+                borderRadius: `${innerRadius}px`,
+                backgroundColor: innerBg,
+                borderColor: innerBorder,
+                borderWidth: '1px',
+              }}
+            >
+              <img
+                src={videoThumb}
+                alt=""
+                className="w-full h-full object-cover"
+                onError={(e) => { e.currentTarget.style.display = 'none'; }}
+              />
+              <div className="absolute w-5 h-5 rounded-full bg-black/60 flex items-center justify-center text-white shadow-xs">
+                <Icon icon="mdi:play" width="12" height="12" />
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col justify-between h-full space-y-1">
+              <div
+                className="px-2 py-0.5 text-[9px] flex items-center justify-between"
+                style={{
+                  borderRadius: `${Math.max(0, innerRadius - 2)}px`,
+                  backgroundColor: innerBg,
+                  borderColor: innerBorder,
+                  borderWidth: '1px',
+                  color: themeResolved.ui.text,
+                }}
+              >
+                <span className="truncate opacity-75">{promptText || '输入视频运镜描述…'}</span>
+                <span className="text-[8px] font-mono opacity-50 shrink-0 ml-1">5s</span>
+              </div>
+              <div
+                className="flex-1 w-full border border-dashed flex items-center justify-center gap-1.5 opacity-80"
+                style={{
+                  borderRadius: `${Math.max(0, innerRadius - 2)}px`,
+                  backgroundColor: innerBg,
+                  borderColor: innerBorder,
+                  color: themeResolved.ui.text,
+                }}
+              >
+                <Icon icon="mdi:video-outline" width="13" height="13" style={{ opacity: 0.6 }} />
+                <span className="text-[8px] opacity-75">等待生成视频</span>
+              </div>
+            </div>
+          )
+        )}
+
+        {kind === 'text' && (
+          <div className="flex flex-col justify-between h-full space-y-1">
+            <div
+              className="px-2 py-0.5 text-[9px] flex items-center justify-between"
+              style={{
+                borderRadius: `${Math.max(0, innerRadius - 2)}px`,
+                backgroundColor: innerBg,
+                borderColor: innerBorder,
+                borderWidth: '1px',
+                color: themeResolved.ui.text,
+              }}
+            >
+              <span className="truncate opacity-75">{promptText || '输入文本提示词…'}</span>
+              <span className="text-[8px] font-mono opacity-50 shrink-0 ml-1">Text</span>
+            </div>
+            <div className="space-y-1 px-0.5 py-0.5">
+              <div
+                className="h-1.5 rounded-full"
+                style={{ width: '85%', backgroundColor: themeResolved.ui.text, opacity: 0.45 }}
+              />
+              <div
+                className="h-1.5 rounded-full"
+                style={{ width: '60%', backgroundColor: themeResolved.ui.text, opacity: 0.25 }}
+              />
+            </div>
+          </div>
+        )}
+
+        {kind === 'storyboard' && (
+          <div className="grid grid-cols-4 gap-1 h-full w-full">
+            {['#1', '#2', '#3', '#4'].map((idx) => (
+              <div
+                key={idx}
+                className="flex flex-col items-center justify-center"
+                style={{
+                  borderRadius: `${Math.max(0, innerRadius - 2)}px`,
+                  backgroundColor: innerBg,
+                  borderColor: innerBorder,
+                  borderWidth: '1px',
+                  color: themeResolved.ui.text,
+                }}
+              >
+                <Icon icon="mdi:plus" width="9" height="9" className="opacity-40" />
+                <span className="text-[7px] font-mono opacity-60 leading-none mt-0.5">{idx}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {kind === 'audio' && (
+          <div
+            className="h-full w-full flex items-center justify-between px-2.5"
+            style={{
+              borderRadius: `${innerRadius}px`,
+              backgroundColor: innerBg,
+              borderColor: innerBorder,
+              borderWidth: '1px',
+            }}
+          >
+            <div className="flex items-center gap-1.5 text-orange-400">
+              <Icon icon="mdi:play-circle-outline" width="15" height="15" />
+              <span className="text-[9px] font-mono">00:15</span>
+            </div>
+            <div className="flex items-center gap-0.5 h-5">
+              <div className="w-1 h-2 rounded-full bg-orange-400/40" />
+              <div className="w-1 h-3.5 rounded-full bg-orange-400/80" />
+              <div className="w-1 h-5 rounded-full bg-orange-400" />
+              <div className="w-1 h-3 rounded-full bg-orange-400/60" />
+              <div className="w-1 h-4.5 rounded-full bg-orange-400" />
+              <div className="w-1 h-3 rounded-full bg-orange-400/70" />
+              <div className="w-1 h-1.5 rounded-full bg-orange-400/30" />
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function imagePreviewStyle(imageDataUrl: string | undefined, size: CSSProperties['backgroundSize'] = 'cover'): CSSProperties | undefined {
   return imageDataUrl
@@ -184,7 +605,7 @@ function SectionCard({
 }) {
   return (
     <section
-      className={`settings-section-card rounded-2xl p-5 shadow-xs transition-colors ${className}`}
+      className={`settings-section-card rounded-2xl p-3 shadow-xs transition-colors ${className}`}
       data-purpose={dataPurpose}
     >
       <div className="flex items-center space-x-3 mb-4">
@@ -227,6 +648,12 @@ export default function AppearanceSettings() {
   const updateConfig = useAppStore((state) => state.updateConfig);
   const saveConfig = useAppStore((state) => state.saveConfig);
   const customCursor = config.customCursor !== false;
+  const canvasNodes = useAppStore((state) => state.nodes ?? []);
+  const realNodes = useMemo(
+    () => canvasNodes.filter((n) => n.type && n.type !== 'comment' && n.type !== 'canvas-note' && n.type !== 'group'),
+    [canvasNodes]
+  );
+  const [solarPlanetIndex] = useState(() => Math.floor(Math.random() * SOLAR_SYSTEM_PLANETS.length));
 
   const importRef = useRef<HTMLInputElement>(null);
   const canvasImageRef = useRef<HTMLInputElement>(null);
@@ -568,9 +995,21 @@ export default function AppearanceSettings() {
 
       {/* BEGIN: LiveCanvasPreviewCard */}
       <section className="relative settings-preview-card rounded-2xl p-4 overflow-hidden shadow-xs" data-purpose="interactive-live-preview" style={canvasStyle}>
+        {resolved.canvas.kind === 'solar-system' && (
+          <>
+            <div className="solar-stars opacity-75 pointer-events-none" />
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden" style={{ bottom: '-55%' }}>
+              <img
+                src={SOLAR_SYSTEM_PLANETS[solarPlanetIndex].image}
+                alt={SOLAR_SYSTEM_PLANETS[solarPlanetIndex].name}
+                className="w-72 h-72 object-contain rounded-full opacity-35 filter brightness-95 pointer-events-none select-none"
+              />
+            </div>
+          </>
+        )}
         {/* Dot Grid Backdrop */}
         <div
-          className={`absolute inset-0 ${active.mode === 'dark' ? 'bg-dot-pattern-dark' : 'bg-dot-pattern'} opacity-60`}
+          className={`absolute inset-0 ${active.mode === 'dark' ? 'bg-dot-pattern-dark' : 'bg-dot-pattern'} ${resolved.canvas.kind === 'solar-system' ? 'opacity-25' : 'opacity-60'}`}
           style={
             resolved.canvas.gridColor && !isTransparentColor(resolved.canvas.gridColor)
               ? { backgroundImage: `radial-gradient(${resolved.canvas.gridColor} 1px, transparent 1px)` }
@@ -706,10 +1145,12 @@ export default function AppearanceSettings() {
         dataPurpose="theme-presets-picker"
       >
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {presetThemes.map((theme) => {
+          {presetThemes.map((theme, index) => {
             const isCurrent = theme.id === active.id;
             const themeResolved = resolveAppearanceTheme(theme);
             const isDark = themeResolved.mode === 'dark';
+            const isSolarSystem = themeResolved.canvas.kind === 'solar-system';
+            const solarPlanet = isSolarSystem ? SOLAR_SYSTEM_PLANETS[(solarPlanetIndex + index) % SOLAR_SYSTEM_PLANETS.length] : null;
 
             return (
               <div
@@ -720,194 +1161,51 @@ export default function AppearanceSettings() {
                   setAutoSaveStatus('idle');
                   void activate(theme);
                 }}
-                className={`group relative rounded-xl p-3 transition-all cursor-pointer ${
-                  isCurrent ? 'settings-preset-card--active' : 'settings-preset-card'
+                className={`group relative rounded-2xl overflow-hidden transition-all cursor-pointer border select-none ${
+                  isCurrent ? 'settings-preset-card--active ring-2 ring-brand/35 shadow-md shadow-brand/10' : 'settings-preset-card hover:shadow-sm'
                 }`}
+                style={{
+                  height: '136px',
+                  background:
+                    isSolarSystem
+                      ? '#000000'
+                      : themeResolved.canvas.kind === 'frosted-glass'
+                        ? 'radial-gradient(ellipse at 80% 20%, rgba(245, 158, 11, 0.12) 0%, transparent 60%), radial-gradient(ellipse at 20% 80%, rgba(234, 88, 12, 0.08) 0%, transparent 50%), #f8f6f0'
+                        : themeResolved.canvas.kind === 'color'
+                          ? themeResolved.canvas.color
+                          : themeResolved.ui.background,
+                }}
               >
-                {/* Preset Mini-Canvas Preview */}
-                <div
-                  className="relative h-28 rounded-xl px-3 py-2.5 overflow-hidden flex items-center justify-between border border-canvas-border select-none"
-                  style={{
-                    background:
-                      themeResolved.canvas.kind === 'solar-system'
-                        ? 'radial-gradient(ellipse at 85% 15%, rgba(99, 102, 241, 0.28) 0%, transparent 60%), radial-gradient(ellipse at 15% 85%, rgba(139, 92, 246, 0.2) 0%, transparent 50%), #0c101c'
-                        : themeResolved.canvas.kind === 'frosted-glass'
-                          ? 'radial-gradient(ellipse at 80% 20%, rgba(245, 158, 11, 0.12) 0%, transparent 60%), radial-gradient(ellipse at 20% 80%, rgba(234, 88, 12, 0.08) 0%, transparent 50%), #f8f6f0'
-                          : themeResolved.canvas.kind === 'color'
-                            ? themeResolved.canvas.color
-                            : themeResolved.ui.background,
-                  }}
-                >
-                  <div className={`absolute inset-0 ${isDark ? 'bg-dot-pattern-dark' : 'bg-dot-pattern-dense'} opacity-40 pointer-events-none`} />
-
-                  {/* Left: 提示词节点 (Prompt/Text Node) */}
-                  <div className="relative flex flex-col z-10 w-[112px] sm:w-[124px] shrink-0">
-                    <div className="flex items-center gap-1 mb-1 px-0.5">
-                      <span
-                        className="w-1.5 h-1.5 rounded-full shrink-0"
-                        style={{ backgroundColor: themeResolved.ui.accent }}
+                {/* Solar system background elements */}
+                {isSolarSystem && solarPlanet && (
+                  <>
+                    <div className="solar-stars opacity-80 pointer-events-none" />
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden" style={{ bottom: '-40%' }}>
+                      <img
+                        src={solarPlanet.image}
+                        alt={solarPlanet.name}
+                        className="w-[180px] h-[180px] object-contain rounded-full opacity-40 filter brightness-95 pointer-events-none select-none"
                       />
-                      <span
-                        className="text-[9px] font-semibold truncate leading-none tracking-tight"
-                        style={{ color: themeResolved.ui.text, opacity: 0.85 }}
-                      >
-                        {t('提示词')}
-                      </span>
                     </div>
+                  </>
+                )}
 
-                    <div
-                      className="relative h-[62px] p-2 flex flex-col justify-between shadow-xs transition-all"
-                      style={{
-                        backgroundColor: isTransparentColor(themeResolved.node.background)
-                          ? 'transparent'
-                          : themeResolved.node.background,
-                        borderColor: isTransparentColor(themeResolved.node.border)
-                          ? 'transparent'
-                          : themeResolved.node.border,
-                        borderWidth: `${Math.max(1, themeResolved.node.borderWidth)}px`,
-                        borderRadius: `${Math.min(10, Math.max(3, themeResolved.node.radius * 0.75))}px`,
-                      }}
-                    >
-                      <div className="space-y-1.5">
-                        <div
-                          className="h-1.5 rounded-full"
-                          style={{
-                            width: '80%',
-                            backgroundColor: themeResolved.ui.text,
-                            opacity: 0.55,
-                          }}
-                        />
-                        <div
-                          className="h-1.5 rounded-full"
-                          style={{
-                            width: '95%',
-                            backgroundColor: themeResolved.ui.text,
-                            opacity: 0.32,
-                          }}
-                        />
-                        <div
-                          className="h-1.5 rounded-full"
-                          style={{
-                            width: '56%',
-                            backgroundColor: themeResolved.ui.text,
-                            opacity: 0.2,
-                          }}
-                        />
-                      </div>
+                {/* Dot Grid Backdrop across full card */}
+                <div className={`absolute inset-0 ${isDark ? 'bg-dot-pattern-dark' : 'bg-dot-pattern-dense'} ${isSolarSystem ? 'opacity-20' : 'opacity-40'} pointer-events-none`} />
 
-                      {/* Output Handle / Port */}
-                      <span
-                        className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border border-white/80 shadow-xs flex items-center justify-center z-10"
-                        style={{
-                          backgroundColor: themeResolved.handle.color,
-                        }}
-                      >
-                        <span className="w-1 h-1 rounded-full bg-white/90" />
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Center: Bezier Connection Wire (Spline Edge) */}
-                  <div className="flex-1 mx-0.5 h-8 relative flex items-center justify-center z-0">
-                    <svg className="w-full h-8 overflow-visible" preserveAspectRatio="none" viewBox="0 0 80 24">
-                      <defs>
-                        <linearGradient id={`preset-edge-${theme.id}`} x1="0%" x2="100%" y1="0%" y2="0%">
-                          <stop offset="0%" stopColor={themeResolved.edge.color} />
-                          <stop offset="50%" stopColor={themeResolved.edge.flowColor || themeResolved.ui.accent} />
-                          <stop offset="100%" stopColor={themeResolved.edge.color} />
-                        </linearGradient>
-                      </defs>
-                      <path
-                        d="M 0,12 C 35,12 45,12 80,12"
-                        fill="none"
-                        stroke={themeResolved.edge.color}
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                        opacity="0.45"
-                      />
-                      <path
-                        d="M 0,12 C 35,12 45,12 80,12"
-                        fill="none"
-                        stroke={`url(#preset-edge-${theme.id})`}
-                        strokeWidth="1.5"
-                        strokeLinecap="round"
-                        opacity="0.95"
-                      />
-                    </svg>
-                  </div>
-
-                  {/* Right: 图像生成节点 (Image Node) */}
-                  <div className="relative flex flex-col z-10 w-[112px] sm:w-[124px] shrink-0">
-                    <div className="flex items-center gap-1 mb-1 px-0.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-                      <span
-                        className="text-[9px] font-semibold truncate leading-none tracking-tight"
-                        style={{ color: themeResolved.ui.text, opacity: 0.85 }}
-                      >
-                        {t('图像生成')}
-                      </span>
-                    </div>
-
-                    <div
-                      className="relative h-[62px] p-1 flex items-center justify-center shadow-xs transition-all overflow-hidden"
-                      style={{
-                        backgroundColor: isTransparentColor(themeResolved.node.background)
-                          ? 'transparent'
-                          : themeResolved.node.background,
-                        borderColor: isTransparentColor(themeResolved.node.border)
-                          ? 'transparent'
-                          : themeResolved.node.border,
-                        borderWidth: `${Math.max(1, themeResolved.node.borderWidth)}px`,
-                        borderRadius: `${Math.min(10, Math.max(3, themeResolved.node.radius * 0.75))}px`,
-                      }}
-                    >
-                      {/* Input Handle / Port */}
-                      <span
-                        className="absolute -left-1.5 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border border-white/80 shadow-xs flex items-center justify-center z-10"
-                        style={{
-                          backgroundColor: themeResolved.handle.color,
-                        }}
-                      >
-                        <span className="w-1 h-1 rounded-full bg-white/90" />
-                      </span>
-
-                      {/* Mini Image Preview Area */}
-                      <div
-                        className="w-full h-full relative overflow-hidden flex items-center justify-center"
-                        style={{
-                          borderRadius: `${Math.max(0, Math.min(10, themeResolved.node.radius * 0.75) - 2)}px`,
-                          background: isDark
-                            ? 'linear-gradient(135deg, rgba(83, 104, 214, 0.25) 0%, rgba(20, 20, 28, 0.85) 50%, rgba(16, 185, 129, 0.2) 100%)'
-                            : 'linear-gradient(135deg, rgba(147, 197, 253, 0.35) 0%, rgba(241, 245, 249, 0.9) 50%, rgba(167, 243, 208, 0.35) 100%)',
-                        }}
-                      >
-                        <svg
-                          className="w-4 h-4 opacity-60"
-                          style={{ color: themeResolved.ui.text }}
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <rect width="18" height="18" x="3" y="3" rx="2" strokeWidth="1.5" />
-                          <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor" />
-                          <path d="M21 15l-5-5L5 21" strokeWidth="1.5" />
-                        </svg>
-                        <span
-                          className="absolute bottom-1 right-1 text-[7px] font-mono px-1 py-0.2 rounded font-semibold leading-tight"
-                          style={{
-                            backgroundColor: isDark ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.75)',
-                            color: isDark ? '#ffffff' : '#1e293b',
-                          }}
-                        >
-                          IMG
-                        </span>
-                      </div>
-                    </div>
-                  </div>
+                {/* Node Preview Area */}
+                <div className="w-full h-full flex items-center justify-center pt-2 pb-6 relative z-10">
+                  <PresetSingleNodePreview theme={theme} index={index} realNodes={realNodes} />
                 </div>
 
-                {/* Preset Footer */}
-                <div className="mt-2.5 flex items-center justify-between">
+                {/* Floating Bottom Footer */}
+                <div
+                  className={`absolute bottom-0 inset-x-0 px-3 py-1.5 flex items-center justify-between z-20 transition-colors ${
+                    isDark
+                      ? 'bg-gradient-to-t from-black/80 via-black/40 to-transparent text-white'
+                      : 'bg-gradient-to-t from-white/90 via-white/50 to-transparent text-slate-800'
+                  }`}
+                >
                   <div className="flex items-center gap-1.5 min-w-0" onClick={(e) => e.stopPropagation()}>
                     {editingPresetId === theme.id ? (
                       <input
@@ -923,14 +1221,14 @@ export default function AppearanceSettings() {
                         aria-label={t('预设名称')}
                       />
                     ) : theme.builtin ? (
-                      <span className="text-xs font-semibold text-canvas-text flex items-center gap-1.5">
+                      <span className="text-xs font-semibold drop-shadow-xs flex items-center gap-1.5">
                         {theme.name}
-                        {isCurrent && <span className="w-1.5 h-1.5 rounded-full bg-brand" />}
+                        {isCurrent && <span className="w-1.5 h-1.5 rounded-full bg-brand shadow-xs" />}
                       </span>
                     ) : (
                       <button
                         type="button"
-                        className="group/name flex items-center gap-1 text-left text-xs font-semibold text-canvas-text hover:text-brand"
+                        className="group/name flex items-center gap-1 text-left text-xs font-semibold drop-shadow-xs hover:text-brand transition-colors"
                         title={t('双击修改名称')}
                         onDoubleClick={() => {
                           setEditingPresetId(theme.id);
@@ -938,7 +1236,7 @@ export default function AppearanceSettings() {
                         }}
                       >
                         <span>{theme.name}</span>
-                        {isCurrent && <span className="w-1.5 h-1.5 rounded-full bg-brand" />}
+                        {isCurrent && <span className="w-1.5 h-1.5 rounded-full bg-brand shadow-xs" />}
                         <Icon icon="lucide:pencil" width="11" height="11" className="opacity-0 group-hover/name:opacity-100 text-canvas-text-muted" />
                       </button>
                     )}
@@ -946,13 +1244,10 @@ export default function AppearanceSettings() {
 
                   <div className="flex items-center space-x-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
                     {isCurrent && (
-                      <span className="text-[10px] settings-tag-active font-medium px-2 py-0.5 rounded">
+                      <span className="text-[10px] font-medium px-2 py-0.5 rounded bg-brand text-white shadow-xs">
                         {t('当前使用')}
                       </span>
                     )}
-                    <span className="text-[10px] settings-tag-badge px-1.5 py-0.5 rounded">
-                      {theme.builtin ? t('内置') : t('自定义')}
-                    </span>
                     {!theme.builtin && (
                       <button
                         type="button"
@@ -1400,12 +1695,20 @@ export default function AppearanceSettings() {
             </div>
 
             {active.canvas.kind === 'color' && (
-              <ColorCardInput
-                label={t('画布背景颜色')}
-                value={active.canvas.color}
-                fallbackColor={active.mode === 'light' ? '#F4F6FB' : '#0a0a0f'}
-                onChange={(value) => update((theme) => ({ ...theme, canvas: { ...theme.canvas, color: value, kind: 'color' } }))}
-              />
+              <div className="space-y-2">
+                <ColorCardInput
+                  label={t('画布背景颜色')}
+                  value={active.canvas.color}
+                  fallbackColor={active.mode === 'light' ? '#F4F6FB' : '#0a0a0f'}
+                  onChange={(value) => update((theme) => ({ ...theme, canvas: { ...theme.canvas, color: value, kind: 'color' } }))}
+                />
+                <QuickSwatches
+                  colors={active.mode === 'light' ? LIGHT_CANVAS_COLOR_SWATCHES : DARK_CANVAS_COLOR_SWATCHES}
+                  value={active.canvas.color}
+                  onChange={(value) => update((theme) => ({ ...theme, canvas: { ...theme.canvas, color: value, kind: 'color' } }))}
+                  title={t('画布底色预设')}
+                />
+              </div>
             )}
 
             {active.canvas.kind === 'image' && (
@@ -1561,17 +1864,7 @@ export default function AppearanceSettings() {
       {/* END: Canvas & Node Appearance Section */}
 
       {/* BEGIN: CursorSection */}
-      <SectionCard
-        title={t('鼠标指针')}
-        description={t('画布与界面指针交互样式')}
-        icon={
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-            <path d="m3 3 7.07 16.97 2.51-7.39 7.39-2.51L3 3z" />
-            <path d="m13 13 6 6" />
-          </svg>
-        }
-        dataPurpose="cursor-styling"
-      >
+      <section data-purpose="cursor-styling">
         <button
           type="button"
           onClick={async () => {
@@ -1584,31 +1877,33 @@ export default function AppearanceSettings() {
             }
           }}
           aria-pressed={customCursor}
-          className={`sidebar-pref-card w-full${customCursor ? ' is-floating' : ''}`}
+          className={`sidebar-pref-card w-full p-3 !rounded-2xl shadow-xs transition-colors ${
+            customCursor ? 'is-floating' : ''
+          }`}
         >
           <span
-            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-              customCursor ? 'bg-brand/15 text-brand-light' : 'bg-canvas-surface text-canvas-text-secondary'
+            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-colors ${
+              customCursor ? 'bg-brand/15 text-brand-light' : 'bg-canvas-surface text-canvas-text-secondary border border-canvas-border'
             }`}
             aria-hidden="true"
           >
-            <Icon icon="mdi:cursor-default-outline" width="16" height="16" />
+            <Icon icon="mdi:cursor-default-outline" width="18" height="18" />
           </span>
 
-          <div className="sidebar-pref-text text-left">
-            <div className="sidebar-pref-title font-medium">{t('自定义指针样式')}</div>
-            <div className="sidebar-pref-desc text-canvas-text-muted mt-0.5">
+          <div className="sidebar-pref-text text-left flex-1 min-w-0">
+            <div className="sidebar-pref-title text-sm font-semibold text-canvas-text">{t('自定义指针样式')}</div>
+            <div className="sidebar-pref-desc text-xs text-canvas-text-muted mt-0.5">
               {customCursor
                 ? t('使用内置指针，跟随明暗主题自动切换黑白')
                 : t('使用系统默认指针')}
             </div>
           </div>
 
-          <div className="sidebar-pref-switch" aria-hidden="true">
+          <div className="sidebar-pref-switch shrink-0" aria-hidden="true">
             <span />
           </div>
         </button>
-      </SectionCard>
+      </section>
       {/* END: CursorSection */}
 
       {/* Confirmation Modal */}

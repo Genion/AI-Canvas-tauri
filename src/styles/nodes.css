@@ -161,7 +161,6 @@
 
 .node-label-icon {
   flex-shrink: 0;
-  background: var(--appearance-node-header, var(--theme-card));
   color: var(--appearance-node-text, var(--theme-text));
 }
 

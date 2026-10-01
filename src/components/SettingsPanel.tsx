@@ -342,7 +342,6 @@ export default function SettingsPanel() {
           <PopupCloseButton
             ariaLabel={t('关闭设置')}
             onClick={() => setSettingsOpen(false)}
-            className="settings-modal-close-btn rounded-full"
           />
         </div>
         {(saveError || !configHydrated || unreadSecretCount > 0 || (activeTab !== 'appearance' && saveStatus !== 'idle' && saveStatus !== 'saved')) && (
@@ -584,7 +583,7 @@ export default function SettingsPanel() {
                             value === 'default'
                               ? ''
                               : value === 'solar-system'
-                              ? 'bg-gradient-to-br from-[#0a0a1a] via-[#1a1030] to-[#0a1020]'
+                              ? 'bg-[#000000]'
                               : value === 'nebula'
                               ? 'bg-gradient-to-b from-[#0a0514] via-[#14081e] to-[#0a0514]'
                               : value === 'off-white'
