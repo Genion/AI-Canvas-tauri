@@ -89,6 +89,36 @@ describe('appearance themes', () => {
     expect(theme.handle.kind).toBe('image');
   });
 
+  it('preserves valid custom colors while normalizing the surrounding snapshot', () => {
+    const theme = normalizeAppearanceTheme({
+      id: 'custom-colors',
+      mode: 'dark',
+      ui: {
+        accent: '#ffffff',
+        accentStrong: '#ffffff',
+        surface: '#141414',
+        card: '#171717',
+        hover: '#262626',
+        border: '#363636',
+      },
+      canvas: { kind: 'color', color: '#141414', gridColor: '#474747' },
+      node: { background: '#262626', border: '#363636', selectedBorder: '#a8a8a8' },
+      edge: { color: '#86909C', flowColor: '#6bb6fb', previewColor: '#86909C' },
+    });
+
+    expect(theme.ui).toEqual(expect.objectContaining({
+      accent: '#ffffff',
+      accentStrong: '#ffffff',
+      surface: '#141414',
+      card: '#171717',
+      hover: '#262626',
+      border: '#363636',
+    }));
+    expect(theme.canvas).toEqual(expect.objectContaining({ color: '#141414', gridColor: '#474747' }));
+    expect(theme.node).toEqual(expect.objectContaining({ background: '#262626', border: '#363636', selectedBorder: '#a8a8a8' }));
+    expect(theme.edge).toEqual(expect.objectContaining({ color: '#86909C', flowColor: '#6bb6fb', previewColor: '#86909C' }));
+  });
+
   it('derives every brand alpha token from the active accent color', () => {
     const values = new Map<string, string>();
     const root = {
