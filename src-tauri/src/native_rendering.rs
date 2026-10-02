@@ -1,5 +1,5 @@
 //! 性能模式的原生启动配置。只保存布尔开关，不接受 Renderer 提交路径或浏览器参数。
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Mutex,
@@ -20,7 +20,7 @@ pub struct RenderingStatus {
     restart_required: bool,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[cfg(any(windows, test))]
 struct Preference {
