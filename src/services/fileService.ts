@@ -3,7 +3,7 @@
  * 节点输出另存为、系统文件管理器定位。基础设施见 ./fs/core，删除域见 ./fs/trash，
  * 全局资产库见 ./fs/assetLibrary（均通过本模块统一对外导出）。
  */
-import { exists, writeFile, readFile as tauriReadFile, stat, rename } from '@tauri-apps/plugin-fs';
+import { exists, writeFile, readFile as tauriReadFile, stat, rename, mkdir } from '@tauri-apps/plugin-fs';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
@@ -41,6 +41,8 @@ export interface FileTransferProgress {
 }
 
 export interface FileTransferOptions {
+  /** 创作资产集中放到项目的 Library 文件夹。 */
+  projectSubdirectory?: 'Library';
   signal?: AbortSignal;
   /** Agent/MCP 导入不把调用方的本地路径或原生错误写入控制台。 */
   redactErrors?: boolean;
@@ -655,8 +657,12 @@ export async function copyFileToProjectData(
 ): Promise<{ filePath: string; assetUrl: string; fileName: string } | null> {
   if (!isTauriEnv()) return null;
 
-  const dataDir = await ensureProjectDataDir(projectId);
+  let dataDir = await ensureProjectDataDir(projectId);
   if (!dataDir) return null;
+  if (options?.projectSubdirectory) {
+    dataDir = joinPath(dataDir, options.projectSubdirectory);
+    await mkdir(dataDir, { recursive: true });
+  }
 
   const fileName = sourcePath.split(/[/\\]/).pop() || 'file';
   const destPath = await resolveUniqueDestPath(dataDir, fileName, true);
@@ -1161,9 +1167,13 @@ export interface UploadResult {
 export async function uploadSourceFileToProject(
   accept?: string,
   projectId?: string | null,
+  projectSubdirectory?: 'Library',
 ): Promise<UploadResult & { filePath?: string } | null> {
   try {
     if (isTauriEnv()) {
+      if (projectSubdirectory && (!projectId || projectId === 'default')) {
+        throw new Error('请先保存项目，再上传创作资产');
+      }
       // '*/*' 是 MIME 通配符，不是有效扩展名；传空 filters 让 Tauri 显示所有文件
       const isWildcard = !accept || accept === '*/*' || accept.trim() === '*/*';
       const filters = isWildcard
@@ -1178,6 +1188,9 @@ export async function uploadSourceFileToProject(
       if (!filePath) return null;
 
       const fileName = filePath.split(/[\\/]/).pop() || 'file';
+      if (projectSubdirectory && !/\.(png|jpe?g|webp|gif|bmp)$/i.test(fileName)) {
+        throw new Error('请选择支持的图片文件');
+      }
 
       // Try to get file size (may fail for paths outside fs scope)
       let fileSize = 0;
@@ -1190,11 +1203,13 @@ export async function uploadSourceFileToProject(
 
       // If projectId is provided, copy to project data dir
       if (projectId && projectId !== 'default') {
-        const result = await copyFileToProjectData(filePath, projectId);
-        if (result) {
+        const result = await copyFileToProjectData(filePath, projectId, { projectSubdirectory, redactErrors: Boolean(projectSubdirectory) });
+        if (result && (!projectSubdirectory || result.assetUrl)) {
           return { dataUrl: result.assetUrl, fileName: result.fileName, fileSize, filePath: result.filePath };
         }
       }
+
+      if (projectSubdirectory) throw new Error('素材保存到 Library 失败，请重试');
 
       // Fallback: read into memory
       const ext = fileName.split('.').pop()?.toLowerCase() || '';
@@ -1229,7 +1244,7 @@ export async function uploadSourceFileToProject(
       fileSize: file.size,
     };
   } catch (error) {
-    console.error('Upload to project failed:', error);
+    if (!projectSubdirectory) console.error('Upload to project failed:', error);
     throw error;
   }
 }

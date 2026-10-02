@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   ensureProjectDataDir: vi.fn(),
   getConvertFileSrc: vi.fn(),
   invoke: vi.fn(),
+  mkdir: vi.fn(),
   open: vi.fn(),
   readFile: vi.fn(),
   resolveUniqueDestPath: vi.fn(),
@@ -13,6 +14,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@tauri-apps/plugin-fs', () => ({
+  mkdir: mocks.mkdir,
   readFile: mocks.readFile,
   rename: vi.fn(),
   stat: mocks.stat,
@@ -43,6 +45,7 @@ vi.mock('../../src/services/fs/core', () => ({
   })[ext] ?? 'application/octet-stream',
   getProjectDataDir: vi.fn(),
   isTauriEnv: () => true,
+  joinPath: (...parts: string[]) => parts.join('/'),
   notifyProjectDiskChanged: vi.fn(),
   resolveUniqueDestPath: mocks.resolveUniqueDestPath,
   sanitizeFileName: (name: string) => name,
@@ -228,5 +231,53 @@ describe('fileService Data URL 内存预算', () => {
     });
     expect(mocks.invoke).toHaveBeenCalledWith('copy_file_streamed', expect.any(Object));
     expect(mocks.readFile).not.toHaveBeenCalled();
+  });
+});
+
+
+describe('创作资产 Library 上传', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    mocks.open.mockResolvedValue('/external/prop.png');
+    mocks.stat.mockResolvedValue({ size: 4 });
+    mocks.ensureProjectDataDir.mockResolvedValue('/projects/series');
+    mocks.resolveUniqueDestPath.mockResolvedValue('/projects/series/Library/prop_1.png');
+    mocks.invoke.mockResolvedValue({ totalBytes: 4 });
+    mocks.getConvertFileSrc.mockResolvedValue((path: string) => `asset://localhost${path}`);
+  });
+
+  it('创建 Library 后按唯一文件名复制，返回项目图片地址', async () => {
+    const result = await uploadSourceFileToProject('.png', 'series', 'Library');
+    expect(mocks.mkdir).toHaveBeenCalledWith('/projects/series/Library', { recursive: true });
+    expect(mocks.resolveUniqueDestPath).toHaveBeenCalledWith('/projects/series/Library', 'prop.png', true);
+    expect(mocks.invoke).toHaveBeenCalledWith('copy_file_streamed', expect.objectContaining({
+      sourcePath: '/external/prop.png', destinationPath: '/projects/series/Library/prop_1.png',
+    }));
+    expect(result?.dataUrl).toBe('asset://localhost/projects/series/Library/prop_1.png');
+    expect(mocks.readFile).not.toHaveBeenCalled();
+  });
+
+  it('复制失败不退回内存图片，也不输出外部路径日志', async () => {
+    mocks.invoke.mockRejectedValue(new Error('copy failed'));
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      await expect(uploadSourceFileToProject('.png', 'series', 'Library')).rejects.toThrow('Library');
+      expect(mocks.readFile).not.toHaveBeenCalled();
+      expect(log).not.toHaveBeenCalled();
+    } finally { log.mockRestore(); }
+  });
+
+  it('取消选择不创建目录或复制文件', async () => {
+    mocks.open.mockResolvedValue(null);
+    await expect(uploadSourceFileToProject('.png', 'series', 'Library')).resolves.toBeNull();
+    expect(mocks.mkdir).not.toHaveBeenCalled();
+    expect(mocks.invoke).not.toHaveBeenCalled();
+  });
+
+  it('未保存项目或选到非图片时拒绝上传', async () => {
+    await expect(uploadSourceFileToProject('.png', null, 'Library')).rejects.toThrow('先保存项目');
+    mocks.open.mockResolvedValue('/external/movie.mp4');
+    await expect(uploadSourceFileToProject('.png', 'series', 'Library')).rejects.toThrow('图片文件');
+    expect(mocks.invoke).not.toHaveBeenCalled();
   });
 });

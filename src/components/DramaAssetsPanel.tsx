@@ -1,9 +1,9 @@
 /**
  * DramaAssetsPanel — 项目级短剧资产库（人物 / 场景 / 道具）
- * 仅管理：查看 / 编辑 / 删除 / 绑图。
+ * 仅管理：本地上传 / 查看 / 编辑 / 删除 / 绑图。
  * 生图在画布图像节点完成：@ 资产（无图=简介，有图=参考图）+ slash 人设参考等。
  */
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Icon } from '@iconify/react';
 import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '../store/useAppStore';
@@ -12,6 +12,9 @@ import { DRAMA_ASSET_KIND_LABEL } from '../types/dramaAssets';
 import { formatDramaAssetTextBrief } from '../services/dramaAssetPrompt';
 import { confirmAction } from '../services/confirmDialog';
 import ViewportImage from './shared/ViewportImage';
+import { uploadSourceFileToProject, isTauriEnv } from '../services/fileService';
+import { generateId, seriesOwnerId } from '../store/store.utils';
+import { normalizeAssetKey } from '../services/dramaAssetExtract';
 import { cropImageStyle } from './character/characterReferencePresentation';
 
 const KIND_TABS: Array<{ key: DramaAssetKind | 'all'; label: string }> = [
@@ -62,6 +65,8 @@ function DramaAssetCard({
   onBindImage,
   onUnbindImage,
   onCopyBrief,
+  onUploadImage,
+  uploading,
 }: {
   asset: DramaAsset;
   thumb?: string;
@@ -73,6 +78,8 @@ function DramaAssetCard({
   onBindImage: (nodeId: string) => void;
   onUnbindImage: () => void;
   onCopyBrief: () => void;
+  onUploadImage: () => void;
+  uploading: boolean;
 }) {
   const [name, setName] = useState(asset.name);
   const [summary, setSummary] = useState(asset.summary);
@@ -85,6 +92,7 @@ function DramaAssetCard({
       ?? asset.referenceImages?.[0]
     : undefined;
   const displayThumb = avatarReference?.imageUrl || thumb;
+  const hasUploadedImage = Boolean(asset.imageUrl && !asset.imageNodeId);
   const avatarCrop = asset.kind === 'character' && avatarReference?.imageUrl
     && avatarReference.id === asset.avatarReferenceImageId
     ? asset.avatarCrop
@@ -102,10 +110,10 @@ function DramaAssetCard({
 
   return (
     <div
-      className="drama-asset-card rounded-xl border border-canvas-border bg-canvas-bg/60 p-3 hover:border-indigo-500/30 transition-colors"
+      className="drama-asset-card ui-card min-w-0 p-3 hover:border-indigo-500/30 transition-colors"
       data-asset-kind={asset.kind}
     >
-      <div className="drama-asset-card-layout flex items-start gap-3">
+      <div className="drama-asset-card-layout">
         {/* Thumb */}
         <div className={`drama-asset-thumbnail w-20 rounded-lg overflow-hidden shrink-0 bg-canvas-hover border border-canvas-border flex items-center justify-center${asset.kind === 'character' ? ' character-avatar drama-asset-thumbnail--character' : ' h-20'}`}>
           {displayThumb ? (
@@ -127,14 +135,14 @@ function DramaAssetCard({
 
         <div className="drama-asset-card-body flex-1 min-w-0">
           <div className="drama-asset-meta flex items-center gap-1.5 flex-wrap">
-            <span className="text-[13px] font-semibold text-canvas-text truncate">{asset.name}</span>
+            <span className="w-full text-[13px] font-semibold text-canvas-text truncate">{asset.name}</span>
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-canvas-hover text-canvas-text-muted shrink-0">
               {DRAMA_ASSET_KIND_LABEL[asset.kind]}
             </span>
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-canvas-hover text-canvas-text-muted shrink-0">
               {IMPORTANCE_LABEL[asset.importance] ?? asset.importance}
             </span>
-            {asset.imageNodeId || asset.imageUrl ? (
+            {displayThumb ? (
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-400 shrink-0">
                 已绑图
               </span>
@@ -247,10 +255,10 @@ function DramaAssetCard({
         </div>
 
         {/* Actions — 仅管理，生图请在画布图像节点 @ + slash */}
-        <div className="drama-asset-actions flex flex-col gap-1 shrink-0 items-stretch min-w-[72px]">
+        <div className="drama-asset-actions flex flex-wrap items-center gap-1">
           <button
             type="button"
-            className="drama-asset-action-copy px-2 py-1 rounded-lg text-[11px] text-canvas-text-muted hover:bg-canvas-hover transition-colors"
+            className="drama-asset-action-copy ui-btn ui-btn--ghost ui-btn--sm"
             onClick={onCopyBrief}
             title="复制本条简介（可粘到图像节点 prompt）"
           >
@@ -258,31 +266,38 @@ function DramaAssetCard({
           </button>
           <button
             type="button"
-            className="drama-asset-action-edit px-2 py-1 rounded-lg text-[11px] text-canvas-text-muted hover:bg-canvas-hover transition-colors"
+            className="drama-asset-action-edit ui-btn ui-btn--ghost ui-btn--sm"
             onClick={handleToggleEdit}
           >
             {editing ? '收起' : '编辑'}
           </button>
-          {asset.imageNodeId ? (
-            <button
-              type="button"
-              className="drama-asset-action-unbind px-2 py-1 rounded-lg text-[11px] text-canvas-text-muted hover:bg-canvas-hover transition-colors"
-              onClick={onUnbindImage}
-            >
-              解绑图
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="drama-asset-action-bind px-2 py-1 rounded-lg text-[11px] text-canvas-text-muted hover:bg-canvas-hover transition-colors"
-              onClick={() => setBindOpen((v) => !v)}
-            >
-              绑图
-            </button>
+          {!hasUploadedImage && (
+            <>
+              <button type="button" className="ui-btn ui-btn--ghost ui-btn--sm" disabled={uploading} onClick={onUploadImage}>
+                上传图片
+              </button>
+              {asset.imageNodeId || asset.imageUrl ? (
+                <button
+                  type="button"
+                  className="drama-asset-action-unbind ui-btn ui-btn--ghost ui-btn--sm"
+                  onClick={onUnbindImage}
+                >
+                  解绑图
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="drama-asset-action-bind ui-btn ui-btn--ghost ui-btn--sm"
+                  onClick={() => setBindOpen((v) => !v)}
+                >
+                  绑图
+                </button>
+              )}
+            </>
           )}
           <button
             type="button"
-            className="drama-asset-action-delete flex items-center justify-center px-2 py-1 rounded-lg text-red-400/80 hover:bg-red-500/10 transition-colors"
+            className="drama-asset-action-delete ui-btn ui-btn--ghost ui-btn--sm ml-auto text-red-400/80 hover:bg-red-500/10"
             onClick={onDelete}
             aria-label={`删除${asset.name}`}
             title={`删除${asset.name}`}
@@ -323,6 +338,70 @@ export default function DramaAssetsPanel({ compact = false }: { compact?: boolea
   const [tab, setTab] = useState<DramaAssetKind | 'all'>('all');
   const [search, setSearch] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [uploadKind, setUploadKind] = useState<DramaAssetKind>('character');
+  const [uploading, setUploading] = useState(false);
+  const uploadPending = useRef(false);
+
+  const handleUpload = async (kind: DramaAssetKind, assetId?: string) => {
+    if (uploadPending.current) return;
+    uploadPending.current = true;
+    setUploading(true);
+    try {
+      const initial = useAppStore.getState();
+      const projectId = initial.currentProjectId || await initial.saveCurrentProjectSilent();
+      if (!projectId || useAppStore.getState().currentProjectId !== projectId) {
+        showToast('请先保存项目，再上传素材', 'error');
+        return;
+      }
+      const ownerId = seriesOwnerId(useAppStore.getState().projects, projectId);
+      const uploaded = await uploadSourceFileToProject('.png,.jpg,.jpeg,.webp,.gif,.bmp', ownerId, 'Library');
+      if (!uploaded) return;
+      const latest = useAppStore.getState();
+      if (latest.currentProjectId !== projectId || seriesOwnerId(latest.projects, projectId) !== ownerId) {
+        showToast('项目已切换，上传素材未添加到资产列表', 'info');
+        return;
+      }
+      const library = latest.dramaAssets;
+      const existing = [...library.characters, ...library.scenes, ...library.props]
+        .find((asset) => asset.kind === kind && asset.id === assetId);
+      if (assetId && !existing) {
+        showToast('资产已删除，上传素材未绑定', 'info');
+        return;
+      }
+      const now = Date.now();
+      const base = existing ?? {
+        id: `${kind}-${generateId()}`,
+        name: uploaded.fileName.replace(/\.[^.]+$/, '') || uploaded.fileName,
+        key: normalizeAssetKey(uploaded.fileName.replace(/\.[^.]+$/, '') || uploaded.fileName),
+        summary: '', visualNotes: '', importance: 'supporting' as const,
+        confirmed: true, createdAt: now, updatedAt: now, source: 'manual' as const,
+      };
+      const asset = { ...base, kind, imageNodeId: undefined, imageUrl: uploaded.dataUrl, updatedAt: now };
+      if (kind === 'character') {
+        const referenceId = `reference-${generateId()}`;
+        const character = existing?.kind === 'character' ? existing : undefined;
+        const saved = await latest.saveCharacterCard('project', {
+          ...asset, kind: 'character', identity: character?.identity ?? '',
+          referenceImages: [...(character?.referenceImages ?? []), {
+            id: referenceId, kind: 'primary', imageUrl: uploaded.dataUrl, prompt: '',
+            relativePath: uploaded.filePath?.split(/[\\/]/).slice(-2).join('/'),
+            createdAt: now, updatedAt: now,
+          }],
+          primaryReferenceImageId: referenceId,
+          avatarReferenceImageId: undefined, avatarCrop: undefined,
+        });
+        if (!saved) throw new Error('角色素材保存失败');
+      } else {
+        latest.upsertDramaAsset({ ...asset, kind });
+      }
+      showToast(isTauriEnv() ? '素材已保存到 Library' : '素材已添加；浏览器模式不支持本地目录保存');
+    } catch {
+      showToast('上传失败，请检查项目目录是否可写后重试', 'error');
+    } finally {
+      uploadPending.current = false;
+      setUploading(false);
+    }
+  };
 
   const imageNodes = useMemo(
     () =>
@@ -440,9 +519,24 @@ export default function DramaAssetsPanel({ compact = false }: { compact?: boolea
                   打开角色库
                 </button>
               ) : null}
-              <div className={`drama-assets-search ${tab === 'all' || tab === 'character' ? '' : 'ml-auto'} relative w-[180px] shrink-0`}>
+      <div className={`flex items-center gap-2 shrink-0 ${tab === 'all' || tab === 'character' ? '' : 'ml-auto'}`}>
+        {tab === 'all' && (
+          <select className="ui-select__control w-auto" aria-label="上传资产类型"
+            value={uploadKind} disabled={uploading} onChange={(event) => setUploadKind(event.target.value as DramaAssetKind)}>
+            {KIND_TABS.filter((item) => item.key !== 'all').map((item) => (
+              <option key={item.key} value={item.key}>{item.label}</option>
+            ))}
+          </select>
+        )}
+        <button type="button" className="ui-btn ui-btn--primary" disabled={uploading}
+          onClick={() => void handleUpload(tab === 'all' ? uploadKind : tab)}>
+          <Icon icon="lucide:upload" width={14} aria-hidden="true" />
+          {uploading ? '上传中…' : `上传${DRAMA_ASSET_KIND_LABEL[tab === 'all' ? uploadKind : tab]}图片`}
+        </button>
+      </div>
+              <div className="drama-assets-search relative w-[180px] shrink-0">
                 <svg
-                  className="absolute left-2.5 top-1/2 -translate-y-1/2 text-canvas-text-muted"
+                  className="pointer-events-none absolute left-2.5 top-1/2 z-10 -translate-y-1/2 text-canvas-text-muted"
                   width="12"
                   height="12"
                   viewBox="0 0 24 24"
@@ -458,9 +552,7 @@ export default function DramaAssetsPanel({ compact = false }: { compact?: boolea
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="搜索名称、简介..."
-                  className="w-full pl-7 pr-2 py-1.5 rounded-lg bg-canvas-bg border border-canvas-border
-                             text-[12px] text-canvas-text placeholder:text-canvas-text-muted
-                             focus:outline-none focus:border-indigo-500/50 transition-colors"
+                  className="ui-input w-full pl-7 pr-2"
                 />
               </div>
       </div>
@@ -477,7 +569,7 @@ export default function DramaAssetsPanel({ compact = false }: { compact?: boolea
         </div>
       ) : null}
 
-      <div className="flex-1 overflow-y-auto px-3 pb-4 space-y-2">
+      <div className={`flex-1 overflow-y-auto px-3 pb-4${items.length > 0 ? ' drama-assets-grid' : ''}`}>
               {items.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-10 text-canvas-text-muted">
                   <svg
@@ -496,7 +588,7 @@ export default function DramaAssetsPanel({ compact = false }: { compact?: boolea
                     {search ? '无匹配资产' : '暂无短剧资产'}
                   </p>
                   <div className="text-[11px] text-center max-w-[340px] leading-relaxed opacity-90 space-y-1.5">
-                    <p className="font-medium text-canvas-text-secondary">本面板只管理简介与绑图</p>
+                    <p className="font-medium text-canvas-text-secondary">可本地上传图片，也可管理简介与绑图</p>
                     <p>1. 文本节点 <code className="px-1 rounded bg-canvas-hover">/</code> → 提取人物/场景/道具</p>
                     <p>2. 图像节点 prompt 里 <code className="px-1 rounded bg-canvas-hover">@</code> 选资产（无图=简介）</p>
                     <p>3. 再 <code className="px-1 rounded bg-canvas-hover">/</code> 人设参考等生成资产图</p>
@@ -538,6 +630,8 @@ export default function DramaAssetsPanel({ compact = false }: { compact?: boolea
                       showToast('已解绑');
                     }}
                     onCopyBrief={() => void copyBrief(asset)}
+                    uploading={uploading}
+                    onUploadImage={() => void handleUpload(asset.kind, asset.id)}
                   />
                 ))
               )}
