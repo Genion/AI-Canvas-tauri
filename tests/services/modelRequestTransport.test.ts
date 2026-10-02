@@ -33,6 +33,99 @@ afterEach(() => {
 });
 
 describe('model request transport boundary', () => {
+  it.each(['DeepSeek-V4.1-Flash', 'GLM-5.3-Flash', 'Qwen3.8-Flash', 'mI MiMo-V2.5',
+    'Hy3', 'claude-sonnet-4-6', 'gemini-3.5-flash', 'grok-4.5'])('uses shared OpenAI chat requests for CCC %s in nodes and conversations', async (modelId) => {
+    const catalogModel = getProviderDefinition('cccapi')!.models!.find((model) => model.id === modelId)!;
+    useAppStore.setState((state) => ({ config: {
+      ...state.config, assistantModelId: 'ccc-text',
+      providers: { ...state.config.providers, cccapi: {
+        name: 'CCC', apiKey: 'fixture-key', baseUrl: 'https://cccapi.cn/v1', catalogId: 'cccapi',
+      } },
+      generalModels: [{ id: 'ccc-text', name: modelId, modelId, category: 'text',
+        providerConfigId: 'cccapi', executionProfile: catalogModel.executionProfile }],
+    } }));
+    transportMocks.corsSafeFetch.mockImplementation(async () => jsonResponse({
+      choices: [{ message: { content: 'CCC 回复' }, finish_reason: 'stop' }],
+    }));
+    await expect(generateText({ provider: 'general', model: 'general/ccc-text', prompt: '你好' }))
+      .resolves.toBe('CCC 回复');
+    await expect(streamAssistantReply({ systemPrompt: '系统', userMessage: '你好',
+      nonStream: true, onEvent: vi.fn(),
+    })).resolves.toBe('CCC 回复');
+    expect(transportMocks.corsSafeFetch).toHaveBeenCalledTimes(2);
+    for (const [url, init] of transportMocks.corsSafeFetch.mock.calls as [string, RequestInit][]) {
+      expect(url).toBe('https://cccapi.cn/v1/chat/completions');
+      expect(init.headers).toMatchObject({ Authorization: 'Bearer fixture-key' });
+      expect(JSON.parse(String(init.body))).toMatchObject({ model: modelId, stream: false,
+        messages: expect.arrayContaining([{ role: 'user', content: '你好' }]),
+      });
+    }
+    transportMocks.corsSafeFetch.mockClear();
+    transportMocks.corsSafeFetch.mockResolvedValueOnce(new Response(
+      'data: {"choices":[{"delta":{"content":"CCC 流式回复"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n',
+      { headers: { 'Content-Type': 'text/event-stream' } },
+    ));
+    const onEvent = vi.fn();
+    await expect(streamAssistantReply({ systemPrompt: '系统', userMessage: '你好', onEvent }))
+      .resolves.toBe('CCC 流式回复');
+    expect(onEvent).toHaveBeenCalledWith({ type: 'text.delta', delta: 'CCC 流式回复' });
+    const [streamUrl, streamInit] = transportMocks.corsSafeFetch.mock.calls[0] as [string, RequestInit];
+    expect(streamUrl).toBe('https://cccapi.cn/v1/chat/completions');
+    expect(JSON.parse(String(streamInit.body))).toMatchObject({ model: modelId, stream: true });
+  });
+
+  it.each(['gemini-3-pro-image-preview', 'gemini-3-pro-image', 'gemini-3.1-flash-image',
+    'gemini-2.5-flash-image', 'nano-banana2', 'nano-banana-pro'])('uses CCC native Gemini image requests and Base64 results for %s', async (modelId) => {
+    const catalogModel = getProviderDefinition('cccapi')!.models!.find((model) => model.id === modelId)!;
+    useAppStore.setState((state) => ({ config: {
+      ...state.config,
+      providers: { ...state.config.providers, cccapi: {
+        name: 'CCC', apiKey: 'fixture-key', baseUrl: 'https://cccapi.cn/v1', catalogId: 'cccapi',
+      } },
+      generalModels: [{ id: 'ccc-native-image', name: modelId, modelId, category: 'image',
+        providerConfigId: 'cccapi', executionProfile: catalogModel.executionProfile }],
+    } }));
+    transportMocks.corsSafeFetch.mockImplementation(async () => jsonResponse({ candidates: [{
+      content: { parts: [{ text: '图片说明' }, { inlineData: { mimeType: 'image/png', data: 'aW1hZ2U=' } }] },
+    }] }));
+    const params = { provider: 'general', model: 'general/ccc-native-image', prompt: '画一只猫',
+      imageSize: '4K', aspectRatio: '16:9' };
+    await expect(generateImagesBatch(params, 1))
+      .resolves.toMatchObject({ results: [{ url: 'data:image/png;base64,aW1hZ2U=' }] });
+    const [url, init] = transportMocks.corsSafeFetch.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(`https://cccapi.cn/v1beta/models/${modelId}:generateContent`);
+    expect(init.headers).toMatchObject({ Authorization: 'Bearer fixture-key' });
+    expect(JSON.parse(String(init.body))).toEqual({
+      contents: [{ role: 'user', parts: [{ text: '画一只猫' }] }],
+      generationConfig: { responseModalities: ['TEXT', 'IMAGE'], imageConfig: {
+        aspectRatio: '16:9', ...(modelId === 'gemini-2.5-flash-image' ? {} : { imageSize: '4K' }),
+      } },
+    });
+
+    // 未接入的参考图必须在提交前报错，不能悄悄丢图。
+    transportMocks.corsSafeFetch.mockClear();
+    await expect(generateImagesBatch({ ...params, image_urls: ['https://cdn.example/ref.png'] }, 1))
+      .rejects.toThrow('参考图');
+    expect(transportMocks.corsSafeFetch).not.toHaveBeenCalled();
+
+    const controller = new AbortController();
+    controller.abort();
+    await expect(generateImagesBatch(params, 1, controller.signal)).rejects.toMatchObject({ name: 'AbortError' });
+    expect(transportMocks.corsSafeFetch).not.toHaveBeenCalled();
+
+    transportMocks.corsSafeFetch.mockResolvedValueOnce(jsonResponse({ candidates: [{
+      content: { parts: [{ text: '无法生成图片' }] },
+    }] }));
+    await expect(generateImagesBatch(params, 1)).rejects.toThrow('未找到配置的结果');
+    expect(transportMocks.corsSafeFetch).toHaveBeenCalledTimes(1);
+    transportMocks.corsSafeFetch.mockClear();
+    transportMocks.corsSafeFetch.mockResolvedValueOnce(new Response(JSON.stringify({
+      error: { message: '上游生图超时' },
+    }), { status: 504, headers: { 'Content-Type': 'application/json' } }));
+    await expect(generateImagesBatch(params, 1)).rejects.toThrow('上游生图超时');
+    expect(transportMocks.corsSafeFetch).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps the gateway JSON preset when an older model still has a reference request mode', async () => {
     useAppStore.setState((state) => ({ config: {
       ...state.config,
@@ -767,6 +860,7 @@ describe('model request transport boundary', () => {
   it.each([
     'gpt-image-2.5-flare',
     'gpt-image-2.5-sunburst',
+    'gpt-image-2.5',
     'gpt-image-2',
   ])('routes CCC API %s references through image edits while keeping text-only generations', async (modelId) => {
     const cccModel = (getProviderDefinition('cccapi')?.models ?? [])

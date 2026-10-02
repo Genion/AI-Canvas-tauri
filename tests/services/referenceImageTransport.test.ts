@@ -9,7 +9,9 @@ vi.mock('../../src/services/fs/core', async (original) => ({
 }));
 
 import { generateImagesBatch } from '../../src/services/ai/generateImage';
-import { resolveImageDataUrlArray, resolveImageUrlArray } from '../../src/services/ai/imageUtils';
+import { resolveImageDataUrlArray, resolveImageUrlArray, resolveNodeImageUrl } from '../../src/services/ai/imageUtils';
+import { getMediaReferenceUrl } from '../../src/services/ai/connectedReferenceMedia';
+import { resolvePromptWithMediaRefs } from '../../src/services/ai/promptResolver';
 import { generateImageStandard } from '../../src/services/ai/providers/standardImage';
 import { uploadRunningHubMedia } from '../../src/services/ai/providers/runninghubClient';
 import { resolveMediaReferenceUrl, uploadToRemote } from '../../src/services/uploadService';
@@ -142,6 +144,73 @@ describe('共享参考图压缩的实际请求边界', () => {
     expect(body).toMatch(/filename="[^\r\n"]+\.jpg"/);
     expect(body).toContain('jpeg-8');
     expect(body.length).toBeLessThan(1024);
+  });
+
+  it.each([
+    ['apimart', 'image', 'png'],
+    ['expiry-relay', 'image', 'png'],
+    ['apimart', 'video', 'mp4'],
+    ['apimart', 'audio', 'mp3'],
+  ] as const)('%s 的 %s 本地引用在 2.5 小时边界重传并保留上传通道', async (provider, kind, ext) => {
+    let now = Date.now();
+    vi.spyOn(Date, 'now').mockImplementation(() => now);
+    const storage = new Map<string, string>();
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => storage.set(key, value),
+    });
+    useAppStore.setState((state) => ({ config: { ...state.config,
+      providers: { apimart: { name: 'APIMart', apiKey: 'test-key', baseUrl: 'https://upload.example/v1' } },
+    } }));
+    const localUrl = `asset://localhost/expiry-${provider}-${kind}.${ext}`;
+    const generatedUrl = `https://expired.example/generated.${ext}`;
+    const url = getMediaReferenceUrl({ kind, url: localUrl, sourceUrl: generatedUrl, origin: 'connection', role: 'reference' });
+    expect(url).toBe(localUrl);
+    let uploads = 0;
+    localFetch.mockImplementation(async (_url, init?: RequestInit) => {
+      if (init?.method !== 'POST') return new Response(new Blob(['media'], { type: kind === 'image' ? 'image/png' : `${kind}/${ext}` }));
+      const uploadedUrl = `https://cdn.example/expiry-${++uploads}.${ext}`;
+      return json(provider === 'apimart' && kind === 'image'
+        ? { url: uploadedUrl } : { success: true, files: [{ url: uploadedUrl }] });
+    });
+    const resolve = () => resolveMediaReferenceUrl(url, { provider, kind, mode: 'publicUrl' });
+    expect(await resolve()).toBe(`https://cdn.example/expiry-1.${ext}`);
+    now += 150 * 60_000 - 1;
+    expect(await resolve()).toBe(`https://cdn.example/expiry-1.${ext}`);
+    expect(uploads).toBe(1);
+    now += 1;
+    expect(await resolve()).toBe(`https://cdn.example/expiry-2.${ext}`);
+    now += 1;
+    expect(await resolve()).toBe(`https://cdn.example/expiry-2.${ext}`);
+    const requests = localFetch.mock.calls.filter(([, init]) => init?.method === 'POST');
+    expect(requests).toHaveLength(2);
+    const apimartImage = provider === 'apimart' && kind === 'image';
+    for (const [endpoint, init] of requests) {
+      expect(endpoint).toBe(apimartImage ? 'https://upload.example/v1/uploads/images' : 'https://uguu.se/upload');
+      expect((init.body as FormData).has(apimartImage ? 'file' : 'files[]')).toBe(true);
+      if (apimartImage) expect(init.headers).toEqual({ Authorization: 'Bearer test-key' });
+    }
+    expect(localFetch.mock.calls.some(([source]) => source === generatedUrl)).toBe(false);
+  });
+
+  it('@ 图片有本地副本时，即使旧生成地址能加载也走本地上传', async () => {
+    const loaded = vi.fn();
+    vi.stubGlobal('Image', class {
+      onload: (() => void) | null = null;
+      set src(url: string) { loaded(url); queueMicrotask(() => this.onload?.()); }
+    });
+    const remote = 'https://cdn.example/still-reachable.png';
+    expect(await resolveNodeImageUrl(remote, '/project/data/reference.png')).toBe('asset://localhost/native-reference.png');
+    expect(loaded).not.toHaveBeenCalled();
+    useAppStore.setState({ nodes: [{ id: 'expiry-mentioned', type: 'ai-image', position: { x: 0, y: 0 },
+      data: { type: 'ai-image', label: '参考图', imageUrl: remote, sourceUrl: remote, filePath: '/project/data/reference.png' },
+    }] });
+    const media = await resolvePromptWithMediaRefs('@{expiry-mentioned:参考图}');
+    expect(media.imageUrls).toEqual(['asset://localhost/native-reference.png']);
+    localFetch.mockImplementation(async (_url, init?: RequestInit) => init?.method === 'POST'
+      ? json({ success: true, files: [{ url: 'https://cdn.example/mentioned-upload.png' }] })
+      : new Response(new Blob(['image'], { type: 'image/png' })));
+    expect(await resolveImageUrlArray(media.imageUrls, 'mentioned-expiry-relay')).toEqual(['https://cdn.example/mentioned-upload.png']);
   });
 
   it('RunningHub 图片上传复用压缩，视频原字节保留', async () => {

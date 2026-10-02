@@ -377,7 +377,7 @@ describe('video prompt media references', () => {
     );
   });
 
-  it('collects all three connected media kinds and keeps local and remote transports distinct', () => {
+  it('collects all three connected media kinds and uses local copies for expiring uploads', () => {
     const imageNode: Node<BaseNodeData> = {
       id: 'image-1',
       type: 'source-image',
@@ -425,9 +425,9 @@ describe('video prompt media references', () => {
 
     const media = collectConnectedReferenceMedia('video-1');
 
-    expect(media.imageUrls).toEqual(['https://cdn.example/first.png']);
-    expect(media.videoUrls).toEqual(['https://cdn.example/reference.mp4']);
-    expect(media.audioUrls).toEqual(['https://cdn.example/reference.wav']);
+    expect(media.imageUrls).toEqual(['asset://localhost/first.png']);
+    expect(media.videoUrls).toEqual(['asset://localhost/reference.mp4']);
+    expect(media.audioUrls).toEqual(['asset://localhost/reference.wav']);
     expect(media.references).toMatchObject([
       { kind: 'image', sourceNodeId: 'image-1', origin: 'connection' },
       { kind: 'video', sourceNodeId: 'video-ref', origin: 'connection' },
