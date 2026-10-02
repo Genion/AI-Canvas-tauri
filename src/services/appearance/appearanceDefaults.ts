@@ -140,43 +140,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function cleanLegacyLibTvTokens(
-  source: Record<string, unknown>,
-  base: AppearanceTheme,
-): {
-  ui: Record<string, unknown>;
-  canvas: Record<string, unknown>;
-  node: Record<string, unknown>;
-  edge: Record<string, unknown>;
-} {
-  const ui = isRecord(source.ui) ? { ...source.ui } : {};
-  const canvas = isRecord(source.canvas) ? { ...source.canvas } : {};
-  const node = isRecord(source.node) ? { ...source.node } : {};
-  const edge = isRecord(source.edge) ? { ...source.edge } : {};
-
-  // 清洗旧版 LibTV 脏数据残留色值，统一恢复至项目原生深色基准
-  if (ui.accent === '#ffffff') ui.accent = base.ui.accent;
-  if (ui.accentStrong === '#ffffff') ui.accentStrong = base.ui.accentStrong;
-  if (ui.accentSoft === '#ffffff') ui.accentSoft = base.ui.accentSoft;
-  if (ui.focus === '#ffffff') ui.focus = base.ui.focus;
-  if (ui.surface === '#141414') ui.surface = base.ui.surface;
-  if (ui.card === '#171717') ui.card = base.ui.card;
-
-  if (canvas.color === '#141414' && source.builtin) canvas.color = base.canvas.color;
-  if (canvas.gridColor === '#474747') canvas.gridColor = base.canvas.gridColor;
-
-  if (node.background === '#262626') node.background = base.node.background;
-  if (node.border === '#363636') node.border = base.node.border;
-  if (node.selectedBorder === '#a8a8a8') node.selectedBorder = base.node.selectedBorder;
-  if (node.radius === 8 && source.builtin) node.radius = base.node.radius;
-
-  if (edge.color === '#86909C') edge.color = base.edge.color;
-  if (edge.flowColor === '#6bb6fb') edge.flowColor = base.edge.flowColor;
-  if (edge.previewColor === '#86909C') edge.previewColor = base.edge.previewColor;
-
-  return { ui, canvas, node, edge };
-}
-
 /**
  * 补齐旧版或外部导入的半成品快照。持久化数据是不可信输入，运行时不能只依赖 TS 类型。
  */
@@ -185,11 +148,10 @@ export function normalizeAppearanceTheme(input: unknown): AppearanceTheme {
   const mode = source.mode === 'light' || source.mode === 'system' ? source.mode : 'dark';
   const requestedId = typeof source.id === 'string' ? source.id : '';
   const base = getBuiltinAppearanceTheme(requestedId, mode === 'light' ? 'light' : 'dark');
-  const cleaned = cleanLegacyLibTvTokens(source, base);
-  const ui = cleaned.ui;
-  const canvas = cleaned.canvas;
-  const node = cleaned.node;
-  const edge = cleaned.edge;
+  const ui = isRecord(source.ui) ? source.ui : {};
+  const canvas = isRecord(source.canvas) ? source.canvas : {};
+  const node = isRecord(source.node) ? source.node : {};
+  const edge = isRecord(source.edge) ? source.edge : {};
   const handle = isRecord(source.handle) ? source.handle : {};
   const motion = isRecord(source.motion) ? source.motion : {};
   return {
