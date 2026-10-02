@@ -701,7 +701,7 @@ export default function AssetsPanel() {
               </div>
 
               {isNodeList ? (
-                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2.5 pt-2">
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3">
                   {filteredNodes.length === 0 ? (
                     <div className="assets-empty">
                       <Icon icon="lucide:workflow" width="32" height="32" aria-hidden="true" />
@@ -709,15 +709,15 @@ export default function AssetsPanel() {
                     </div>
                   ) : (
                     <>
-                      <ul className="flex flex-col gap-1.5" aria-label="当前画布节点">
+                      <ul className="assets-node-grid" aria-label="当前画布节点">
                         {filteredNodes.slice(0, visibleCount).map((node) => (
-                          <li key={node.id} data-node-id={node.id} className="ui-card assets-node-card p-2">
+                          <li key={node.id} data-node-id={node.id} className="ui-card assets-node-card min-w-0 p-3">
                             <div className="flex items-center gap-2">
                               <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded ${node.config.color} ${node.config.bg}`}>
                                 <Icon icon={node.config.icon} width="18" height="18" aria-hidden="true" />
                               </span>
                               <div className="min-w-0 flex-1">
-                                <p className="truncate text-xs text-canvas-text" title={node.label}>{node.label}</p>
+                                <p className="truncate text-xs font-medium text-canvas-text" title={node.label}>{node.label}</p>
                                 <p className="truncate text-[11px] text-canvas-text-muted">
                                   {node.displayId !== undefined && <span>#{node.displayId} · </span>}{node.config.label}
                                 </p>

@@ -1735,6 +1735,16 @@ button.wf-ionode-badge.is-default {
 .assets-panel--drawer .assets-folder-row { max-height: 80px; overflow-y: auto; }
 .assets-panel--drawer .assets-file-scroll { overscroll-behavior: contain; }
 
+/* 节点预览并排展示，行高跟着内容走，避免滚动区域把卡片压扁。 */
+.assets-node-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+  grid-auto-rows: min-content;
+  align-content: start;
+  align-items: start;
+  gap: 12px;
+}
+.assets-panel--drawer .assets-node-grid { grid-template-columns: minmax(0, 1fr); }
 .assets-node-card { flex-shrink: 0; }
 .assets-node-content { position: relative; margin-top: 8px; }
 .assets-node-media {
@@ -1742,7 +1752,7 @@ button.wf-ionode-badge.is-default {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 170px;
+  aspect-ratio: 16 / 10;
   overflow: hidden;
   border-radius: var(--ui-radius);
   background: var(--theme-bg);
@@ -1762,6 +1772,7 @@ button.wf-ionode-badge.is-default {
   font-size: 11px;
 }
 .assets-node-text, .assets-node-audio {
+  aspect-ratio: 16 / 10;
   min-height: 112px;
   padding: 10px;
   border-radius: var(--ui-radius);
@@ -1835,7 +1846,7 @@ button.wf-ionode-badge.is-default {
 .resource-video-player video { display: block; width: 100%; height: auto; aspect-ratio: var(--resource-video-ratio, 16 / 9); object-fit: contain; }
 .resource-video-retry { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); }
 .resource-video-unavailable { display: grid; min-height: 180px; place-items: center; color: var(--theme-text-muted); font-size: 12px; }
-.assets-node-content > .resource-video-preview { height: 170px; aspect-ratio: auto; }
+.assets-node-content > .resource-video-preview { height: auto; aspect-ratio: 16 / 10; }
 .assets-card-video-wrap > .assets-card-size, .assets-card-video-wrap > .assets-card-badge { pointer-events: none; }
 .resource-video-compact { width: 96px; min-height: 54px; flex-shrink: 0; }
 
