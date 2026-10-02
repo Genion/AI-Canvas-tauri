@@ -23,6 +23,7 @@ import type {
   ProviderModelSelection,
   WebSearchProviderId,
 } from '../../types';
+import type { NormalizedModelExecutionProtocol } from '../../types/aiTypes';
 import { corsSafeFetch } from './httpTransport';
 import { baseUrlCandidates } from './providerBaseUrl';
 import { APIMART_OMNI_MODELS, isLegacyApimartOmni } from './apimartVideoModels';
@@ -96,13 +97,62 @@ const API_KEY_FIELD: ProviderCredentialField = {
   secret: true,
 };
 
+// CCC 的 Gemini 渠道沿用 generateContent；鉴权用中转 Key，不复用 Google 直连协议。
+// https://github.com/Wei-Shaw/sub2api/blob/main/backend/internal/server/routes/gateway.go
+function cccGeminiImageProtocol(supportsImageSize: boolean): NormalizedModelExecutionProtocol {
+  return {
+    version: 2, mode: 'sync', auth: { type: 'bearer' },
+    submit: {
+      method: 'POST', path: '/v1beta/models/{{model}}:generateContent', pathMode: 'origin',
+      body: {
+        contents: [{ role: 'user', parts: [{ text: '{{prompt}}' }] }],
+        generationConfig: {
+          responseModalities: ['TEXT', 'IMAGE'],
+          imageConfig: {
+            aspectRatio: '{{aspectRatio}}',
+            ...(supportsImageSize ? { imageSize: '{{imageSize}}' } : {}),
+          },
+        },
+      },
+    },
+    response: {
+      type: 'json', errorPath: 'error.message',
+      result: { base64Path: 'candidates.*.content.parts.*.inlineData.data', mimeType: 'image/png' },
+    },
+  };
+}
+
 /**
  * 未填写 API Key 时展示的目录；填写后仍以远端 /models 为准。
- * 模型 ID 取自 CCC API 监控页 https://cccapi.cn/monitor 的 openai 渠道。
+ * 模型 ID 取自 CCC 模型广场和渠道页（2026-10-02），保留厂商的大小写与别名。
  * inputModalities 只在与按 ID 猜模态的兜底规则不一致时才显式声明，
  * 避免把 gpt-4 / o3-mini 这类纯文本模型误判成能吃图。
  */
 const CCCAPI_MODEL_MANIFEST: readonly ProviderModelSelection[] = [
+  ...[
+    'DeepSeek-V4.1-Flash', 'GLM-5.3-Flash', 'Qwen3.8-Flash', 'mI MiMo-V2.5', 'Hy3',
+    'claude-3-5-haiku', 'claude-3-5-sonnet', 'claude-3-7-sonnet',
+    'claude-haiku-4-5', 'claude-haiku-4.5',
+    'claude-sonnet-4', 'claude-sonnet-4-5', 'claude-sonnet-4.5',
+    'claude-sonnet-4-6', 'claude-sonnet-4.6', 'claude-sonnet-5',
+    'claude-opus-4', 'claude-opus-4-1', 'claude-opus-4-5',
+    'claude-opus-4-6', 'claude-opus-4.6', 'claude-opus-4-7', 'claude-opus-4-8',
+    'claude-opus-5', 'claude-fable-5',
+    'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-2.5-pro',
+    'gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-3-flash',
+    'gemini-3.1-flash-lite', 'gemini-3.1-pro-high', 'gemini-3.1-pro-low',
+    'gemini-3.5-flash', 'gemini-3.5-flash-lite',
+    'grok-3-mini', 'grok-3-mini-fast', 'grok-code-fast', 'grok-code-fast-1',
+    'grok-4.3', 'grok-4.5', 'grok-4.5-latest', 'grok-4.20-multi-agent',
+    'grok-4.20-0309-reasoning', 'grok-4.20-0309-non-reasoning',
+    'grok-build', 'grok-build-0.1',
+  ].map((id): ProviderModelSelection => ({
+    id, name: id, category: 'text', provider: 'cccapi',
+    description: 'CCC 中转文本模型，使用共享 OpenAI 对话协议',
+    executionProfile: { preset: 'openai-chat' },
+    // 目录没有声明视觉能力时，先按文本输入接入。
+    inputModalities: ['text'],
+  })),
   { id: 'gpt-5.6', name: 'GPT-5.6', category: 'text', provider: 'cccapi', description: 'GPT-5.6 通用文本与多模态模型' },
   { id: 'gpt-5.6-sol', name: 'GPT-5.6 Sol', category: 'text', provider: 'cccapi', description: 'GPT-5.6 Sol 文本与多模态模型' },
   { id: 'gpt-5.6-luna', name: 'GPT-5.6 Luna', category: 'text', provider: 'cccapi', description: 'GPT-5.6 Luna 文本与多模态模型' },
@@ -132,6 +182,19 @@ const CCCAPI_MODEL_MANIFEST: readonly ProviderModelSelection[] = [
   { id: 'gpt-4-turbo', name: 'GPT-4 Turbo', category: 'text', provider: 'cccapi', description: 'GPT-4 Turbo 通用文本与多模态模型' },
   { id: 'gpt-4', name: 'GPT-4', category: 'text', provider: 'cccapi', description: 'GPT-4 通用文本模型', inputModalities: ['text'] },
   { id: 'codex-auto-review', name: 'Codex Auto Review', category: 'text', provider: 'cccapi', description: 'Codex 自动代码评审模型' },
+  {
+    id: 'gpt-image-2.5', name: 'GPT Image 2.5', category: 'image', provider: 'cccapi',
+    description: 'OpenAI 兼容图片生成与编辑模型', imageReferenceRequestMode: 'edits-multipart',
+  },
+  ...[
+    'gemini-3-pro-image-preview', 'gemini-3-pro-image', 'gemini-3.1-flash-image',
+    'gemini-2.5-flash-image', 'nano-banana2', 'nano-banana-pro',
+  ].map((id): ProviderModelSelection => ({
+    id, name: id, category: 'image', provider: 'cccapi',
+    description: 'CCC Gemini 原生文生图（当前不接收参考图）',
+    inputModalities: ['text'],
+    executionProfile: { preset: 'custom', protocol: cccGeminiImageProtocol(id !== 'gemini-2.5-flash-image') },
+  })),
   {
     id: 'gpt-image-2.5-flare',
     name: 'GPT Image 2.5 Flare',

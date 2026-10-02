@@ -224,6 +224,50 @@ describe('CCC API 内置厂商目录', () => {
       }),
     ]));
   });
+
+  it('补齐模型广场与非 OpenAI 渠道，并为图片型号保留各自协议', () => {
+    const models = getProviderDefinition('cccapi')?.models ?? [];
+    expect(new Set(models.map((model) => model.id)).size).toBe(models.length);
+    for (const id of [
+      'DeepSeek-V4.1-Flash', 'GLM-5.3-Flash', 'Qwen3.8-Flash', 'mI MiMo-V2.5', 'Hy3',
+      'claude-sonnet-4-6', 'claude-sonnet-4.6', 'claude-opus-4-8', 'claude-fable-5',
+      'gemini-2.5-pro', 'gemini-3.1-pro-high', 'gemini-3.5-flash',
+      'grok-4.5', 'grok-build', 'grok-4.20-multi-agent',
+    ]) {
+      expect(models.find((model) => model.id === id), id).toMatchObject({
+        category: 'text', provider: 'cccapi', executionProfile: { preset: 'openai-chat' },
+      });
+    }
+    expect(models.find((model) => model.id === 'gpt-image-2.5')).toMatchObject({
+      category: 'image', imageReferenceRequestMode: 'edits-multipart',
+    });
+    for (const id of ['gemini-3-pro-image-preview', 'gemini-3-pro-image',
+      'gemini-3.1-flash-image', 'gemini-2.5-flash-image', 'nano-banana2', 'nano-banana-pro']) {
+      expect(models.find((model) => model.id === id), id).toMatchObject({
+        category: 'image', inputModalities: ['text'], executionProfile: {
+          preset: 'custom', protocol: { submit: { path: '/v1beta/models/{{model}}:generateContent' } },
+        },
+      });
+    }
+  });
+
+  it('当前 Key 的远端清单保留新型号的协议，不自动启用其他分组模型', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ data: [
+      { id: 'Hy3' }, { id: 'nano-banana2' }, { id: 'gpt-image-2.5' },
+    ] })));
+    const result = await fetchProviderModelCatalog({
+      providerId: 'cccapi', config: { name: 'CCC', apiKey: 'fixture-key', catalogId: 'cccapi' },
+      fallbackModels: [...(getProviderDefinition('cccapi')?.models ?? [])],
+    });
+    expect(result.source).toBe('remote');
+    expect(result.models).toHaveLength(3);
+    expect(result.models.find((model) => model.id === 'Hy3')?.executionProfile?.preset).toBe('openai-chat');
+    expect(result.models.find((model) => model.id === 'nano-banana2')).toMatchObject({
+      category: 'image', executionProfile: { preset: 'custom' },
+    });
+    expect(result.models.find((model) => model.id === 'gpt-image-2.5')?.imageReferenceRequestMode)
+      .toBe('edits-multipart');
+  });
 });
 
 describe('自定义连接原生模型目录', () => {
