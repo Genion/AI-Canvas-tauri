@@ -125,13 +125,12 @@ export function imageUrlReachable(url: string, timeoutMs = 6000): Promise<boolea
 /**
  * 解析图片节点的可用 URL：
  *  - 本地/内联 URL（asset://、data:、blob:）直接用；
- *  - 线上 http(s) URL 先验证是否可达，失效且有本地 filePath 时改用本地 asset URL
- *    （随后由 resolveImageUrlArray/resolveContentImageUrls 的本地→远端上传流程接管）。
+ *  - 线上 http(s) URL 有本地 filePath 时优先用本地副本，
+ *    后续上传会复用 2.5 小时缓存，到期后重传，不再依赖旧地址能否加载。
  */
 export async function resolveNodeImageUrl(url: string, filePath?: string): Promise<string> {
   // 本地/内联 URL（asset://、data:、blob:、http://asset.localhost）无需校验
   if (!isRemoteMediaUrl(url)) return url;
-  if (await imageUrlReachable(url)) return url;
   if (filePath) {
     try {
       const local = await getAssetUrlFromPath(filePath);
