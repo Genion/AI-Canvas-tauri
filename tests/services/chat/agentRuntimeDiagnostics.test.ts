@@ -175,6 +175,9 @@ describe('agent runtime diagnostics', () => {
       content: expect.stringContaining('是本任务的唯一执行目标'),
     });
     expect(messages.at(-2)?.content).toContain('不得回头执行历史中的其他请求');
+    expect(messages.at(-2)?.content).toContain('用户说“继续”“按刚才的方案做”“修改刚才的结果”');
+    expect(messages.at(-2)?.content).toContain('succeeded 操作已完成');
+    expect(messages.at(-2)?.content).toContain('普通问答、讨论和写作可直接给出完整答案');
     expect(messages.at(-3)).toEqual({ role: 'assistant', content: '我先为你创建短片节点' });
   });
 

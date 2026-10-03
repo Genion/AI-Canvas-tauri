@@ -33,8 +33,10 @@ import { rankProjectMemories } from './memoryRetrieval';
 import { buildLearnedPromptContext } from './promptLearningService';
 import { estimateTokens } from './tokenEstimate';
 import { getAssistantTextModelCandidates } from '../projectSettingsService';
+import { findHistoryCutIndex, historyMessageContent, messageContentWithSources } from './contextTranscript';
 
 export { estimateTokens };
+export { messageContentWithSources };
 
 // ============================================
 // 阈值
@@ -142,26 +144,6 @@ export interface ContextUsageStat {
 const SYSTEM_PROMPT_OVERHEAD_ESTIMATE = 1_200;
 
 type UsageMessage = Pick<ChatMessage, 'role' | 'content' | 'status' | 'timestamp' | 'sources'>;
-
-/**
- * 将消息携带的来源元数据补充到模型上下文。
- * 只保留引用编号、标题和 URL，避免跨轮重复注入搜索摘要或网页正文。
- */
-export function messageContentWithSources(
-  message: Pick<ChatMessage, 'content' | 'sources'>,
-): string {
-  if (!message.sources?.length) return message.content;
-  const sourceLines = message.sources.map((source) => [
-    `[${source.citationId ?? 'S?'}] ${source.title}`,
-    source.url,
-  ].join('\n'));
-  return [
-    message.content,
-    '',
-    '可追溯来源：',
-    ...sourceLines,
-  ].join('\n');
-}
 
 /**
  * 估算会话上下文占用（用于头部指示器）。
@@ -274,7 +256,7 @@ function selectHistoryMessages(
     (message.role === 'user' || message.role === 'assistant')
     && !!message.content
     && !excludeIds.has(message.id)
-    && !['error', 'interrupted', 'canceled'].includes(message.status)
+    && ['done', 'partial', 'clarifying', 'preview'].includes(message.status)
     && (!summary || message.timestamp > summary.coveredUntilTimestamp));
 }
 
@@ -315,18 +297,19 @@ function buildMessages(
   const userTokens = PER_MESSAGE_OVERHEAD + estimateTokens(userMessage);
   const fixedTokens = systemTokens + memoryTokens + summaryTokens + userTokens;
 
-  // 最新消息优先，从新到旧填充预算
-  const included: ChatMessage[] = [];
+  // 按完整轮次保留连续的最近历史，不跳过大消息后再塞入更早的小消息。
   let historyTokens = 0;
-  let rawHistoryTokens = 0;
-  for (let i = history.length - 1; i >= 0; i--) {
-    const tokens = PER_MESSAGE_OVERHEAD + estimateTokens(messageContentWithSources(history[i]));
-    rawHistoryTokens += tokens;
-    if (fixedTokens + historyTokens + tokens <= inputBudget) {
-      included.unshift(history[i]);
-      historyTokens += tokens;
-    }
+  const costs = history.map((message) => PER_MESSAGE_OVERHEAD + estimateTokens(message.content));
+  const rawHistoryTokens = costs.reduce((sum, cost) => sum + cost, 0);
+  let firstIncluded = history.length;
+  while (firstIncluded > 0) {
+    const start = findHistoryCutIndex(history.slice(0, firstIncluded), 1);
+    const tokens = costs.slice(start, firstIncluded).reduce((sum, cost) => sum + cost, 0);
+    if (fixedTokens + historyTokens + tokens > inputBudget) break;
+    historyTokens += tokens;
+    firstIncluded = start;
   }
+  const included = history.slice(firstIncluded);
 
   const messages: AssistantModelMessage[] = [
     ...(systemPrompt ? [{ role: 'system' as const, content: systemPrompt }] : []),
@@ -334,7 +317,7 @@ function buildMessages(
     ...(summaryContent ? [{ role: 'system' as const, content: summaryContent }] : []),
     ...included.map((message) => ({
       role: message.role as 'user' | 'assistant',
-      content: messageContentWithSources(message),
+      content: message.content,
     })),
     { role: 'user' as const, content: userMessage },
   ];
@@ -372,7 +355,13 @@ export async function assembleAgentContext(
     learnedPromptBlock,
   ].filter(Boolean).join('\n\n');
 
-  const { messages: persisted } = persistedResult;
+  const tasks = useAppStore.getState().agentTasks.filter((task) =>
+    task.conversationId === conversationId && task.projectId === projectId);
+  const persisted = persistedResult.messages.filter((message) => message.conversationId === conversationId)
+    .map((message) => ({
+      ...message,
+      content: historyMessageContent(message, tasks.find((task) => task.id === message.agentTaskId)),
+    }));
   let summary = getConversationSummary(conversationId);
   let history = selectHistoryMessages(persisted, excludeIds, summary);
   let result = buildMessages(systemPrompt, memoryBlock, summary, history, userMessage, spec.inputBudget);
