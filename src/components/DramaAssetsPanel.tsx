@@ -12,6 +12,7 @@ import { DRAMA_ASSET_KIND_LABEL } from '../types/dramaAssets';
 import { formatDramaAssetTextBrief } from '../services/dramaAssetPrompt';
 import { confirmAction } from '../services/confirmDialog';
 import ViewportImage from './shared/ViewportImage';
+import Select from './shared/Select';
 import { uploadSourceFileToProject, isTauriEnv } from '../services/fileService';
 import { generateId, seriesOwnerId } from '../store/store.utils';
 import { normalizeAssetKey } from '../services/dramaAssetExtract';
@@ -521,12 +522,12 @@ export default function DramaAssetsPanel({ compact = false }: { compact?: boolea
               ) : null}
       <div className={`flex items-center gap-2 shrink-0 ${tab === 'all' || tab === 'character' ? '' : 'ml-auto'}`}>
         {tab === 'all' && (
-          <select className="ui-select__control w-auto" aria-label="上传资产类型"
-            value={uploadKind} disabled={uploading} onChange={(event) => setUploadKind(event.target.value as DramaAssetKind)}>
+          <Select aria-label="上传资产类型" className="w-auto" value={uploadKind} disabled={uploading} fixedMenu
+            onChange={(selectedOptionValue) => setUploadKind(selectedOptionValue as DramaAssetKind)}>
             {KIND_TABS.filter((item) => item.key !== 'all').map((item) => (
               <option key={item.key} value={item.key}>{item.label}</option>
             ))}
-          </select>
+          </Select>
         )}
         <button type="button" className="ui-btn ui-btn--primary" disabled={uploading}
           onClick={() => void handleUpload(tab === 'all' ? uploadKind : tab)}>
