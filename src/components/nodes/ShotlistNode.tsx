@@ -648,12 +648,20 @@ function ShotlistNode({ id, data, selected }: { id: string; data: BaseNodeData; 
       const cellId = `${row.id}:${column}`;
       const custom = customOptionCells.includes(cellId) || (!!value && !options.includes(value));
       return (
-        <div className="flex min-w-0 flex-col gap-1 nodrag">
+        <div className="min-w-0 nodrag">
           <Select
             size="sm" fixedMenu className="min-w-0"
             value={custom ? 'custom' : value ? `preset:${options.indexOf(value)}` : ''}
             aria-label={SHOTLIST_COLUMN_LABELS[column]}
             placeholder={t('未选择')}
+            customInput={custom ? {
+              value, placeholder: t('自定义'), autoFocus: customOptionCells.includes(cellId),
+              onChange: (text) => {
+                setCustomOptionCells((current) => current.includes(cellId) ? current : [...current, cellId]);
+                patchRow(row.id, { [column]: text } as Partial<ShotRow>);
+              },
+              onFocus: commitToHistory, onBlur: commitToHistory,
+            } : undefined}
             options={[
               { value: '', label: t('未选择') },
               ...options.map((option, index) => ({ value: `preset:${index}`, label: option })),
@@ -670,14 +678,6 @@ function ShotlistNode({ id, data, selected }: { id: string; data: BaseNodeData; 
               commitToHistory();
             }}
           />
-          {custom && <input
-            className="ui-input ui-input--sm shot-input nodrag"
-            value={value} aria-label={`${SHOTLIST_COLUMN_LABELS[column]}自定义`}
-            placeholder={t('自定义')}
-            onChange={(event) => patchRow(row.id, { [column]: event.target.value } as Partial<ShotRow>)}
-            onFocus={commitToHistory} onBlur={commitToHistory}
-            onMouseDown={(event) => event.stopPropagation()}
-          />}
         </div>
       );
     }

@@ -86,6 +86,7 @@ function componentName(element: ElementLike): string {
 
 async function installReactHookDriver(
   stateValue?: (initialValue: unknown, index: number) => unknown,
+  effects?: Array<() => void | (() => void)>,
 ) {
   vi.doMock('react', async () => {
     const actual = await vi.importActual<typeof import('react')>('react');
@@ -97,7 +98,7 @@ async function installReactHookDriver(
       lazy: () => function LazyComponentMock() { return null; },
       Suspense: ({ children }: { children: unknown }) => children,
       useCallback: <T,>(callback: T) => callback,
-      useEffect: () => undefined,
+      useEffect: (effect: () => void | (() => void)) => { effects?.push(effect); },
       useLayoutEffect: () => undefined,
       useContext: () => undefined,
       useId: () => `test-id-${++idIndex}`,
@@ -238,6 +239,38 @@ function visibleShotRatio(store: TestStore, column: string) {
 }
 
 describe('critical canvas node interactions', () => {
+  it('lets a custom Select type spaces and use input undo without triggering canvas shortcuts', async () => {
+    const effects: Array<() => void | (() => void)> = [];
+    await installReactHookDriver(undefined, effects);
+    const listeners = new Map<string, (event: unknown) => void>();
+    vi.stubGlobal('window', { addEventListener: (name: string, listener: (event: unknown) => void) => listeners.set(name, listener), removeEventListener: vi.fn() });
+    const Select = (await import('../../src/components/shared/Select')).default;
+    const textChange = vi.fn();
+    const tree = Select({ value: 'custom', onChange: vi.fn(), 'aria-label': '运镜',
+      options: [{ value: 'custom', label: '自定义' }], customInput: { value: '手持', onChange: textChange } });
+    const input = findElement(tree, (element) => element.type === 'input');
+    const target = { blur: vi.fn() };
+    (input.props.ref as { current: unknown }).current = target;
+    (tree.props.ref as { current: unknown }).current = { contains: (element: unknown) => element === target };
+    effects.forEach((effect) => effect());
+    const keydown = listeners.get('keydown')!;
+    for (const key of [' ', 'Backspace', 'z']) {
+      const event = { key, target, ctrlKey: key === 'z', preventDefault: vi.fn(), stopImmediatePropagation: vi.fn() };
+      keydown(event);
+      expect(event.preventDefault).not.toHaveBeenCalled();
+      expect(event.stopImmediatePropagation).toHaveBeenCalledOnce();
+    }
+    const enter = { key: 'Enter', target, preventDefault: vi.fn(), stopImmediatePropagation: vi.fn() };
+    keydown(enter);
+    expect(enter.preventDefault).toHaveBeenCalledOnce();
+    expect(target.blur).toHaveBeenCalledOnce();
+    const composing = { ...enter, isComposing: true, preventDefault: vi.fn() };
+    keydown(composing);
+    expect(composing.preventDefault).not.toHaveBeenCalled();
+    (input.props.onChange as (event: unknown) => void)({ target: { value: '手持 环绕' } });
+    expect(textChange).toHaveBeenCalledWith('手持 环绕');
+  });
+
   it('shows shot numbers as read-only row positions even when saved numbers differ', async () => {
     const { tree, store } = await setupShotlistWidths(undefined, [
       { id: 'row-1', shotNo: '3a' }, { id: 'row-2', shotNo: '9' },
@@ -289,9 +322,15 @@ describe('critical canvas node interactions', () => {
       && element.props['aria-label'] === '运镜');
     expect(cameraSelect.props.fixedMenu).toBe(true);
     expect(cameraSelect.props.value).toBe('custom');
-    const customInput = findElement(tree, (element) => element.type === 'input'
-      && element.props['aria-label'] === '运镜自定义');
+    expect(() => findElement(tree, (element) => element.type === 'input'
+      && element.props['aria-label'] === '运镜自定义')).toThrow('Element not found');
+    const Select = (await import('../../src/components/shared/Select')).default;
+    const control = Select(cameraSelect.props as unknown as Parameters<typeof Select>[0]);
+    const customInput = findElement(control, (element) => element.type === 'input');
     expect(customInput.props.value).toBe('手持跟拍并轻微晃动');
+    expect(customInput.props.role).toBe('combobox');
+    const inputGroup = findElement(control, (element) => (element.props.className as string | undefined)?.includes('ui-input-group') ?? false);
+    expect(findElement(inputGroup, (element) => element.type === 'button').props['aria-haspopup']).toBe('listbox');
     (customInput.props.onChange as (event: unknown) => void)({ target: { value: '环绕后推进' } });
     expect((store.nodes[0].data.shotlistRows as Array<Record<string, unknown>>)[0].camera).toBe('环绕后推进');
     store.commitToHistory.mockClear();
