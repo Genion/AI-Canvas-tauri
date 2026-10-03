@@ -87,6 +87,7 @@ function componentName(element: ElementLike): string {
 async function installReactHookDriver(
   stateValue?: (initialValue: unknown, index: number) => unknown,
   effects?: Array<() => void | (() => void)>,
+  layoutEffects?: Array<() => void | (() => void)>,
 ) {
   vi.doMock('react', async () => {
     const actual = await vi.importActual<typeof import('react')>('react');
@@ -99,7 +100,7 @@ async function installReactHookDriver(
       Suspense: ({ children }: { children: unknown }) => children,
       useCallback: <T,>(callback: T) => callback,
       useEffect: (effect: () => void | (() => void)) => { effects?.push(effect); },
-      useLayoutEffect: () => undefined,
+      useLayoutEffect: (effect: () => void | (() => void)) => { layoutEffects?.push(effect); },
       useContext: () => undefined,
       useId: () => `test-id-${++idIndex}`,
       useMemo: <T,>(factory: () => T) => factory(),
@@ -824,6 +825,38 @@ describe('critical canvas node interactions', () => {
     );
     store.nodes = [group];
     expect(GroupNode({ id: 'group-a', data: group.data, selected: false })).not.toBeNull();
+  });
+
+  it.each([
+    { runtime: 'lightweight-web', expanded: false }, { runtime: 'lightweight-web', expanded: true },
+    { runtime: 'blender', expanded: false }, { runtime: 'blender', expanded: true },
+    { runtime: undefined, expanded: false }, { runtime: undefined, expanded: true },
+  ])('hides director input in runtime=$runtime, expanded=$expanded, including a live runtime switch', async ({ runtime, expanded }) => {
+    const store = createStore([{
+      id: 'director', type: 'ai-director', position: { x: 0, y: 0 },
+      data: { type: 'ai-director', directorRuntimeKind: 'ai-threejs', status: 'idle' },
+    }], () => 1);
+    store.activeNodeId = 'director';
+    const layoutEffects: Array<() => void | (() => void)> = [];
+    await installReactHookDriver((initial, index) => index === 0 ? expanded : initial, undefined, layoutEffects);
+    installStoreMock(store);
+    vi.doMock('zustand/react/shallow', () => ({ useShallow: <T,>(selector: T) => selector }));
+    vi.doMock('../../src/components/nodes/shared/PromptPanel', () => ({
+      default: function PromptPanelMock() { return null; },
+    }));
+    vi.doMock('../../src/services/pollManager', () => ({
+      getPendingTasksForProject: () => [], resumeComfyUINodeTask: vi.fn(), resumeRunningHubNodeTask: vi.fn(),
+      updatePendingTask: vi.fn(), removePendingTask: vi.fn(),
+    }));
+    const AINodeDialog = (await import('../../src/components/nodes/AINodeDialog')).default as unknown as () => unknown;
+    expect(findElement(AINodeDialog(), (element) => componentName(element) === 'PromptPanelMock')).toBeDefined();
+    for (const status of ['idle', 'loading', 'success', 'error']) {
+      store.nodes[0].data = { ...store.nodes[0].data, directorRuntimeKind: runtime, status, imageUrl: 'frame.png', model: 'general/text', provider: 'general' };
+      layoutEffects.length = 0;
+      expect(AINodeDialog()).toBeNull();
+      layoutEffects[0]();
+    }
+    expect(store.closeNodeDialog).toHaveBeenCalledTimes(4);
   });
 
   it('AINodeDialog submits the latest video parameters and resolved project prompt', async () => {

@@ -249,6 +249,19 @@ describe('projectTransferService', () => {
     );
   });
 
+  it.each([true, false])('preserves previs references and counts absent scene files (present=%s)', async (present) => {
+    const relativePath = `director/previs/${'c'.repeat(64)}.json`;
+    const reference = { kind: 'project-file', relativePath, sha256: 'c'.repeat(64), bytes: 256 };
+    const project = { ...PROJECT_RECORD, nodes: [{ id: 'previs-1', data: {
+      type: 'ai-director', directorRuntimeKind: 'ai-threejs', directorPrevisScene: reference,
+    } }] };
+    mocks.open.mockResolvedValue('/in/previs.aicanvas');
+    mocks.invoke.mockResolvedValue({ texts: archiveTexts({ project }), assetPaths: present ? [relativePath] : [], assetBytes: present ? 256 : 0 });
+    const result = await importProjectArchive();
+    expect(result!.missingAssetCount).toBe(present ? 0 : 1);
+    expect(mocks.saveProject.mock.calls[0][0].nodes[0].data.directorPrevisScene).toEqual(reference);
+  });
+
   it('does not infer new Director references from legacy capture arrays', async () => {
     const project = {
       ...PROJECT_RECORD,

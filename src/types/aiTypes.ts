@@ -7,6 +7,8 @@ export interface AIGenerateParams {
   provider: string;   // provider id (e.g. 'ppio')
   /** 关联的节点 ID（用于中断恢复） */
   nodeId?: string;
+  /** 可选取消信号，仅用于当前调用，不持久化。 */
+  signal?: AbortSignal;
   /** 追加到消息末尾的图片；文本/VLM 请求统一转换为受限 Base64 data URL。 */
   imageUrls?: string[];
 }

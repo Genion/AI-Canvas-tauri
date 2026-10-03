@@ -5,6 +5,7 @@ import type { AudioOutputFormat, AudioSpeechSettings, AudioTtsVoice, ModelExecut
 import type { AudioGenerationPurpose } from './media';
 import type { ImageAnnotationLayer } from '@tenney95/xiaoluo-image-editor';
 import type { CanvasNoteData } from './canvasNote';
+import type { DirectorPrevisReference } from './directorPrevis';
 import type {
   DirectorResultManifestReference,
   DirectorRuntimeKind,
@@ -314,6 +315,10 @@ export interface BaseNodeData {
   directorCaptureUrls?: string[];        // 从导演台同步的截图 URL 列表
   directorCaptureFilePaths?: string[];   // 对应本地路径
   directorScene?: DirectorSceneReference; // 结构化 Director Scene 的不可变项目文件引用
+  directorPrevisScene?: DirectorPrevisReference; // AI 镜头预演；独立合同，不覆盖 Blender Scene
+  directorPrevisPrompt?: string;
+  directorPrevisModel?: string;
+  directorPrevisProvider?: string;
   directorResultManifest?: DirectorResultManifestReference; // 当前结果清单的不可变项目文件引用
   /** 轻量笔记/绘图元素。与 AI 生成节点数据语义隔离。 */
   note?: CanvasNoteData;

@@ -5,6 +5,8 @@
 import Select from '../shared/Select';
 import {
   memo,
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
   useMemo,
@@ -46,6 +48,10 @@ import {
   subscribeDirectorNodeOperations,
 } from '../../services/directorNodeOperationService';
 import type { DirectorNodeOperationRequest, DirectorOperationSnapshot } from '../../types/directorOperation';
+import { subscribeDirectorPrevisOpen } from '../../services/directorPrevisService';
+import LazyLoadBoundary, { LazyLoadFallback } from '../shared/LazyLoadBoundary';
+
+const DirectorPrevisDialog = lazy(() => import('../director/DirectorPrevisDialog'));
 
 const DEFAULT_W = 320;
 const DEFAULT_H = 240;
@@ -94,6 +100,8 @@ function DirectorDeskNode({
 
   const [ready, setReady] = useState(false);
   const [localBusy, setBusy] = useState<string | null>(null);
+  const [previsOpen, setPrevisOpen] = useState(false);
+  const [previsAction, setPrevisAction] = useState<'editor' | 'frame' | 'video'>('editor');
   const activeBlenderOperation = useSyncExternalStore(
     subscribeDirectorNodeOperations,
     useCallback(() => getActiveDirectorNodeOperation(id), [id]),
@@ -134,6 +142,15 @@ function DirectorDeskNode({
   const width = (data.nodeWidth as number) || DEFAULT_W;
   const height = (data.nodeHeight as number) || DEFAULT_H;
   const deskTheme: 'dark' | 'light' = theme === 'light' ? 'light' : 'dark';
+
+  useEffect(() => {
+    if (runtimeKind !== 'ai-threejs') return;
+    const unsubscribe = subscribeDirectorPrevisOpen(instanceId, () => {
+      setPrevisAction('editor'); setPrevisOpen(true);
+    });
+    return () => { unsubscribe(); setPrevisOpen(false); };
+  }, [instanceId, runtimeKind]);
+  const closePrevis = useCallback(() => setPrevisOpen(false), []);
 
   useEffect(() => {
     if (data.directorInstanceId === instanceId) return;
@@ -274,6 +291,10 @@ function DirectorDeskNode({
 
   const handleOpen = useCallback(async () => {
     if (busy) return;
+    if (runtimeKind === 'ai-threejs') {
+      setPrevisAction('editor'); setPrevisOpen(true);
+      return;
+    }
     if (runtimeKind === 'blender') {
       await runBlenderOperation('open-editor');
       return;
@@ -305,6 +326,10 @@ function DirectorDeskNode({
 
   const handleExportFrame = useCallback(async () => {
     if (busy) return;
+    if (runtimeKind === 'ai-threejs') {
+      setPrevisAction('frame'); setPrevisOpen(true);
+      return;
+    }
     if (runtimeKind === 'blender') {
       await runBlenderOperation('render-frame');
       return;
@@ -331,6 +356,10 @@ function DirectorDeskNode({
 
   const handleExportVideo = useCallback(async () => {
     if (busy || videoExportPendingRef.current) return;
+    if (runtimeKind === 'ai-threejs') {
+      setPrevisAction('video'); setPrevisOpen(true);
+      return;
+    }
     if (runtimeKind === 'blender') {
       await runBlenderOperation('render-video');
       return;
@@ -383,6 +412,7 @@ function DirectorDeskNode({
     if (!projectId || nextKind === runtimeKind) return;
     try {
       setDirectorNodeRuntime(id, nextKind, { source: 'ui', projectId });
+      setPrevisOpen(false);
       setReady(false);
     } catch (error) {
       showToast(error instanceof Error ? error.message : '切换运行时失败', 'error');
@@ -395,7 +425,8 @@ function DirectorDeskNode({
     && runtimeResolution.descriptor.capabilities.exportFrame;
   const canExportVideo = runtimeResolution.supported
     && runtimeResolution.descriptor.capabilities.exportVideo;
-  const runtimeReadyForExport = runtimeKind === 'blender' || ready;
+  const runtimeReadyForExport = runtimeKind === 'blender' || ready
+    || (runtimeKind === 'ai-threejs' && !!data.directorPrevisScene);
 
   return (
     <>
@@ -481,6 +512,8 @@ function DirectorDeskNode({
                 : canOpenRuntime
                   ? runtimeKind === 'blender'
                     ? '打开 Blender'
+                    : runtimeKind === 'ai-threejs'
+                      ? '打开镜头预演'
                     : ready
                       ? '聚焦导演台'
                       : '打开导演台'
@@ -533,6 +566,13 @@ function DirectorDeskNode({
         />
       </div>
 
+      {previsOpen && runtimeKind === 'ai-threejs' && (
+        <LazyLoadBoundary label="AI 镜头预演" resetKey={instanceId}>
+          <Suspense fallback={<LazyLoadFallback label="AI 镜头预演" />}>
+            <DirectorPrevisDialog nodeId={id} initialAction={previsAction} onClose={closePrevis} />
+          </Suspense>
+        </LazyLoadBoundary>
+      )}
     </>
   );
 }

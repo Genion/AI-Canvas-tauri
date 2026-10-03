@@ -49,6 +49,42 @@ export async function executeGeneration(
   const nodeType = data?.type;
   const rawPrompt = overridePrompt ?? (data?.prompt as string) ?? '';
 
+  if (nodeType === 'ai-director') {
+    if (data.directorRuntimeKind !== 'ai-threejs') {
+      const message = '请切换到 AI 镜头预演后生成';
+      store.showToast(message, 'error');
+      return { success: false, message };
+    }
+    const defaults = parseProjectModelRef(store.projects.find((project) => project.id === store.currentProjectId)?.settings?.defaultModels?.text);
+    const selected = parseProjectModelRef(data.model || data.directorPrevisModel);
+    const model = data.model || data.directorPrevisModel || defaults?.model || '';
+    const provider = data.model ? data.provider || selected?.provider : data.directorPrevisModel
+      ? data.directorPrevisProvider || selected?.provider : defaults?.provider;
+    const description = overridePrompt ?? data.prompt ?? data.directorPrevisPrompt ?? '';
+    const validation = !description.trim() || description.length > 12000 ? '请填写场景和运镜描述（最多 12000 字符）'
+      : !model || !provider ? '请先选择文本模型；引用图片时请选择视觉模型' : undefined;
+    if (validation) {
+      store.showToast(validation, 'error');
+      return { success: false, message: validation };
+    }
+    try {
+      const { generateDirectorPrevis } = await import('./directorPrevisService');
+      const live = useAppStore.getState();
+      if (live.currentProjectId !== store.currentProjectId
+        || live.nodes.find((node) => node.id === nodeId)?.data !== store.nodes.find((node) => node.id === nodeId)?.data) {
+        return { success: false, message: '画布或生成输入已变化，未提交预演请求' };
+      }
+      await generateDirectorPrevis({ nodeId, description, model, provider: provider || '' });
+      useAppStore.getState().showToast('镜头预演已生成，可打开导演台查看');
+      return { success: true };
+    } catch (error) {
+      const cancelled = error instanceof Error && error.name === 'AbortError';
+      const message = cancelled ? '预演生成已取消或画布发生变化，未写回结果' : '镜头预演生成失败，请检查描述、模型配置和引用素材';
+      useAppStore.getState().showToast(message, cancelled ? 'info' : 'error');
+      return { success: false, message };
+    }
+  }
+
   const cloudWorkflow = isCloudWorkflow(store.workflows.find((item) => item.id === data.workflowId));
   if (!rawPrompt.trim() && !cloudWorkflow && data.provider !== 'runninghub') {
     store.showToast('请输入提示词', 'error');

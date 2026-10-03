@@ -572,6 +572,21 @@
   flex-shrink: 0;
 }
 
+[data-theme='light'] .ui-stepper__actions {
+  background: color-mix(in srgb, var(--theme-input-bg) 85%, var(--theme-hover));
+  border-color: color-mix(in srgb, var(--theme-input-bg) 60%, var(--theme-border));
+}
+[data-theme='light'] .ui-stepper__divider {
+  background: color-mix(in srgb, var(--theme-input-bg) 60%, var(--theme-border));
+}
+[data-theme='light'] .ui-stepper__btn:hover:not(:disabled) {
+  background: var(--brand-alpha-08);
+  color: var(--brand);
+}
+[data-theme='light'] .ui-stepper__btn:active:not(:disabled) {
+  background: var(--brand-alpha-15);
+}
+
 .ui-stepper__unit {
   font-size: var(--ui-font-sm);
   font-weight: 500;

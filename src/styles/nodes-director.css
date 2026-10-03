@@ -1,5 +1,10 @@
 /* ── 3D 导演台节点 ── */
 
+.director-node {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
 .director-preview {
   position: relative;
   flex: 1;

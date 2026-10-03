@@ -79,6 +79,8 @@ function AINodeDialog() {
   const performanceMode = useAppStore((s) => s.config.performanceMode === true);
   const data: BaseNodeData | undefined = node?.data;
   const nodeType = data?.type;
+  const isPrevis = nodeType === 'ai-director' && data?.directorRuntimeKind === 'ai-threejs';
+  const directorDialogBlocked = (node?.type === 'ai-director' || nodeType === 'ai-director') && !isPrevis;
 
   const panelRef = useRef<HTMLDivElement>(null);
   const previewRef = useRef<HTMLDivElement>(null);
@@ -92,6 +94,11 @@ function AINodeDialog() {
     requestAnimationFrame(() => panelRef.current?.querySelector<HTMLButtonElement>('.prompt-polish-button')?.focus());
   }, []);
   const [recoveryInput, setRecoveryInput] = useState({ nodeId: '', taskId: '', confirmed: false });
+
+  // Render gating also covers an already-open dialog when the director runtime changes.
+  useLayoutEffect(() => {
+    if (activeNodeId && directorDialogBlocked) closeNodeDialog();
+  }, [activeNodeId, directorDialogBlocked, closeNodeDialog]);
 
   useLayoutEffect(() => {
     const panel = panelRef.current;
@@ -351,6 +358,13 @@ function AINodeDialog() {
     const latestData = latestNode?.data as BaseNodeData | undefined;
     if (!latestData) {
       showToast(t('节点不存在'), 'error');
+      return;
+    }
+    if (latestData.type === 'ai-director') {
+      const { executeGeneration } = await import('../../services/generationService');
+      const live = useAppStore.getState();
+      if (live.currentProjectId !== store.currentProjectId || live.nodes.find((item) => item.id === latestNode!.id)?.data !== latestData) return;
+      await executeGeneration(latestNode!.id, overridePrompt);
       return;
     }
     if (store.currentProjectId && getPendingTasksForProject(store.currentProjectId).some((task) => (
@@ -785,6 +799,11 @@ function AINodeDialog() {
   const onCancelGeneration = useCallback(async () => {
     if (!activeNodeId || cancellingNodeIdsRef.current.has(activeNodeId)) return;
     const nodeId = activeNodeId;
+    if (useAppStore.getState().nodes.find((item) => item.id === nodeId)?.data.directorRuntimeKind === 'ai-threejs') {
+      const { cancelDirectorPrevisGeneration } = await import('../../services/directorPrevisService');
+      cancelDirectorPrevisGeneration(nodeId);
+      return;
+    }
     const projectId = currentProjectId;
     if (useAppStore.getState().nodes.find((item) => item.id === nodeId)?.data.provider === 'workflow-api') {
       stopWorkflowApiNodeTask(nodeId); return;
@@ -816,6 +835,7 @@ function AINodeDialog() {
    * 分镜表的产物是表格行，把提示词原样倒进 output 也不会出现在表里。
    */
   const supportsPassThrough = nodeType !== 'ai-image'
+    && nodeType !== 'ai-director'
     && nodeType !== 'ai-animation'
     && nodeType !== 'ai-video'
     && nodeType !== 'ai-audio'
@@ -844,6 +864,7 @@ function AINodeDialog() {
       updateNodeData(activeNodeId!, {
         model: model.value,
         provider: model.provider,
+        ...(nodeType === 'ai-director' ? { directorPrevisModel: model.value, directorPrevisProvider: model.provider } : {}),
         audioPurpose: model.audioPurpose,
         runninghubModelParameters: undefined, runninghubOutputs: undefined, runninghubStage: undefined, workflowId: undefined,
         ...(nodeType === 'ai-video' && model.provider === 'general' ? {
@@ -1008,7 +1029,7 @@ function AINodeDialog() {
   );
 
   // Early return must come after ALL hooks
-  if (!activeNodeId || !node || !data || !nodeType) return null;
+  if (!activeNodeId || !node || !data || !nodeType || directorDialogBlocked) return null;
 
   const recoverableComfyTask = currentProjectId && data.status !== 'loading'
     ? getPendingTasksForProject(currentProjectId).find((task) => task.nodeId === activeNodeId && task.taskType === 'comfyui' && task.comfyRecoveryState)
@@ -1176,21 +1197,21 @@ function AINodeDialog() {
           } : undefined}
           polishOpen={polishOpen}
           editorRef={editorApiRef}
-          nodeType={nodeType}
+          nodeType={isPrevis ? 'ai-text' : nodeType}
           nodeId={activeNodeId}
-          prompt={data.prompt || ''}
-          placeholder={t('按 @ 引用素材；连线素材需 @ 后才会传给模型，仅连线不生效；\n描述想要生成的内容；\n/ 呼出指令；\n(Enter 换行，Shift+Enter 发送)')}
-          selectedModel={data.model}
-          selectedProvider={data.provider}
+          prompt={data.prompt || (isPrevis ? data.directorPrevisPrompt : '') || ''}
+          placeholder={isPrevis ? t('按 @ 引用连线图片或完整分镜表，描述空间、人物走位和运镜；\nShift+Enter 生成 AI 镜头预演，Enter 换行。') : t('按 @ 引用素材；连线素材需 @ 后才会传给模型，仅连线不生效；\n描述想要生成的内容；\n/ 呼出指令；\n(Enter 换行，Shift+Enter 发送)')}
+          selectedModel={data.model || (isPrevis ? data.directorPrevisModel : undefined)}
+          selectedProvider={data.provider || (isPrevis ? data.directorPrevisProvider : undefined)}
           selectedWorkflowId={data.workflowId}
           costEstimate={<VolcengineCostEstimate data={data} onOpenRecords={() => setBillingOpen(true)} />}
           animationAction={data.animationAction ?? 'idle'}
           onAnimationActionChange={onAnimationActionChange}
           animationFrames={data.animationFrames ?? 8}
           onAnimationFramesChange={onAnimationFramesChange}
-          canGenerate={data.status !== 'loading' && !recoverableComfyTask && !cloudTask && !workflowApiTask}
+          canGenerate={(nodeType !== 'ai-director' || isPrevis) && data.status !== 'loading' && !recoverableComfyTask && !cloudTask && !workflowApiTask}
           isGenerating={data.status === 'loading'}
-          onCancelGeneration={['comfyui', 'runninghubwf', 'runninghub', 'workflow-api'].includes(data.provider ?? '') ? () => { void onCancelGeneration(); } : undefined}
+          onCancelGeneration={isPrevis || ['comfyui', 'runninghubwf', 'runninghub', 'workflow-api'].includes(data.provider ?? '') ? () => { void onCancelGeneration(); } : undefined}
           onChange={onPromptChange}
           onContinuousEditEnd={finishContinuousEdit}
           onSubmit={onSubmit}

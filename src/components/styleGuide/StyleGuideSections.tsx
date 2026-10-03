@@ -531,6 +531,17 @@ function NumberStepperDemo() {
         </div>
       </div>
 
+      <div data-theme="light" className="rounded-lg border border-canvas-border bg-canvas-surface p-3">
+        <div className="mb-2 text-xs font-semibold text-canvas-text">浅色按钮配色</div>
+        <p className="ui-hint mb-3">淡底色与细分隔线；悬停和按下使用主题色，禁用时保留弱化状态。</p>
+        <div className="flex flex-wrap items-center gap-3">
+          <NumberStepper value={val} onChange={setVal} min={4} max={180} unit="px" size="sm" aria-label="浅色紧凑数字微调" />
+          <NumberStepper value={val} onChange={setVal} min={4} max={180} unit="px" size="md" aria-label="浅色标准数字微调" />
+          <NumberStepper value={val} onChange={setVal} min={4} max={180} unit="px" size="lg" aria-label="浅色突出数字微调" />
+          <NumberStepper value={val} onChange={setVal} unit="px" disabled aria-label="浅色禁用数字微调" />
+        </div>
+      </div>
+
       {/* 工程场景与多单位 */}
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="flex flex-col justify-between rounded-lg border border-canvas-border bg-canvas-card p-3">

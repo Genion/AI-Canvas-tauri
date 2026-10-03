@@ -130,6 +130,9 @@ export function resolveShotlistMention(
   for (const row of rows) {
     if (isShotRowBlank(row)) continue;
     let line = formatShotRowBrief(row);
+    for (const [label, value] of [['音效/音乐', row.audio], ['转场', row.transition], ['备注', row.note]]) {
+      if (value?.trim()) line += ` · ${label}：${value.trim()}`;
+    }
     const frame = row.frame;
     if (frame) {
       const source = nodes.find((node) => node.id === frame.nodeId);

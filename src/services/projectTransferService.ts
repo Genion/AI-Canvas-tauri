@@ -94,6 +94,7 @@ interface AssetReferenceLike {
   filePath?: string;
   storyboardOverrides?: (AssetReferenceLike | null)[];
   directorScene?: AssetReferenceLike;
+  directorPrevisScene?: AssetReferenceLike;
   directorResultManifest?: AssetReferenceLike;
 }
 
@@ -131,6 +132,7 @@ function collectAssetReferences(record: ProjectSaveData): AssetReferenceLike[] {
       });
     }
     if (isRecord(value.directorScene)) references.push(value.directorScene);
+    if (isRecord(value.directorPrevisScene)) references.push(value.directorPrevisScene);
     if (isRecord(value.directorResultManifest)) references.push(value.directorResultManifest);
   };
 

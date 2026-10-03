@@ -14,6 +14,15 @@ beforeEach(() => {
 });
 
 describe('custom text model protocol', () => {
+  it('does not start a request when its signal is already aborted', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(generateText({ provider: 'general', model: 'general/text', prompt: '预演', signal: controller.signal }))
+      .rejects.toMatchObject({ name: 'AbortError' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
   it('uses the configured endpoint, request body and text result path', async () => {
     const executionProfile = {
       preset: 'custom',
