@@ -571,6 +571,16 @@
   cursor: var(--cursor-default, default);
 }
 
+/* Figma 模式以选择为主；实际平移时保留 React Flow 的 grabbing 光标。
+   仅覆盖选择工具，绘图工具继续使用自己的光标。 */
+.canvas-drawing-root.is-interaction-default.is-tool-select .react-flow__pane:not(.dragging) {
+  cursor: var(--cursor-default, default);
+}
+
+.canvas-drawing-root.is-interaction-classic.is-tool-select .react-flow__pane:not(.selection):not(.dragging) {
+  cursor: grab;
+}
+
 .react-flow .react-flow__handle.connectionindicator {
   cursor: var(--cursor-crosshair, crosshair);
 }

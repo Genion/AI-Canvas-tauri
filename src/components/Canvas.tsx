@@ -1490,7 +1490,7 @@ function CanvasInner() {
     <ResizeSnapContext.Provider value={resizeSnapApi}>
     <div
       ref={canvasRootRef}
-      className={`absolute inset-0 canvas-drawing-root is-tool-${activeDrawingTool}${connectableSelectionCount > 1 ? ' is-multi-selected' : ''}`}
+      className={`absolute inset-0 canvas-drawing-root is-interaction-${interactionMode} is-tool-${activeDrawingTool}${connectableSelectionCount > 1 ? ' is-multi-selected' : ''}`}
       onPointerDownCapture={handleDrawingPointerDown}
       onPointerMoveCapture={handleDrawingPointerMove}
       onPointerUpCapture={handleDrawingPointerUp}
@@ -1565,6 +1565,7 @@ function CanvasInner() {
           <Panel position="bottom-left" className="canvas-drawing-toolbar-slot canvas-drawing-ui">
             <CanvasDrawingToolbar
               activeTool={activeDrawingTool}
+              interactionMode={interactionMode}
               imageReady={Boolean(pendingImage)}
               onSelectTool={chooseDrawingTool}
             />
