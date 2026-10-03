@@ -183,13 +183,248 @@ function installCommonNodeMocks() {
   }));
 }
 
+async function setupShotlistWidths(
+  widths?: Record<string, number>, rows: Record<string, unknown>[] = [], dragRowId?: string,
+  dataOverrides: Record<string, unknown> = {},
+) {
+  await installReactHookDriver((initial, index) => index === 1 ? true : index === 2 ? dragRowId ?? initial : initial);
+  const shotlist: TestNode = {
+    id: 'shotlist', type: 'ai-shotlist', position: { x: 0, y: 0 },
+    data: { type: 'ai-shotlist', label: '第一场', shotlistColumnWidths: widths, shotlistRows: rows, ...dataOverrides },
+  };
+  const store = createStore([shotlist], () => 1);
+  installStoreMock(store);
+  installCommonNodeMocks();
+  vi.doMock('@xyflow/react', () => ({
+    Handle: function HandleMock() { return null; },
+    Position: { Left: 'left', Right: 'right' },
+    useReactFlow: () => ({ setCenter: vi.fn(), getNode: vi.fn() }),
+  }));
+  vi.doMock('../../src/services/videoEditorService', () => ({
+    hasShotlistTimeline: vi.fn(), openVideoEditorForShotlist: vi.fn(),
+  }));
+  const ShotlistNode = (await import('../../src/components/nodes/ShotlistNode')).default as unknown as (
+    props: { id: string; data: Record<string, unknown>; selected: boolean },
+  ) => unknown;
+  const tree = ShotlistNode({ id: shotlist.id, data: shotlist.data, selected: true });
+  const table = findElement(tree, (element) => element.type === 'table');
+  const header = {
+    dataset: { shotColumn: 'content' }, offsetWidth: widths?.content ?? 200,
+    getBoundingClientRect: () => ({ width: (widths?.content ?? 200) / 2 }),
+  };
+  (table.props.ref as { current: unknown }).current = { offsetWidth: 1264 };
+  const handle = findElement(tree, (element) => element.type === 'button' && element.props['aria-label'] === '内容列宽');
+  const pointer = (clientX: number) => ({
+    button: 0, pointerId: 7, clientX, preventDefault: vi.fn(), stopPropagation: vi.fn(),
+    currentTarget: {
+      closest: () => header, setPointerCapture: vi.fn(),
+      hasPointerCapture: () => true, releasePointerCapture: vi.fn(),
+    },
+  });
+  return { tree, table, store, handle, pointer };
+}
+
 beforeEach(() => {
   vi.resetModules();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
+function visibleShotRatio(store: TestStore, column: string) {
+  const ratios = store.nodes[0].data.shotlistColumnRatios as Record<string, number>;
+  const total = ['frame', 'shotSize', 'camera', 'content', 'dialogue']
+    .reduce((sum, key) => sum + ratios[key], 0);
+  return ratios[column] / total * 100;
+}
+
 describe('critical canvas node interactions', () => {
+  it('shows shot numbers as read-only row positions even when saved numbers differ', async () => {
+    const { tree, store } = await setupShotlistWidths(undefined, [
+      { id: 'row-1', shotNo: '3a' }, { id: 'row-2', shotNo: '9' },
+    ]);
+    const body = findElement(tree, (element) => element.type === 'tbody');
+    const numbers = (body.props.children as ElementLike[]).map((row) =>
+      findElement(row, (element) => element.props['aria-label'] === '镜号'));
+    expect(numbers.map((number) => number.type)).toEqual(['span', 'span']);
+    expect(numbers.map((number) => number.props.children)).toEqual([1, 2]);
+    expect(store.updateNodeDataTransient).not.toHaveBeenCalled();
+  });
+
+  it.each(['add', 'delete', 'reorder'])(
+    'renumbers shots after %s while keeping their stable IDs and frame bindings', async (action) => {
+      const frame = { nodeId: 'image-source', kind: 'image', url: 'data:image/png;base64,frame' };
+      const { tree, store } = await setupShotlistWidths(undefined, [
+        { id: 'row-1', shotNo: '3a', frame },
+        { id: 'row-2', shotNo: '9' },
+        { id: 'row-3', shotNo: '12' },
+      ], action === 'reorder' ? 'row-1' : undefined);
+      const body = findElement(tree, (element) => element.type === 'tbody');
+      const renderedRows = body.props.children as ElementLike[];
+      if (action === 'add') {
+        const add = findElement(tree, (element) => element.props.onClick !== undefined
+          && element.props.className === 'shotlist-add nodrag');
+        (add.props.onClick as () => void)();
+      } else if (action === 'delete') {
+        const remove = findElement(renderedRows[1], (element) => element.props['aria-label'] === '删除该镜');
+        (remove.props.onClick as () => void)();
+      } else {
+        (renderedRows[2].props.onDrop as (event: unknown) => void)({ preventDefault: vi.fn() });
+      }
+      const result = store.nodes[0].data.shotlistRows as Array<Record<string, unknown>>;
+      const expectedIds = action === 'add' ? ['row-1', 'row-2', 'row-3', 'shot-generated']
+        : action === 'delete' ? ['row-1', 'row-3'] : ['row-2', 'row-3', 'row-1'];
+      expect(result.map((row) => row.id)).toEqual(expectedIds);
+      expect(result.map((row) => row.shotNo)).toEqual(expectedIds.map((_, index) => String(index + 1)));
+      expect(result.find((row) => row.id === 'row-1')?.frame).toBe(frame);
+      expect(store.updateNodeDataTransient).toHaveBeenCalledOnce();
+      expect(store.commitToHistory).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it('keeps custom shotlist options editable and stores real values when selecting UI Kit presets', async () => {
+    const { tree, store } = await setupShotlistWidths(undefined, [{
+      id: 'row-1', shotNo: '1', shotSize: '特写', camera: '手持跟拍并轻微晃动', duration: 3,
+    }]);
+    const cameraSelect = findElement(tree, (element) => componentName(element) === 'Select'
+      && element.props['aria-label'] === '运镜');
+    expect(cameraSelect.props.fixedMenu).toBe(true);
+    expect(cameraSelect.props.value).toBe('custom');
+    const customInput = findElement(tree, (element) => element.type === 'input'
+      && element.props['aria-label'] === '运镜自定义');
+    expect(customInput.props.value).toBe('手持跟拍并轻微晃动');
+    (customInput.props.onChange as (event: unknown) => void)({ target: { value: '环绕后推进' } });
+    expect((store.nodes[0].data.shotlistRows as Array<Record<string, unknown>>)[0].camera).toBe('环绕后推进');
+    store.commitToHistory.mockClear();
+    (cameraSelect.props.onChange as (value: string) => void)('preset:0');
+    expect((store.nodes[0].data.shotlistRows as Array<Record<string, unknown>>)[0]).toMatchObject({
+      camera: '固定', shotSize: '特写', duration: 3,
+    });
+    expect(store.commitToHistory).toHaveBeenCalledTimes(2);
+    store.updateNodeDataTransient.mockClear();
+    (cameraSelect.props.onChange as (value: string) => void)('custom');
+    expect(store.updateNodeDataTransient).not.toHaveBeenCalled();
+    (cameraSelect.props.onChange as (value: string) => void)('');
+    expect((store.nodes[0].data.shotlistRows as Array<Record<string, unknown>>)[0].camera).toBe('');
+  });
+
+  it('resizes shotlist columns in canvas coordinates and saves once when the drag ends', async () => {
+    const { tree, handle, pointer, store } = await setupShotlistWidths();
+    const initialRatio = findElement(tree, (element) => componentName(element) === 'NumberStepper'
+      && element.props['aria-label'] === '内容列宽').props.value as number;
+    (handle.props.onPointerDown as (event: unknown) => void)(pointer(100));
+    (handle.props.onPointerMove as (event: unknown) => void)(pointer(150));
+    expect(store.updateNodeDataTransient).not.toHaveBeenCalled();
+    expect(store.commitToHistory).not.toHaveBeenCalled();
+    (handle.props.onPointerUp as (event: unknown) => void)(pointer(150));
+    // 剩余弹性空间 1000px，画布缩放 50%，屏幕上移动 50px 对应增加 10 个百分点。
+    expect(store.updateNodeDataTransient).toHaveBeenCalledOnce();
+    expect(visibleShotRatio(store, 'content')).toBeCloseTo(initialRatio + 10);
+    expect(store.nodes[0].data.shotlistColumnWidths).toBeUndefined();
+    expect(store.commitToHistory).toHaveBeenCalledTimes(2);
+    (handle.props.onLostPointerCapture as (event: unknown) => void)(pointer(150));
+    expect(store.updateNodeDataTransient).toHaveBeenCalledOnce();
+  });
+
+  it.each(['cancel', 'lost capture', 'project switch', 'revision change', 'no movement'])(
+    'does not save a column drag after %s', async (reason) => {
+      const { handle, pointer, store } = await setupShotlistWidths();
+      (handle.props.onPointerDown as (event: unknown) => void)(pointer(100));
+      if (reason !== 'no movement') (handle.props.onPointerMove as (event: unknown) => void)(pointer(150));
+      if (reason === 'project switch') store.currentProjectId = 'project-b';
+      if (reason === 'revision change') store.getCurrentRevision = () => 2;
+      const callback = reason === 'cancel' ? 'onPointerCancel'
+        : reason === 'lost capture' ? 'onLostPointerCapture' : 'onPointerUp';
+      (handle.props[callback] as (event: unknown) => void)(pointer(150));
+      expect(store.updateNodeDataTransient).not.toHaveBeenCalled();
+      expect(store.commitToHistory).not.toHaveBeenCalled();
+    },
+  );
+
+  it('converts legacy widths to percentages, redistributes space and resets the layout', async () => {
+    const { tree, table, store } = await setupShotlistWidths({ content: 320, dialogue: 180 });
+    const input = findElement(tree, (element) => componentName(element) === 'NumberStepper' && element.props['aria-label'] === '内容列宽');
+    expect(input.props.value).toBeCloseTo(320 / (84 + 68 + 68 + 320 + 180) * 100);
+    expect(input.props.unit).toBe('%');
+    expect((table.props.style as Record<string, string>)['--shotlist-columns']).toContain('minmax(0,');
+    expect((table.props.style as Record<string, string>).width).toBeUndefined();
+    expect((table.props.style as Record<string, string>).minWidth).toBeUndefined();
+    (input.props.onChange as (value: number) => void)(12);
+    expect(visibleShotRatio(store, 'content')).toBeCloseTo(12);
+    expect(store.nodes[0].data.shotlistColumnWidths).toBeUndefined();
+    const reset = findElement(tree, (element) => element.type === 'button' && element.props.children === '恢复默认');
+    (reset.props.onClick as () => void)();
+    expect(store.nodes[0].data.shotlistColumnWidths).toBeUndefined();
+    expect(store.nodes[0].data.shotlistColumnRatios).toBeUndefined();
+  });
+
+  it('supports keyboard resizing with a bounded width', async () => {
+    const { handle, store } = await setupShotlistWidths(undefined, [], undefined, {
+      shotlistColumnRatios: { shotNo: 1, frame: 1, shotSize: 1, camera: 1, dialogue: 1, content: 94 },
+    });
+    (handle.props.onKeyDown as (event: unknown) => void)({
+      key: 'ArrowRight', shiftKey: true, preventDefault: vi.fn(), stopPropagation: vi.fn(),
+    });
+    expect(visibleShotRatio(store, 'content')).toBeCloseTo(95);
+  });
+
+  it('keeps duration fixed at 84px and excludes it from resizing and percentage settings', async () => {
+    const { tree, table } = await setupShotlistWidths({ duration: 500, content: 300 });
+    expect((table.props.style as Record<string, string>)['--shotlist-columns']).toContain('84px 106px');
+    expect(() => findElement(tree, (element) => element.props['aria-label'] === '时长列宽')).toThrow('Element not found');
+  });
+
+  it('keeps shot numbers fixed at 48px and excludes them from resizing and percentage settings', async () => {
+    const { tree, table } = await setupShotlistWidths({ shotNo: 300, content: 300 }, [], undefined, {
+      shotlistColumnRatios: { shotNo: 90, content: 30 },
+    });
+    expect((table.props.style as Record<string, string>)['--shotlist-columns']).toMatch(/^26px 48px /);
+    expect(() => findElement(tree, (element) => element.props['aria-label'] === '镜号列宽')).toThrow('Element not found');
+  });
+
+  it('restores persisted ratios while keeping hidden column preferences', async () => {
+    const { tree, store } = await setupShotlistWidths(undefined, [], undefined, {
+      shotlistColumnRatios: { shotNo: 5, frame: 10, shotSize: 10, camera: 15, content: 30, dialogue: 30, note: 20 },
+    });
+    const stepper = findElement(tree, (element) => componentName(element) === 'NumberStepper'
+      && element.props['aria-label'] === '内容列宽');
+    expect(stepper.props.value).toBeCloseTo(30 / 95 * 100);
+    (stepper.props.onChange as (value: number) => void)(40);
+    expect(visibleShotRatio(store, 'content')).toBeCloseTo(40);
+    expect((store.nodes[0].data.shotlistColumnRatios as Record<string, number>).note).toBe(20);
+    expect(visibleShotRatio(store, 'frame') / visibleShotRatio(store, 'camera')).toBeCloseTo(10 / 15);
+  });
+
+  it('uses the small NumberStepper for fractional durations without losing frame bindings', async () => {
+    const frame = { nodeId: 'image-source', kind: 'image' };
+    const { tree, store } = await setupShotlistWidths(undefined, [{ id: 'row-1', shotNo: '1', duration: 3, frame }]);
+    const stepper = findElement(tree, (element) => componentName(element) === 'NumberStepper'
+      && element.props['aria-label'] === '时长');
+    expect(stepper.props).toMatchObject({ value: 3, size: 'sm', min: 0, step: 0.5, unit: 's' });
+    (stepper.props.onChange as (value: number) => void)(3.5);
+    expect((store.nodes[0].data.shotlistRows as Array<Record<string, unknown>>)[0])
+      .toMatchObject({ id: 'row-1', shotNo: '1', duration: 3.5, frame });
+    expect(store.commitToHistory).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(['时长', '内容列宽'])('groups NumberStepper scrubbing for %s into one history change', async (label) => {
+    const { tree, store } = await setupShotlistWidths({ content: 300 }, [{ id: 'row-1', shotNo: '1', duration: 3 }]);
+    const stepper = findElement(tree, (element) => componentName(element) === 'NumberStepper'
+      && element.props['aria-label'] === label);
+    const scrub = stepper.props.onScrubStateChange as (active: boolean) => void;
+    const change = stepper.props.onChange as (value: number) => void;
+    scrub(true);
+    change(label === '时长' ? 3.5 : 31);
+    change(label === '时长' ? 4 : 32);
+    expect(store.commitToHistory).toHaveBeenCalledOnce();
+    scrub(false);
+    expect(store.commitToHistory).toHaveBeenCalledTimes(2);
+    if (label === '时长') {
+      expect((store.nodes[0].data.shotlistRows as Array<Record<string, unknown>>)[0].duration).toBe(4);
+    } else {
+      expect(visibleShotRatio(store, 'content')).toBeCloseTo(32);
+    }
+  });
+
   it('NodeGenerationProgress renders real ComfyUI value and percent for the current project', async () => {
     await installReactHookDriver();
     const store = createStore([], () => 1);

@@ -302,6 +302,8 @@ export interface BaseNodeData {
   // ── 分镜表（ai-shotlist）──
   shotlistRows?: ShotRow[];                 // 逐行镜头
   shotlistColumns?: ShotlistColumnKey[];    // 当前显示的列（常驻列恒在其中）
+  shotlistColumnWidths?: Partial<Record<ShotlistColumnKey, number>>; // 自定义列宽（px），普通与全屏共用
+  shotlistColumnRatios?: Partial<Record<ShotlistColumnKey, number>>; // 弹性列的相对权重；兼容旧像素列宽，镜号 48px、时长 84px 固定
   shotlistScriptSource?: ShotlistScriptSource;
   shotlistProductionSource?: ShotlistProductionSource;
   frameAnalysis?: VideoFrameAnalysisData;   // 视频拉片抽帧及画面分析结果

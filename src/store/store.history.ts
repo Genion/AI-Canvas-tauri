@@ -25,6 +25,8 @@ const STRUCTURAL_NODE_DATA_KEYS = [
   'storyboardOverrides',
   'shotlistRows',
   'shotlistColumns',
+  'shotlistColumnWidths',
+  'shotlistColumnRatios',
   'shotlistScriptSource',
   'shotlistProductionSource',
   'characterLibraryLinks',

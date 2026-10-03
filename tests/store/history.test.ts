@@ -128,6 +128,53 @@ beforeEach(() => {
   useAppStore.setState(useAppStore.getInitialState(), true);
 });
 
+describe('shotlist column width history', () => {
+  it('undoes conversion from pixel widths to ratios and redoes the responsive layout', async () => {
+    useAppStore.setState({ nodes: [node('shots', { type: 'ai-shotlist', shotlistColumnWidths: { content: 320 } })] });
+    const state = useAppStore.getState();
+    state.commitToHistory();
+    state.updateNodeDataTransient('shots', { shotlistColumnWidths: undefined, shotlistColumnRatios: { content: 35, dialogue: 25 } });
+    state.commitToHistory();
+    expect(await useAppStore.getState().undo()).toBe(true);
+    expect(useAppStore.getState().nodes[0].data.shotlistColumnWidths).toEqual({ content: 320 });
+    expect(useAppStore.getState().nodes[0].data.shotlistColumnRatios).toBeUndefined();
+    expect(await useAppStore.getState().redo()).toBe(true);
+    expect(useAppStore.getState().nodes[0].data.shotlistColumnWidths).toBeUndefined();
+    expect(JSON.parse(JSON.stringify(useAppStore.getState().nodes))[0].data.shotlistColumnRatios)
+      .toEqual({ content: 35, dialogue: 25 });
+  });
+
+  it('restores default widths and redoes saved widths without changing shot contents', async () => {
+    useAppStore.setState({ nodes: [node('shots', {
+      type: 'ai-shotlist', shotlistRows: [{ id: 'row-1', shotNo: '1', content: '镜头内容' }],
+    })] });
+    const state = useAppStore.getState();
+    state.commitToHistory();
+    state.updateNodeDataTransient('shots', { shotlistColumnWidths: { content: 320, dialogue: 180 } });
+    state.commitToHistory();
+    expect(await useAppStore.getState().undo()).toBe(true);
+    expect(useAppStore.getState().nodes[0].data.shotlistColumnWidths).toBeUndefined();
+    expect(useAppStore.getState().nodes[0].data.shotlistRows?.[0].content).toBe('镜头内容');
+    expect(await useAppStore.getState().redo()).toBe(true);
+    expect(useAppStore.getState().nodes[0].data.shotlistColumnWidths).toEqual({ content: 320, dialogue: 180 });
+    // 项目节点序列化保留设置，不需要新建数据库表或迁移。
+    expect(JSON.parse(JSON.stringify(useAppStore.getState().nodes))[0].data.shotlistColumnWidths)
+      .toEqual({ content: 320, dialogue: 180 });
+  });
+
+  it('can undo resetting custom widths and redo the reset', async () => {
+    useAppStore.setState({ nodes: [node('shots', { type: 'ai-shotlist', shotlistColumnWidths: { content: 360 } })] });
+    const state = useAppStore.getState();
+    state.commitToHistory();
+    state.updateNodeDataTransient('shots', { shotlistColumnWidths: undefined });
+    state.commitToHistory();
+    expect(await useAppStore.getState().undo()).toBe(true);
+    expect(useAppStore.getState().nodes[0].data.shotlistColumnWidths).toEqual({ content: 360 });
+    expect(await useAppStore.getState().redo()).toBe(true);
+    expect(useAppStore.getState().nodes[0].data.shotlistColumnWidths).toBeUndefined();
+  });
+});
+
 describe('automatic connection mentions', () => {
   const targetPrompt = () => useAppStore.getState().nodes.find((item) => item.id === 'target')?.data.prompt;
   const connect = () => useAppStore.getState().onConnect({
