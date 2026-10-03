@@ -8,6 +8,7 @@ import { runAssistantPipeline } from '../../src/services/chat/assistantService';
 import { useAppStore } from '../../src/store/useAppStore';
 import type { ModelExecutionProfile } from '../../src/types/aiTypes';
 import type { ChatApiProtocol, UserSkill } from '../../src/types';
+import { buildAssistantToolGuidance } from '../../src/services/chat/agentPromptGuidance';
 
 const configureAssistant = (
   executionProfile?: ModelExecutionProfile,
@@ -401,6 +402,54 @@ describe('assistant custom protocol boundary', () => {
     expect(onEvent.mock.calls.map(([event]) => event).filter((event) => event.type === 'usage')).toEqual([
       { type: 'usage', inputTokens: 9, outputTokens: 4 },
     ]);
+  });
+});
+
+describe('Agent 工具说明与执行策略', () => {
+  it('只说明本轮开放的工具，不注入禁用工具的规则和索引', () => {
+    const prompt = buildAssistantToolGuidance(['file_read_text'], 'plan');
+    expect(prompt).toContain('Plan 规划模式');
+    expect(prompt).toContain('file_read_text');
+    for (const name of ['media_generate', 'canvas_create_nodes', 'provider_config_apply', 'file_list_grants', 'skill_load', '可用子智能体']) {
+      expect(prompt).not.toContain(name);
+    }
+    expect(prompt).toContain('不可信资料');
+  });
+
+  it('没有工具时仍可完整回答普通问题，且不产生任何工具专用说明', () => {
+    const prompt = buildAssistantToolGuidance([], 'autonomous');
+    expect(prompt).toContain('直接给出完整答案');
+    expect(prompt).not.toContain('media_generate');
+    expect(prompt).not.toContain('可用 Skill');
+    expect(prompt).not.toContain('可用子智能体');
+  });
+
+  it.each(['collaborative', 'autonomous'] as const)('媒体和配置说明服从 %s 模式', (mode) => {
+    const prompt = buildAssistantToolGuidance(['media_generate', 'provider_config_preview', 'provider_config_apply', 'memory_suggest'], mode);
+    expect(prompt).toContain('必须在同一 Agent 任务中立即调用 provider_config_apply');
+    expect(prompt).toContain('user_choice 必须等待用户作答');
+    if (mode === 'autonomous') {
+      expect(prompt).toContain('由本地 Policy 自动执行');
+      expect(prompt).toContain('解析项目默认模型或自动路由');
+      expect(prompt).not.toContain('由本地审批卡让用户选择');
+      expect(prompt).not.toContain('自动暂停并展示 API 配置审批卡');
+      expect(prompt).not.toContain('每次都要确认');
+    } else {
+      expect(prompt).toContain('由本地 Policy 请求确认');
+      expect(prompt).toContain('由本地审批卡让用户选择');
+      expect(prompt).toContain('自动暂停并展示 API 配置审批卡');
+    }
+  });
+
+  it('预览工具无法执行配置时不要求调用未开放的 apply 工具', () => {
+    expect(buildAssistantToolGuidance(['provider_config_preview'], 'plan')).not.toContain('provider_config_apply');
+  });
+
+  it('Runtime 的初始上下文省略工具说明，避免与后续轮次重复或冲突', () => {
+    const prompt = buildAssistantSystemPrompt({ agentTools: true, includeToolGuidance: false });
+    expect(prompt).toContain('AI Canvas 画布助手');
+    expect(prompt).not.toContain('media_generate');
+    expect(prompt).not.toContain('provider_config_apply');
   });
 });
 

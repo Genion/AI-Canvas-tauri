@@ -123,6 +123,73 @@ function restoreCheckpointTask() {
 }
 
 describe('agent runtime diagnostics', () => {
+  it('applies requirements added during a tool-free response before completing', async () => {
+    const requests: Array<Array<{ role: string; content: string }>> = [];
+    streamAssistantReplyMock.mockImplementation(async ({ onEvent, messages }) => {
+      requests.push(structuredClone(messages));
+      if (requests.length === 1) {
+        onEvent({ type: 'text.delta', delta: '原来的长回答' });
+        expect(enqueueAgentInterjection('task-diagnostics', '请简短一点，用中文')).not.toBeNull();
+      } else {
+        onEvent({ type: 'text.delta', delta: '简短的中文回答' });
+      }
+      onEvent({ type: 'done', finishReason: 'stop' });
+    });
+    const onComplete = vi.fn();
+    const result = await runAgentLoop({
+      taskId: 'task-diagnostics', systemPrompt: 'system', userMessage: 'update canvas',
+      signal: new AbortController().signal, callbacks: { onComplete },
+    });
+    expect(result).toBe('completed');
+    expect(requests).toHaveLength(2);
+    expect(requests[1].at(-2)).toEqual({ role: 'assistant', content: '原来的长回答' });
+    expect(requests[1].at(-1)?.content).toContain('请简短一点，用中文');
+    expect(onComplete).toHaveBeenCalledExactlyOnceWith('原来的长回答\n\n简短的中文回答');
+    expect(useAppStore.getState().agentTasks[0].metrics?.interjectionCount).toBe(1);
+    expect(enqueueAgentInterjection('task-diagnostics', '任务已结束')).toBeNull();
+  });
+
+  it('still pauses at the round budget when a late requirement needs another response', async () => {
+    useAppStore.getState().updateAgentTask('task-diagnostics', { budget: { ...createTask().budget, maxModelRounds: 1 } });
+    streamAssistantReplyMock.mockImplementation(async ({ onEvent }) => {
+      onEvent({ type: 'text.delta', delta: '首轮回复' });
+      enqueueAgentInterjection('task-diagnostics', '补充要求');
+    });
+    const onComplete = vi.fn();
+    expect(await runAgentLoop({
+      taskId: 'task-diagnostics', systemPrompt: 'system', userMessage: 'update canvas',
+      signal: new AbortController().signal, callbacks: { onComplete },
+    })).toBe('paused');
+    expect(streamAssistantReplyMock).toHaveBeenCalledTimes(1);
+    expect(onComplete).not.toHaveBeenCalled();
+    expect(useAppStore.getState().agentTasks[0].pausedReason).toBe('model_round_budget_exhausted');
+  });
+
+  it('refreshes mode and available tool instructions each round without accumulating system messages', async () => {
+    const execute = vi.fn(async () => {
+      useAppStore.getState().updateConversation('conversation-1', { agentMode: 'plan' });
+      return { status: 'success' as const, summary: 'read', modelContent: 'read' };
+    });
+    registerAgentTool({ id: 'mode_read', title: 'Read', description: 'Read', effect: 'read',
+      inputSchema: { type: 'object', properties: {}, additionalProperties: false }, execute });
+    registerAgentTool({ id: 'memory_suggest', title: 'Memory', description: 'Memory', effect: 'memory_write',
+      inputSchema: { type: 'object', properties: {}, additionalProperties: false }, execute: vi.fn() });
+    const requests: Array<{ messages: Array<{ role: string; content: string }>; tools: Array<{ function: { name: string } }> }> = [];
+    streamAssistantReplyMock.mockImplementation(async ({ messages, tools, onEvent }) => {
+      requests.push(structuredClone({ messages, tools }));
+      if (requests.length === 1) onEvent({ type: 'tool.call.final', call: { callId: 'mode-read', toolId: 'mode_read', input: {} } });
+    });
+    await runAgentLoop({ taskId: 'task-diagnostics', systemPrompt: 'system', userMessage: 'update canvas', signal: new AbortController().signal });
+    expect(requests).toHaveLength(2);
+    expect(requests[0].messages[0].content).toContain('C 自主模式');
+    expect(requests[0].messages[0].content).toContain('memory_suggest');
+    expect(requests[1].messages[0].content).toContain('Plan 规划模式');
+    expect(requests[1].messages[0].content).not.toContain('memory_suggest');
+    expect(requests[1].tools.map((tool) => tool.function.name)).toEqual(['mode_read']);
+    expect(requests[0].messages.filter((message) => message.role === 'system')).toHaveLength(2);
+    expect(requests[1].messages.filter((message) => message.role === 'system')).toHaveLength(2);
+  });
+
   it.each(['completed', 'paused', 'context_error', 'aborted'] as const)('clears document snapshots and catalogs on %s', async (outcome) => {
     const task = createTask();
     const options = { scope: { taskId: task.id, projectId: task.projectId, conversationId: task.conversationId },

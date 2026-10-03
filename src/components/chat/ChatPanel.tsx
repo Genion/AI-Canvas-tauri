@@ -41,6 +41,7 @@ import {
   emitAction,
   emitCloseChatWindow,
   type ChatStateSnapshot,
+  type ChatComposerHandoff,
 } from '../../services/chat/chatWindowService';
 import {
   pauseAgentTask,
@@ -62,12 +63,10 @@ import {
 } from '../../services/chat/conversationExecutionController';
 import {
   createDetachedChatSyncController,
-  getMediaModelAvailability,
+  buildChatModelCatalog,
 } from '../../services/chat/detachedChatSyncController';
 import type { AgentApprovalResolution, AgentMode } from '../../types/agent';
-import {
-  getMediaModelOptions,
-} from '../nodes/shared/defaultModels';
+import type { ChatPanelView } from '../../types/chat';
 import {
   authorizeConversationFiles,
   listConversationFileGrants,
@@ -95,6 +94,7 @@ interface ChatPanelProps {
   detachedSnapshot?: ChatStateSnapshot;
   detachedInitialized?: boolean;
   detachedHeaderActions?: ReactNode;
+  onComposerDraftChange?: (draft: ChatComposerHandoff) => void;
 }
 
 export default function ChatPanel({
@@ -102,6 +102,7 @@ export default function ChatPanel({
   detachedSnapshot,
   detachedInitialized = true,
   detachedHeaderActions,
+  onComposerDraftChange,
 }: ChatPanelProps = {}) {
   const t = useT();
   const reduceMotion = useReducedMotion();
@@ -109,6 +110,9 @@ export default function ChatPanel({
     chatOpen,
     chatPanelDetached,
     chatComposerDraft,
+    chatComposerDrafts,
+    chatComposerLiveDraft,
+    chatPanelView,
     closeChat,
     clearChatComposerDraft,
     setChatPanelDetached,
@@ -125,8 +129,7 @@ export default function ChatPanel({
     showToast,
     assistantModelId,
     generalModels,
-    providers,
-    dreaminaLoggedIn,
+    config,
     workflows,
     updateConfig,
     saveConfig,
@@ -139,6 +142,9 @@ export default function ChatPanel({
       chatOpen: s.chatOpen,
       chatPanelDetached: s.chatPanelDetached,
       chatComposerDraft: s.chatComposerDraft,
+      chatComposerDrafts: s.chatComposerDrafts,
+      chatComposerLiveDraft: s.chatComposerLiveDraft,
+      chatPanelView: s.chatPanelView,
       closeChat: s.closeChat,
       clearChatComposerDraft: s.clearChatComposerDraft,
       setChatPanelDetached: s.setChatPanelDetached,
@@ -155,8 +161,7 @@ export default function ChatPanel({
       showToast: s.showToast,
       assistantModelId: s.config.assistantModelId,
       generalModels: s.config.generalModels ?? [],
-      providers: s.config.providers,
-      dreaminaLoggedIn: !!s.config.dreaminaAuth?.loggedIn,
+      config: s.config,
       workflows: s.workflows,
       updateConfig: s.updateConfig,
       saveConfig: s.saveConfig,
@@ -186,52 +191,16 @@ export default function ChatPanel({
     () => detached ? (detachedSnapshot?.generalModels ?? []) : generalModels,
     [detached, detachedSnapshot?.generalModels, generalModels],
   );
+  const localModelCatalog = useMemo(() => buildChatModelCatalog({ config, workflows }), [config, workflows]);
   const effectiveAssistantModelGroups = detached
     ? (detachedSnapshot?.assistantModelGroups ?? [])
-    : undefined;
-  const mediaCatalogConfig = useMemo(() => ({
-    providers,
-    dreaminaAuth: { loggedIn: dreaminaLoggedIn },
-  }), [dreaminaLoggedIn, providers]);
-  const mediaModelOptions = useMemo(
-    () => {
-      const options = getMediaModelOptions(
-        effectiveGeneralModels,
-        detached ? undefined : mediaCatalogConfig,
-        // 独立窗口拿不到工作流正文，ComfyUI 工作流只在主窗口列出
-        detached ? [] : workflows,
-      );
-      if (!detached) return options;
-      const availability = detachedSnapshot?.mediaModelAvailability;
-      if (!availability) return [];
-      return options.filter((option) => Object.prototype.hasOwnProperty.call(
-        availability,
-        option.value,
-      ));
-    },
-    [
-      detached,
-      detachedSnapshot?.mediaModelAvailability,
-      effectiveGeneralModels,
-      mediaCatalogConfig,
-      workflows,
-    ],
-  );
-  const localMediaModelAvailability = useMemo(
-    () => getMediaModelAvailability(
-      mediaModelOptions,
-      generalModels,
-      providers,
-      dreaminaLoggedIn,
-    ),
-    [dreaminaLoggedIn, generalModels, mediaModelOptions, providers],
-  );
-  const effectiveMediaModelAvailability = useMemo(
-    () => detached
-      ? (detachedSnapshot?.mediaModelAvailability ?? {})
-      : localMediaModelAvailability,
-    [detached, detachedSnapshot?.mediaModelAvailability, localMediaModelAvailability],
-  );
+    : localModelCatalog.assistantModelGroups;
+  const mediaModelOptions = useMemo(() => detached
+    ? (detachedSnapshot?.mediaModelOptions ?? [])
+    : localModelCatalog.mediaModelOptions, [detached, detachedSnapshot?.mediaModelOptions, localModelCatalog.mediaModelOptions]);
+  const effectiveMediaModelAvailability = useMemo(() => detached
+    ? (detachedSnapshot?.mediaModelAvailability ?? {})
+    : (localModelCatalog.mediaModelAvailability ?? {}), [detached, detachedSnapshot?.mediaModelAvailability, localModelCatalog.mediaModelAvailability]);
   const effectiveActiveConversation = effectiveConversations.find(
     (conversation) => conversation.id === effectiveActiveConversationId,
   );
@@ -242,13 +211,20 @@ export default function ChatPanel({
   );
 
   const [inputValue, setInputValue] = useState('');
-  const conversationDraftsRef = useRef(new Map<string, string>());
+  const pendingDraftsRef = useRef(new Map<string | null, string>());
   const pendingConversationDraftRef = useRef<string | null>(null);
-  const [viewMode, setViewMode] = useState<'list' | 'chat'>('chat');
+  const effectivePanelView = detached ? detachedSnapshot?.panelView ?? 'chat' : chatPanelView;
+  const viewMode = effectivePanelView === 'list' ? 'list' : 'chat';
+  const showTaskCenter = effectivePanelView === 'tasks';
+  const setPanelView = useCallback((view: ChatPanelView) => {
+    if (detached) void emitAction({ type: 'set_panel_view', view });
+    else useAppStore.getState().setChatPanelView(view);
+  }, [detached]);
+  const setViewMode = setPanelView;
+  const setShowTaskCenter = useCallback((show: boolean) => setPanelView(show ? 'tasks' : 'chat'), [setPanelView]);
   const [showMemoryPanel, setShowMemoryPanel] = useState(false);
   const [showSubAgentPanel, setShowSubAgentPanel] = useState(false);
   const [showAgentCenter, setShowAgentCenter] = useState(false);
-  const [showTaskCenter, setShowTaskCenter] = useState(false);
   const chatPanelRef = useRef<HTMLElement | null>(null);
   const preferredChatPanelWidthRef = useRef(CHAT_PANEL_DEFAULT_WIDTH);
   const chatPanelWidthInitializedRef = useRef(false);
@@ -357,10 +333,10 @@ export default function ChatPanel({
       ? listConversationFileGrants(effectiveActiveConversationId)
       : [];
 
-  // 草稿只在切换窗口时用得上，逐键写 Store / 发 IPC 是白扔的开销，防抖到停手后再同步一次
+  // 主窗口直接保存草稿，独立窗口合并输入后再发 IPC；关窗时另带最后一次编辑兜底。
   const draftSyncRef = useRef<{
     timer: ReturnType<typeof setTimeout> | null;
-    value: string | null;
+    value: ChatComposerHandoff | null;
   }>({ timer: null, value: null });
 
   const flushDraftSync = useCallback(() => {
@@ -370,19 +346,24 @@ export default function ChatPanel({
     if (pending.value == null) return;
     const value = pending.value;
     pending.value = null;
-    if (detached) void emitAction({ type: 'set_composer_draft', draft: value });
-    else useAppStore.getState().setChatComposerLiveDraft(value);
+    if (detached) void emitAction({ type: 'set_composer_draft', ...value });
+    else useAppStore.getState().setChatComposerLiveDraft(value.draft, value.conversationId);
   }, [detached]);
 
   const queueDraftSync = useCallback((value: string) => {
     const pending = draftSyncRef.current;
-    pending.value = value;
+    if (!detached) {
+      useAppStore.getState().setChatComposerLiveDraft(value, effectiveActiveConversationId);
+      return;
+    }
+    if (pending.value && pending.value.conversationId !== effectiveActiveConversationId) flushDraftSync();
+    pending.value = { draft: value, conversationId: effectiveActiveConversationId };
     if (pending.timer) return;
     pending.timer = setTimeout(() => {
       pending.timer = null;
       flushDraftSync();
     }, DRAFT_SYNC_DEBOUNCE_MS);
-  }, [flushDraftSync]);
+  }, [detached, effectiveActiveConversationId, flushDraftSync]);
 
   // 关窗时 React 的清理未必来得及跑，beforeunload 兜住独立窗口这一侧
   useEffect(() => {
@@ -395,49 +376,39 @@ export default function ChatPanel({
 
   const updateInputDraft = useCallback((value: string) => {
     setInputValue(value);
+    if (detached) pendingDraftsRef.current.set(effectiveActiveConversationId, value);
     queueDraftSync(value);
-    if (!effectiveActiveConversationId) return;
-    if (value) conversationDraftsRef.current.set(effectiveActiveConversationId, value);
-    else conversationDraftsRef.current.delete(effectiveActiveConversationId);
-  }, [effectiveActiveConversationId, queueDraftSync]);
+    onComposerDraftChange?.({ draft: value, conversationId: effectiveActiveConversationId });
+  }, [detached, effectiveActiveConversationId, onComposerDraftChange, queueDraftSync]);
 
+  const canonicalDraft = effectiveActiveConversationId
+    ? (detached ? detachedSnapshot?.composerDrafts : chatComposerDrafts)?.[effectiveActiveConversationId] ?? ''
+    : detached ? detachedSnapshot?.composerDraft ?? '' : chatComposerLiveDraft;
+  const ownsComposer = detached ? detachedInitialized : !chatPanelDetached;
   useEffect(() => {
-    if (effectiveActiveConversationId && pendingConversationDraftRef.current != null) {
-      const pendingDraft = pendingConversationDraftRef.current;
-      pendingConversationDraftRef.current = null;
-      conversationDraftsRef.current.set(effectiveActiveConversationId, pendingDraft);
-      setInputValue(pendingDraft);
-      return;
+    if (!ownsComposer) return;
+    const conversationId = effectiveActiveConversationId;
+    const pending = pendingDraftsRef.current.get(conversationId);
+    // 旧快照可能晚于本地输入到达；直到主窗口回传最新值，先保留正在编辑的内容。
+    if (pending !== undefined && pending !== canonicalDraft) {
+      const frame = requestAnimationFrame(() => {
+        setInputValue(pendingDraftsRef.current.get(conversationId) ?? canonicalDraft);
+      });
+      return () => cancelAnimationFrame(frame);
     }
-    setInputValue(effectiveActiveConversationId
-      ? (conversationDraftsRef.current.get(effectiveActiveConversationId) ?? '')
-      : '');
-  }, [effectiveActiveConversationId]);
-
-  // 面板接管时把对方留下的草稿灌一次（独立窗口首帧 / 收回内嵌），之后各自本地编辑
-  const draftHandoffRef = useRef(false);
-  useEffect(() => {
-    const owning = detached ? detachedInitialized : !chatPanelDetached;
-    if (!owning) {
-      draftHandoffRef.current = false;
-      return;
-    }
-    if (draftHandoffRef.current) return;
-    draftHandoffRef.current = true;
-    const draft = detached
-      ? (detachedSnapshot?.composerDraft ?? '')
-      : useAppStore.getState().chatComposerLiveDraft;
-    if (!draft) return;
-    // 灌草稿是一次性跨面板同步，放到下一帧异步执行，避免在 effect 内同步 setState 引发级联渲染
-    const frame = requestAnimationFrame(() => updateInputDraft(draft));
+    pendingDraftsRef.current.delete(conversationId);
+    const frame = requestAnimationFrame(() => {
+      if (pendingDraftsRef.current.has(conversationId)) return;
+      if (conversationId && pendingConversationDraftRef.current != null) {
+        const draft = pendingConversationDraftRef.current;
+        pendingConversationDraftRef.current = null;
+        updateInputDraft(draft);
+      } else {
+        setInputValue(canonicalDraft);
+      }
+    });
     return () => cancelAnimationFrame(frame);
-  }, [
-    chatPanelDetached,
-    detached,
-    detachedInitialized,
-    detachedSnapshot?.composerDraft,
-    updateInputDraft,
-  ]);
+  }, [canonicalDraft, effectiveActiveConversationId, ownsComposer, updateInputDraft]);
 
   const handleTextModelChange = useCallback((modelId?: string) => {
     if (detached) {
@@ -512,7 +483,7 @@ export default function ChatPanel({
       createConversation(effectiveProjectId);
     }
     setViewMode('chat');
-  }, [detached, effectiveProjectId, createConversation]);
+  }, [detached, effectiveProjectId, createConversation, setViewMode]);
 
   const handleSelectConversation = useCallback(
     (id: string) => {
@@ -524,10 +495,10 @@ export default function ChatPanel({
       }
       setViewMode('chat');
     },
-    [detached, setActiveConversation, loadConversationMessages],
+    [detached, setActiveConversation, loadConversationMessages, setViewMode],
   );
 
-  const handleShowList = useCallback(() => setViewMode('list'), []);
+  const handleShowList = useCallback(() => setViewMode('list'), [setViewMode]);
 
   const handleExampleClick = useCallback((text: string) => {
     if (!effectiveActiveConversationId && effectiveProjectId) {
@@ -540,7 +511,7 @@ export default function ChatPanel({
   }, [effectiveActiveConversationId, effectiveProjectId, handleNewConversation, updateInputDraft]);
 
   useEffect(() => {
-    if (detached || !chatComposerDraft || !effectiveProjectId) return;
+    if (detached || chatPanelDetached || !chatComposerDraft || !effectiveProjectId) return;
     let focusFrame = 0;
     const draftFrame = requestAnimationFrame(() => {
       handleExampleClick(chatComposerDraft);
@@ -555,6 +526,7 @@ export default function ChatPanel({
     };
   }, [
     chatComposerDraft,
+    chatPanelDetached,
     clearChatComposerDraft,
     detached,
     effectiveProjectId,

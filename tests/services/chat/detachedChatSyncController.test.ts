@@ -16,10 +16,12 @@ vi.mock('../../../src/services/chat/conversationExecutionController', () => ({
 
 import {
   buildDetachedChatSnapshot,
+  buildChatModelCatalog,
   createDetachedChatSyncController,
   projectChatNodes,
 } from '../../../src/services/chat/detachedChatSyncController';
-import { applyChatStatePatch, type ChatStateSync } from '../../../src/services/chat/chatWindowService';
+import { applyChatStatePatch, createChatStatePatch, receiveChatStateSync, type ChatStateSync, type ChatWindowState } from '../../../src/services/chat/chatWindowService';
+import { runAgentTask } from '../../../src/services/chat/agentTaskControl';
 import { useAppStore } from '../../../src/store/useAppStore';
 
 function arrangeDetachedState(): void {
@@ -62,6 +64,163 @@ beforeEach(() => {
 });
 
 describe('detached chat sync controller', () => {
+  it('uses the same branded and visible model options as the embedded chat, including workflows', () => {
+    useAppStore.setState((state) => ({
+      config: { ...state.config, providers: {
+        cccapi: { name: 'CCC API', apiKey: 'do-not-sync-key', baseUrl: 'https://private.example/v1', catalogId: 'cccapi', visibleModelCategories: ['text', 'image'] },
+      }, generalModels: [
+        { id: 'text-1', name: '文本模型', modelId: 'text-model', category: 'text', providerConfigId: 'cccapi' },
+        { id: 'image-1', name: '图片模型', modelId: 'image-model', category: 'image', providerConfigId: 'cccapi' },
+        { id: 'hidden-video', name: '隐藏视频', modelId: 'video-model', category: 'video', providerConfigId: 'cccapi' },
+      ] },
+      workflows: [{ id: 'local-image', name: '本地图像工作流', category: 'ai-image', fileName: 'local.json', fileContent: 'PRIVATE_WORKFLOW_BODY', createdAt: 1 }],
+    }));
+    const state = useAppStore.getState();
+    const catalog = buildChatModelCatalog(state);
+    const snapshot = buildDetachedChatSnapshot(state);
+    expect(snapshot.assistantModelGroups).toBe(catalog.assistantModelGroups);
+    expect(snapshot.assistantModelGroups).toContainEqual(expect.objectContaining({
+      id: 'general-provider-cccapi', models: [expect.objectContaining({ value: 'general/text-1' })],
+    }));
+    expect(snapshot.mediaModelOptions).toBe(catalog.mediaModelOptions);
+    expect(snapshot.mediaModelOptions).toContainEqual(expect.objectContaining({ value: 'comfyui/local-image', workflowId: 'local-image' }));
+    expect(snapshot.mediaModelOptions.some((option) => option.value === 'general/hidden-video')).toBe(false);
+    expect(snapshot.mediaModelAvailability?.['comfyui/local-image']).toBe(true);
+    for (const secret of ['do-not-sync-key', 'private.example', 'PRIVATE_WORKFLOW_BODY']) expect(JSON.stringify(snapshot)).not.toContain(secret);
+    useAppStore.setState({ workflows: [] });
+    expect(buildDetachedChatSnapshot(useAppStore.getState()).mediaModelOptions.some((option) => option.workflowId === 'local-image')).toBe(false);
+  });
+
+  it('receives only valid revision chains and ignores old snapshots without reverting progress', () => {
+    const snapshot = buildDetachedChatSnapshot(useAppStore.getState());
+    const current = receiveChatStateSync(null, { type: 'snapshot', revision: 10, snapshot })!;
+    useAppStore.getState().setChatPanelView('tasks');
+    const nextSnapshot = buildDetachedChatSnapshot(useAppStore.getState());
+    const patch = createChatStatePatch(snapshot, nextSnapshot);
+    expect(receiveChatStateSync(null, { type: 'patch', baseRevision: 0, revision: 1, patch })).toBeNull();
+    expect(receiveChatStateSync(current, { type: 'patch', baseRevision: 9, revision: 11, patch })).toBeNull();
+    const next = receiveChatStateSync(current, { type: 'patch', baseRevision: 10, revision: 11, patch })!;
+    expect(next.snapshot.panelView).toBe('tasks');
+    expect(receiveChatStateSync(next, { type: 'snapshot', revision: 10, snapshot })).toBe(next);
+    expect(receiveChatStateSync(next, { type: 'patch', baseRevision: 10, revision: 11, patch })).toBe(next);
+  });
+
+  it('keeps one running task and its streamed messages when docking and reopening', async () => {
+    const task = useAppStore.getState().createAgentTask({
+      projectId: 'project-1', conversationId: 'conversation-1', userMessageId: 'user-1',
+      mode: 'collaborative', goal: '继续回答',
+    });
+    let finish!: (outcome: 'completed') => void;
+    const executor = vi.fn((_signal: AbortSignal) => new Promise<'completed'>((resolve) => { finish = resolve; }));
+    const running = runAgentTask(task.id, executor);
+    let mirror: ChatWindowState | null = null;
+    const readMirror = (): ChatWindowState | null => mirror;
+    let onAction!: (action: ChatAction) => void;
+    const controller = createDetachedChatSyncController({
+      enabled: true, syncIntervalMs: 0,
+      emitSync: async (sync) => { mirror = receiveChatStateSync(mirror, structuredClone(sync)); },
+      initListener: async (handler) => { onAction = handler; return () => undefined; },
+    });
+    await controller.start();
+    try {
+      await vi.waitFor(() => expect(readMirror()?.snapshot.agentTasks[0].status).toBe('running'));
+      useAppStore.setState({ messages: [{
+        id: 'answer-1', conversationId: 'conversation-1', role: 'assistant',
+        content: '开始回答', timestamp: 1, status: 'streaming', agentTaskId: task.id,
+      }] });
+      await vi.waitFor(() => expect(readMirror()?.snapshot.messages[0].content).toBe('开始回答'));
+      onAction({ type: 'dock_window', composerDraft: { conversationId: 'conversation-1', draft: '追加问题' } });
+      expect(useAppStore.getState()).toMatchObject({ chatPanelDetached: false, chatComposerLiveDraft: '追加问题' });
+      expect(useAppStore.getState().agentTasks[0].status).toBe('running');
+      expect(executor.mock.calls[0][0].aborted).toBe(false);
+      useAppStore.setState((state) => ({ messages: state.messages.map((message) => ({ ...message, content: '回答继续更新' })) }));
+      useAppStore.getState().setChatPanelDetached(true);
+      await vi.waitFor(() => expect(readMirror()?.snapshot.messages[0].content).toBe('回答继续更新'));
+      expect(readMirror()?.snapshot.composerDraft).toBe('追加问题');
+      expect(readMirror()?.snapshot.agentTasks[0].status).toBe('running');
+      finish('completed');
+      await running;
+      await vi.waitFor(() => expect(readMirror()?.snapshot.agentTasks[0].status).toBe('completed'));
+      expect(executor).toHaveBeenCalledTimes(1);
+    } finally {
+      finish('completed');
+      await running;
+      controller.dispose();
+    }
+  });
+
+  it('binds delayed drafts to their original conversation and carries final edits on close', async () => {
+    useAppStore.setState((state) => ({ conversations: [...state.conversations, { ...state.conversations[0], id: 'conversation-2' }] }));
+    useAppStore.getState().setActiveConversation('conversation-2');
+    useAppStore.getState().setChatComposerLiveDraft('乙的草稿');
+    let onAction!: (action: ChatAction) => void;
+    let onClose!: (draft?: { conversationId: string | null; draft: string }) => void;
+    const controller = createDetachedChatSyncController({
+      enabled: true, syncIntervalMs: 0, emitSync: async () => undefined,
+      initListener: async (action, close) => { onAction = action; onClose = close; return () => undefined; },
+    });
+    await controller.start();
+    onAction({ type: 'set_composer_draft', conversationId: 'conversation-1', draft: '甲的迟到输入' });
+    expect(useAppStore.getState().chatComposerLiveDraft).toBe('乙的草稿');
+    onClose({ conversationId: 'conversation-1', draft: '甲的最后一次输入' });
+    expect(buildDetachedChatSnapshot(useAppStore.getState()).composerDrafts).toEqual({
+      'conversation-1': '甲的最后一次输入', 'conversation-2': '乙的草稿',
+    });
+    onAction({ type: 'set_panel_view', view: 'tasks' });
+    onAction({ type: 'dock_window', composerDraft: { conversationId: 'conversation-2', draft: '' } });
+    expect(useAppStore.getState()).toMatchObject({ chatComposerLiveDraft: '', chatPanelView: 'tasks', chatPanelDetached: false });
+    controller.dispose();
+  });
+
+  it('uses a newer snapshot after a dock during an unfinished emission', async () => {
+    let release!: () => void;
+    const frames: ChatStateSync[] = [];
+    const controller = createDetachedChatSyncController({
+      enabled: true, syncIntervalMs: 0,
+      emitSync: async (sync) => {
+        frames.push(sync);
+        if (frames.length === 1) await new Promise<void>((resolve) => { release = resolve; });
+      },
+      initListener: async () => () => undefined,
+    });
+    await controller.start();
+    await vi.waitFor(() => expect(frames).toHaveLength(1));
+    useAppStore.getState().setChatPanelDetached(false);
+    useAppStore.getState().setChatPanelView('tasks');
+    useAppStore.getState().setChatPanelDetached(true);
+    release();
+    await vi.waitFor(() => expect(frames).toHaveLength(2));
+    const latest = frames[1];
+    expect(latest.type).toBe('snapshot');
+    expect(latest.revision).toBeGreaterThan(frames[0].revision);
+    const mirror = receiveChatStateSync(null, latest)!;
+    expect(mirror.snapshot.panelView).toBe('tasks');
+    expect(receiveChatStateSync(mirror, frames[0])).toBe(mirror);
+    useAppStore.getState().setChatPanelView('list');
+    await vi.waitFor(() => expect(frames).toHaveLength(3));
+    expect(frames[2]).toMatchObject({ type: 'patch', baseRevision: latest.revision });
+    expect(receiveChatStateSync(mirror, frames[2])?.snapshot.panelView).toBe('list');
+    controller.dispose();
+  });
+
+  it('refreshes workflow model choices when workflows change without a config change', async () => {
+    const frames: ChatStateSync[] = [];
+    const controller = createDetachedChatSyncController({
+      enabled: true, syncIntervalMs: 0,
+      emitSync: async (sync) => { frames.push(sync); }, initListener: async () => () => undefined,
+    });
+    await controller.start();
+    await vi.waitFor(() => expect(frames).toHaveLength(1));
+    const mirror = receiveChatStateSync(null, frames[0])!;
+    const config = useAppStore.getState().config;
+    useAppStore.setState({ workflows: [{ id: 'new-flow', name: '新工作流', category: 'ai-image', fileName: 'new.json', fileContent: 'PRIVATE_BODY', createdAt: 1 }] });
+    await vi.waitFor(() => expect(frames).toHaveLength(2));
+    expect(useAppStore.getState().config).toBe(config);
+    expect(receiveChatStateSync(mirror, frames[1])?.snapshot.mediaModelOptions).toContainEqual(expect.objectContaining({ workflowId: 'new-flow' }));
+    expect(JSON.stringify(frames[1])).not.toContain('PRIVATE_BODY');
+    controller.dispose();
+  });
+
   it('publishes and updates the current project text model', async () => {
     const updateProjectSettings = vi.fn(async () => true);
     useAppStore.setState((state) => ({
@@ -289,6 +448,7 @@ describe('detached chat sync controller', () => {
         },
       }],
       chatComposerLiveDraft: '内嵌浮窗里没发出去的草稿',
+      chatComposerDrafts: { 'conversation-1': '内嵌浮窗里没发出去的草稿' },
       userSkills: [{
         id: 'skill-1',
         name: '分镜脚本',

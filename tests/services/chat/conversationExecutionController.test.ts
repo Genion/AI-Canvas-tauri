@@ -86,6 +86,7 @@ describe('conversation execution controller', () => {
     { body: 'data: {"error":{"message":"Provider unavailable"}}\n\n', contentType: 'text/event-stream', status: 'failed', messageStatus: 'error', text: 'Provider unavailable' },
     { body: '{"choices":[{"message":{"content":"已收到你的要求"},"finish_reason":"stop"}]}', contentType: 'application/json', status: 'completed', messageStatus: 'done', text: '已收到你的要求' },
     { body: 'data:{"choices":[{"delta":{"content":"已收到你的要求"},"finish_reason":"stop"}]}\n\n', contentType: 'text/event-stream', status: 'completed', messageStatus: 'done', text: '已收到你的要求' },
+    { body: 'data:{"choices":[{"delta":{"content":"尚未完成的回复"},"finish_reason":"length"}]}\n\n', contentType: 'text/event-stream', status: 'paused', messageStatus: 'partial', text: '尚未完成的回复' },
   ])('keeps a visible final message for $body', async ({ body, contentType, status, messageStatus, text }) => {
     useAppStore.setState((state) => ({
       config: {
@@ -115,6 +116,10 @@ describe('conversation execution controller', () => {
       content: expect.stringContaining(text),
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    if (status === 'paused') {
+      expect(state.agentTasks.find((task) => task.id === result.taskId)?.pausedReason).toBe('model_output_truncated');
+      expect(state.messages.find((message) => message.id === result.assistantMessageId)?.finishReason).toBe('length');
+    }
   });
 
   it('creates the message pair and schedules one Agent task', () => {

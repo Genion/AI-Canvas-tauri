@@ -179,7 +179,7 @@ export function registerFileAgentTools(): Array<() => void> {
     registerAgentTool<{ suggestedName: string; content: string }>({
       id: 'file_write_text',
       title: '写入本地文件',
-      description: '把文本内容通过原生保存对话框写入用户选择的位置。每次写入都必须确认。',
+      description: '把文本内容通过原生保存对话框写入用户选择的位置。B 协作模式由 Policy 请求确认，C 自主模式直接调用；两种模式都需要用户在保存对话框选择位置。',
       inputSchema: {
         type: 'object',
         required: ['suggestedName', 'content'],

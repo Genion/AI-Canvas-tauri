@@ -7,6 +7,7 @@ import type { AppState } from './useAppStore';
 import type {
   ChatConversation,
   ChatMessage,
+  ChatPanelView,
   OperationLog,
 } from '../types/chat';
 import { AGENT_TERMINAL_STATUSES } from '../types/agent';
@@ -75,6 +76,9 @@ export interface ChatSlice {
   chatComposerDraft: string | null;
   /** 输入框当前草稿，内嵌浮窗与独立窗口切换时接力用。 */
   chatComposerLiveDraft: string;
+  /** 只在运行期间保存，换窗口和换会话都从这里接续。 */
+  chatComposerDrafts: Record<string, string>;
+  chatPanelView: ChatPanelView;
 
   // ── 会话状态 ──
   conversations: ChatConversation[];
@@ -103,7 +107,8 @@ export interface ChatSlice {
   closeChat: () => void;
   toggleChat: () => void;
   setChatPanelDetached: (detached: boolean) => void;
-  setChatComposerLiveDraft: (draft: string) => void;
+  setChatComposerLiveDraft: (draft: string, conversationId?: string | null) => void;
+  setChatPanelView: (view: ChatPanelView) => void;
 
   // ── Conversation Actions ──
   setConversations: (conversations: ChatConversation[]) => void;
@@ -233,6 +238,8 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
   chatPanelDetached: false,
   chatComposerDraft: null,
   chatComposerLiveDraft: '',
+  chatComposerDrafts: {},
+  chatPanelView: 'chat',
 
   // ── 会话初始状态 ──
   conversations: [],
@@ -286,7 +293,18 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
       })),
   setChatPanelDetached: (detached) => set({ chatPanelDetached: detached }),
 
-  setChatComposerLiveDraft: (draft) => set({ chatComposerLiveDraft: draft }),
+  setChatComposerLiveDraft: (draft, conversationId = get().activeConversationId) => set((state) => {
+    if (!conversationId) return { chatComposerLiveDraft: draft };
+    if (!state.conversations.some((conversation) => conversation.id === conversationId)) return {};
+    const drafts = { ...state.chatComposerDrafts };
+    if (draft) drafts[conversationId] = draft;
+    else delete drafts[conversationId];
+    return {
+      chatComposerDrafts: drafts,
+      chatComposerLiveDraft: conversationId === state.activeConversationId ? draft : state.chatComposerLiveDraft,
+    };
+  }),
+  setChatPanelView: (view) => set({ chatPanelView: view }),
 
   // ==========================================
   // Conversation Actions
@@ -329,6 +347,8 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
       }
       return {
         conversations: s.conversations.filter((c) => c.id !== id),
+        chatComposerDrafts: Object.fromEntries(Object.entries(s.chatComposerDrafts).filter(([key]) => key !== id)),
+        chatComposerLiveDraft: s.activeConversationId === id ? '' : s.chatComposerLiveDraft,
         activeConversationId:
           s.activeConversationId === id ? null : s.activeConversationId,
       };
@@ -342,7 +362,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
         ?? (state.currentProjectId ? seriesOwnerId(state.projects, state.currentProjectId) : null);
       if (projectId) persistActiveConversation(projectId, id);
     }
-    set({ activeConversationId: id });
+    set({ activeConversationId: id, chatComposerLiveDraft: id ? get().chatComposerDrafts[id] ?? '' : '' });
   },
 
   createConversation: (projectId, title) => {
@@ -365,6 +385,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
     set((s) => ({
       conversations: [...s.conversations, conversation],
       activeConversationId: id,
+      chatComposerLiveDraft: '',
     }));
     persistActiveConversation(ownerId, id);
     persistConv(conversation);
@@ -387,6 +408,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
       set((state) => ({
         conversations,
         activeConversationId: restoredConversation?.id ?? null,
+        chatComposerLiveDraft: restoredConversation ? state.chatComposerDrafts[restoredConversation.id] ?? '' : '',
         messages: retainBackgroundTaskMessages(state),
         operationLogs: [],
       }));

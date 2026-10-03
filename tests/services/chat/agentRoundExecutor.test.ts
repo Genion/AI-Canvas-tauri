@@ -228,6 +228,44 @@ function arrangeMedia(kind: 'image' | 'video' | 'audio' = 'image') {
 }
 
 describe('agent round executor', () => {
+  it.each([false, true])('pauses a truncated response without completing or executing tools (tools %s)', async (withTools) => {
+    arrangeCanvas();
+    const execute = vi.spyOn(getAgentTool('canvas_update_nodes')!, 'execute');
+    streamAssistantReplyMock.mockImplementation(async ({ onEvent }) => {
+      onEvent({ type: 'text.delta', delta: '还没说完的回答' });
+      if (withTools) onEvent({ type: 'tool.call.final', call: {
+        callId: 'truncated-write', toolId: 'canvas_update_nodes', input: { nodeIds: ['b'], prompt: 'must not execute' },
+      } });
+      onEvent({ type: 'done', finishReason: 'length' });
+    });
+    const onComplete = vi.fn();
+    const waitForApproval = vi.fn();
+    const result = await runRound(undefined, { onComplete }, waitForApproval);
+    expect(result).toMatchObject({ outcome: 'paused', fullText: '还没说完的回答' });
+    expect(execute).not.toHaveBeenCalled();
+    expect(waitForApproval).not.toHaveBeenCalled();
+    expect(onComplete).not.toHaveBeenCalled();
+    expect(nodePrompt('b')).toBe('initial');
+    expect(useAppStore.getState().agentTasks[0]).toMatchObject({
+      status: 'paused', pausedReason: 'model_output_truncated', errorCode: 'MODEL_OUTPUT_TRUNCATED', toolCallCount: 0,
+    });
+  });
+
+  it.each(['canceled', 'error'] as const)('does not execute proposals after a %s terminal event', async (finishReason) => {
+    arrangeCanvas();
+    const execute = vi.spyOn(getAgentTool('canvas_update_nodes')!, 'execute');
+    streamAssistantReplyMock.mockImplementation(async ({ onEvent }) => {
+      onEvent({ type: 'tool.call.final', call: {
+        callId: 'failed-write', toolId: 'canvas_update_nodes', input: { nodeIds: ['b'], prompt: 'must not execute' },
+      } });
+      onEvent({ type: 'done', finishReason });
+    });
+    const onComplete = vi.fn();
+    await expect(runRound(undefined, { onComplete })).rejects.toThrow();
+    expect(execute).not.toHaveBeenCalled();
+    expect(onComplete).not.toHaveBeenCalled();
+  });
+
   it.each(['paused', 'stopped'] as const)('does not execute queued writes after a task is %s during a read', async (status) => {
     arrangeCanvas();
     const controller = new AbortController();

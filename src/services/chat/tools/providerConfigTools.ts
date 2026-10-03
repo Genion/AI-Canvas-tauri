@@ -692,7 +692,9 @@ export function registerProviderConfigAgentTools(): Array<() => void> {
               draft.summary,
               plan,
               '验证状态：已解析并通过本地协议校验；尚未保存，未验证实际调用。',
-              '草稿尚未写入设置。请立即调用 provider_config_apply 并只传入 draftId；本地 Policy 会展示审批卡等待用户确认。不要用普通文本要求用户回复“确认”或“添加”。',
+              context.mode === 'plan'
+                ? '草稿尚未写入设置。当前 Plan 模式只允许预览，不得调用保存工具。'
+                : '草稿尚未写入设置。若本轮开放 provider_config_apply，请立即调用并只传入 draftId；本地 Policy 在 B 协作模式展示审批卡，C 自主模式直接保存。不要用普通文本要求用户回复“确认”或“添加”。',
             ].join('\n'),
           };
         } catch (error) {
@@ -705,7 +707,7 @@ export function registerProviderConfigAgentTools(): Array<() => void> {
       title: '保存 API 厂商配置',
       description: [
         '把 provider_config_preview 生成的任务级草稿保存到 API Key 设置。',
-        '输入只允许 draftId；应在预览成功后立即调用，该操作会由本地 Policy 自动请求用户确认。',
+        '输入只允许 draftId；应在预览成功后立即调用。B 协作模式由本地 Policy 请求确认，C 自主模式直接保存。',
         'Base URL 与聊天协议均和已有自定义连接相同时会自动并入那个连接（保留原连接名与原有模型），不会重复新建；',
         '同 ID 且配置完全相同的模型会被跳过并在结果中列出，不必也不要为它们重新对接。',
         '未指定字段保留原值；预览后目标配置变化必须重新预览。保存失败保留草稿，不自动重试。',

@@ -53,6 +53,7 @@ const STATUS_META: Record<AgentTaskStatus, { label: string; icon: string; classN
 const PAUSE_REASON_LABELS: Record<string, string> = {
   user_paused: '你已暂停',
   model_round_budget_exhausted: '已达模型轮次上限',
+  model_output_truncated: '回复达到输出上限，本轮工具未执行，可继续任务',
   tool_call_budget_exhausted: '已达工具调用上限',
   tool_result_budget_exhausted: '工具结果已达上限',
   context_budget_exhausted: '上下文接近模型上限',

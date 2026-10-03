@@ -66,6 +66,37 @@ beforeEach(() => {
 });
 
 describe('chat conversation restoration', () => {
+  it('keeps per-conversation drafts and does not apply a delayed draft to the newly selected conversation', () => {
+    useAppStore.setState({ conversations: [conversation('a', 1), conversation('b', 2)] });
+    const store = useAppStore.getState();
+    store.setActiveConversation('a');
+    store.setChatComposerLiveDraft('甲的草稿');
+    store.setActiveConversation('b');
+    expect(useAppStore.getState().chatComposerLiveDraft).toBe('');
+    store.setChatComposerLiveDraft('乙的草稿');
+    store.setChatComposerLiveDraft('甲的最后一次输入', 'a');
+    expect(useAppStore.getState().chatComposerLiveDraft).toBe('乙的草稿');
+    store.setActiveConversation('a');
+    expect(useAppStore.getState().chatComposerLiveDraft).toBe('甲的最后一次输入');
+    store.setChatComposerLiveDraft('');
+    expect(useAppStore.getState().chatComposerDrafts).toEqual({ b: '乙的草稿' });
+    store.setChatComposerLiveDraft('不存在的会话', 'missing');
+    expect(useAppStore.getState().chatComposerDrafts).not.toHaveProperty('missing');
+  });
+
+  it('keeps drafts and the active view when toggling between embedded and detached chat', () => {
+    useAppStore.setState({ conversations: [conversation('a', 1)] });
+    const store = useAppStore.getState();
+    store.setActiveConversation('a');
+    store.setChatComposerLiveDraft('还没发出去');
+    store.setChatPanelView('tasks');
+    store.setChatPanelDetached(true);
+    store.closeChat();
+    store.setChatPanelDetached(false);
+    store.openChat();
+    expect(useAppStore.getState()).toMatchObject({ chatComposerLiveDraft: '还没发出去', chatPanelView: 'tasks', activeConversationId: 'a' });
+  });
+
   it('restores the selected conversation and loads its messages after restart', async () => {
     const conversations = [conversation('conversation-newest', 2), conversation('conversation-selected', 1)];
     useAppStore.setState({ conversations });

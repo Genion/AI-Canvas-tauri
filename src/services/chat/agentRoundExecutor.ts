@@ -23,6 +23,7 @@ import type {
 import { AGENT_TERMINAL_STATUSES } from '../../types/agent';
 import type {
   AssistantStreamEvent,
+  FinishReason,
   ProposedToolCall,
   ToolResultSummary,
 } from '../../types/chat';
@@ -44,6 +45,7 @@ import {
   evaluateAgentLifetimeUsage,
 } from './agentBudgetService';
 import { drainAgentInterjections } from './agentInterjection';
+import { buildAssistantToolGuidance } from './agentPromptGuidance';
 import { addAgentTaskMetrics, appendAgentEvent } from './agentJournal';
 import {
   findSucceededDuplicateWrite,
@@ -54,6 +56,7 @@ import { emitAgentLifecycleEvent } from './agentLifecycle';
 // 每次 runAgentLoop 都创建自己的 messages 数组；恢复候选跨只读轮次保留，
 // 不包含当前执行段新完成的步骤，也不写入 Store/IndexedDB。数组释放后自动回收。
 const checkpointReplayCandidates = new WeakMap<AssistantModelMessage[], Set<string>>();
+const toolGuidanceMessages = new WeakMap<AssistantModelMessage[], AssistantModelMessage>();
 
 export interface AgentRoundCallbacks {
   onTextDelta?: (delta: string) => void;
@@ -735,7 +738,6 @@ export async function executeAgentRound({
     mode: readCurrentMode(),
     baseRevision: useAppStore.getState().getCurrentRevision(),
   };
-  const interjections = drainAgentInterjections(taskId);
   let checkpointReplayStepIds = checkpointReplayCandidates.get(messages);
   if (!checkpointReplayStepIds) {
     checkpointReplayStepIds = new Set((task.resumeCount ?? 0) > 0
@@ -743,21 +745,27 @@ export async function executeAgentRound({
       : []);
     checkpointReplayCandidates.set(messages, checkpointReplayStepIds);
   }
-  // 用户的新补充要求不属于恢复重放；此执行段后续轮次也不能继续按旧参数复用。
-  if (interjections.length > 0) checkpointReplayStepIds.clear();
-  for (const interjection of interjections) {
-    addAgentTaskMetrics(taskId, { interjectionCount: 1 });
-    appendAgentEvent(taskId, 'interjection_applied', {
-      interjectionId: interjection.id,
-    });
-    messages.push({
-      role: 'user',
-      content: [
-        '用户在任务执行期间补充了以下要求。请结合当前进度处理，不要重放已成功的同一请求；新的修改或重新生成按当前要求执行：',
-        interjection.text,
-      ].join('\n'),
-    });
-  }
+  const replayStepIds = checkpointReplayStepIds;
+  const applyInterjections = (previousReply?: AssistantModelMessage): boolean => {
+    const interjections = drainAgentInterjections(taskId);
+    if (interjections.length === 0) return false;
+    // 新要求不是恢复重放；前一轮回复也要带给模型，才能理解用户在修改什么。
+    replayStepIds.clear();
+    if (previousReply) messages.push(previousReply);
+    for (const interjection of interjections) {
+      addAgentTaskMetrics(taskId, { interjectionCount: 1 });
+      appendAgentEvent(taskId, 'interjection_applied', { interjectionId: interjection.id });
+      messages.push({
+        role: 'user',
+        content: [
+          '用户在任务执行期间补充了以下要求。请结合当前进度处理，不要重放已成功的同一请求；新的修改或重新生成按当前要求执行：',
+          interjection.text,
+        ].join('\n'),
+      });
+    }
+    return true;
+  };
+  applyInterjections();
 
   // 终身上限先于单段预算判定：累计 token 没有单段计数器，只能在这里逐轮复核
   const lifetime = evaluateAgentLifetimeUsage(task);
@@ -774,6 +782,17 @@ export async function executeAgentRound({
     transitionTask(taskId, 'paused', { pausedReason: 'model_round_budget_exhausted' });
     callbacks.onError?.('已达到模型规划轮次上限，任务已暂停');
     return { outcome: 'paused', fullText, totalToolResultChars };
+  }
+
+  const tools = buildAssistantFunctionTools(roundContext);
+  const toolGuidance = buildAssistantToolGuidance(tools.map((tool) => tool.function.name), roundContext.mode);
+  let guidanceMessage = toolGuidanceMessages.get(messages);
+  if (!guidanceMessage) {
+    guidanceMessage = { role: 'system', content: toolGuidance };
+    toolGuidanceMessages.set(messages, guidanceMessage);
+    messages.unshift(guidanceMessage);
+  } else {
+    guidanceMessage.content = toolGuidance;
   }
 
   // 每轮请求前按当前模型上限复核（工具 Observation 会持续增大上下文；模型可能中途切换）
@@ -795,7 +814,8 @@ export async function executeAgentRound({
 
   const proposedCalls: ProposedToolCall[] = [];
   let roundText = '';
-  const tools = buildAssistantFunctionTools(roundContext);
+  const completion: { reason: FinishReason } = { reason: 'stop' };
+  let streamError: string | undefined;
   const modelStartedAt = Date.now();
   let roundInputTokens = 0;
   let roundOutputTokens = 0;
@@ -821,7 +841,10 @@ export async function executeAgentRound({
           callbacks.onTextDelta?.(event.delta);
         } else if (event.type === 'tool.call.final') {
           proposedCalls.push(event.call);
+        } else if (event.type === 'done') {
+          completion.reason = event.finishReason;
         } else if (event.type === 'error') {
+          streamError = event.message;
           callbacks.onError?.(event.message);
         } else if (event.type === 'usage') {
           roundInputTokens += event.inputTokens ?? 0;
@@ -853,7 +876,26 @@ export async function executeAgentRound({
   }
 
   assertAgentTaskActive(taskId, signal);
+  if (completion.reason === 'canceled') throw new DOMException('模型请求已取消', 'AbortError');
+  if (streamError || completion.reason === 'error') throw new Error(streamError || '模型请求失败');
+  if (completion.reason === 'length') {
+    // 截断时即使参数碰巧能解析，也不能认为整轮工具提案已经完整。
+    transitionTask(taskId, 'paused', {
+      pausedReason: 'model_output_truncated',
+      errorCode: 'MODEL_OUTPUT_TRUNCATED',
+      errorMessage: '模型回复达到输出上限，任务已暂停；本轮工具提案未执行，可继续任务或调整模型输出上限。',
+    });
+    return { outcome: 'paused', fullText, totalToolResultChars };
+  }
   if (proposedCalls.length === 0) {
+    // 流式回复期间可能有新要求，结束前再取一次，避免关闭缓冲时漏掉。
+    if (applyInterjections({ role: 'assistant', content: roundText })) {
+      if (roundText) {
+        fullText += '\n\n';
+        callbacks.onTextDelta?.('\n\n');
+      }
+      return { outcome: 'continue', fullText, totalToolResultChars };
+    }
     callbacks.onComplete?.(fullText);
     return { outcome: 'completed', fullText, totalToolResultChars };
   }

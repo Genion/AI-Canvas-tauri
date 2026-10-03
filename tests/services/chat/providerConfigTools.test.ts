@@ -143,6 +143,19 @@ afterEach(() => {
 });
 
 describe('provider config agent tools', () => {
+  it.each(['plan', 'collaborative', 'autonomous'] as const)('keeps preview instructions aligned with %s policy', async (mode) => {
+    const preview = await getAgentTool('provider_config_preview')!.execute({ ...context, mode }, previewInput());
+    expect(preview.status).toBe('success');
+    if (mode === 'plan') {
+      expect(preview.modelContent).toContain('不得调用保存工具');
+      expect(preview.modelContent).not.toContain('请立即调用');
+    } else {
+      expect(preview.modelContent).toContain('若本轮开放 provider_config_apply');
+      expect(preview.modelContent).toContain('C 自主模式直接保存');
+    }
+    expect(fileMocks.saveConfig).not.toHaveBeenCalled();
+  });
+
   it('reports partial document reads without logging page text and continues from the original entry', async () => {
     const entryUrl = 'https://docs.example.com/start';
     useAppStore.setState({ agentTasks: [{

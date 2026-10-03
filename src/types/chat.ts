@@ -4,6 +4,8 @@
  */
 import type { AgentMode, ProviderModelCatalogSummary } from './agent';
 
+export type ChatPanelView = 'chat' | 'list' | 'tasks';
+
 import type { NodeType } from './index';
 import type {
   CanvasMaterializationStatus,

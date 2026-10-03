@@ -15,11 +15,13 @@ import type { AppConfig } from '../../types';
 import { setLocale, useT } from '../../i18n';
 import ChatPanel from './ChatPanel';
 import {
-  applyChatStatePatch,
+  receiveChatStateSync,
   emitAction,
   emitCloseRequest,
   initChatWindowListener,
   type ChatStateSnapshot,
+  type ChatWindowState,
+  type ChatComposerHandoff,
 } from '../../services/chat/chatWindowService';
 
 const EMPTY_SNAPSHOT: ChatStateSnapshot = {
@@ -30,10 +32,13 @@ const EMPTY_SNAPSHOT: ChatStateSnapshot = {
   projectId: null,
   generalModels: [],
   assistantModelGroups: [],
+  mediaModelOptions: [],
   nodes: [],
   dramaAssets: emptyDramaAssetLibrary(),
   skillOptions: [],
   composerDraft: '',
+  composerDrafts: {},
+  panelView: 'chat',
 };
 
 const HANDSHAKE_RETRY_MS = 500;
@@ -46,8 +51,17 @@ export default function ChatWindow() {
   const [initialized, setInitialized] = useState(false);
   const [isLocked, setIsLocked] = useState(false);
   const isLockedRef = useRef(false);
-  const syncRevisionRef = useRef(0);
+  const syncStateRef = useRef<ChatWindowState | null>(null);
+  const composerHandoffRef = useRef<ChatComposerHandoff | undefined>(undefined);
+  const handleComposerDraftChange = useCallback((draft: ChatComposerHandoff) => { composerHandoffRef.current = draft; }, []);
   const resyncRequestedRef = useRef(false);
+
+  useEffect(() => {
+    const handoff = composerHandoffRef.current;
+    if (handoff && (handoff.conversationId ? snapshot.composerDrafts[handoff.conversationId] ?? '' : snapshot.composerDraft) === handoff.draft) {
+      composerHandoffRef.current = undefined;
+    }
+  }, [snapshot.composerDraft, snapshot.composerDrafts]);
 
   useEffect(() => {
     let disposed = false;
@@ -92,7 +106,7 @@ export default function ChatWindow() {
   const closeWindow = useCallback(() => {
     void (async () => {
       try {
-        await emitCloseRequest();
+        await emitCloseRequest(composerHandoffRef.current);
         await invoke('close_chat_window');
       } catch (error) {
         console.error('[ChatWindow] failed to close window:', error);
@@ -103,7 +117,7 @@ export default function ChatWindow() {
   const dockWindow = useCallback(() => {
     void (async () => {
       try {
-        await emitAction({ type: 'dock_window' });
+        await emitAction({ type: 'dock_window', composerDraft: composerHandoffRef.current });
         await invoke('close_chat_window');
       } catch (error) {
         console.error('[ChatWindow] failed to dock window:', error);
@@ -135,17 +149,19 @@ export default function ChatWindow() {
 
     void initChatWindowListener(
       (sync) => {
-        if (sync.type === 'snapshot') {
-          syncRevisionRef.current = sync.revision;
-          resyncRequestedRef.current = false;
-          setSnapshot(sync.snapshot);
-        } else if (sync.baseRevision === syncRevisionRef.current) {
-          syncRevisionRef.current = sync.revision;
-          setSnapshot((current) => applyChatStatePatch(current, sync.patch));
-        } else if (!resyncRequestedRef.current) {
-          resyncRequestedRef.current = true;
-          void emitAction({ type: 'request_sync' });
+        if (disposed) return;
+        const next = receiveChatStateSync(syncStateRef.current, sync);
+        if (!next) {
+          if (!resyncRequestedRef.current) {
+            resyncRequestedRef.current = true;
+            void emitAction({ type: 'request_sync' });
+          }
+          return;
         }
+        if (next === syncStateRef.current) return;
+        syncStateRef.current = next;
+        resyncRequestedRef.current = false;
+        setSnapshot(next.snapshot);
         stopHandshake();
         setInitialized(true);
       },
@@ -162,9 +178,9 @@ export default function ChatWindow() {
       handshake = setInterval(() => {
         if (Date.now() - startedAt > HANDSHAKE_TIMEOUT_MS) {
           stopHandshake();
-          // 握手失败不该伪装成「没有对话」，先放行 UI 再把原因留在控制台
+          // 还没拿到主窗口状态，就继续等；不能把空快照当成真实会话放行。
           console.error('[ChatWindow] no snapshot from the main window; sync channel is down');
-          setInitialized(true);
+          handshake = setInterval(() => { void emitAction({ type: 'request_sync' }); }, 5000);
           return;
         }
         void emitAction({ type: 'request_sync' });
@@ -179,7 +195,7 @@ export default function ChatWindow() {
   }, [closeWindow]);
 
   useEffect(() => {
-    const handleBeforeUnload = () => { void emitCloseRequest(); };
+    const handleBeforeUnload = () => { void emitCloseRequest(composerHandoffRef.current); };
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, []);
@@ -226,6 +242,7 @@ export default function ChatWindow() {
       detachedSnapshot={snapshot}
       detachedInitialized={initialized}
       detachedHeaderActions={headerActions}
+      onComposerDraftChange={handleComposerDraftChange}
     />
   );
 }

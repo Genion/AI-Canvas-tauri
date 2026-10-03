@@ -766,7 +766,7 @@ export default function ChatInput({
               selectedModel={selectedTextModel}
               onSelect={handleTextModelSelect}
               configuredGroupsOverride={assistantModelGroups}
-              generalModelsOverride={mediaModels}
+              generalModelsOverride={assistantModelGroups ? [] : mediaModels}
               groupAvailability={modelGroupAvailability}
             />
           </div>

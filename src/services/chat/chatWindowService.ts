@@ -13,11 +13,12 @@
  * 数据流向：
  * - 主窗口持有 Zustand Store 作为唯一数据源
  * - 独立窗口是"哑终端"渲染器
- * - 独立窗口可独立读取 IndexedDB 做初始化加载
+ * - 独立窗口等待主窗口快照，不自行加载或执行对话任务
  */
 
 import type { Node } from '@xyflow/react';
-import type { ChatConversation, ChatMessage } from '../../types/chat';
+import type { ChatConversation, ChatMessage, ChatPanelView } from '../../types/chat';
+import type { MediaModelOption } from '../../components/nodes/shared/defaultModels';
 import type { BaseNodeData, GeneralModelConfig, ModelGroup } from '../../types';
 import type { SkillPickerOption } from '../../types/agentPackage';
 import type { DramaAssetLibrary } from '../../types/dramaAssets';
@@ -47,6 +48,7 @@ export interface ChatStateSnapshot {
   generalModels: GeneralModelConfig[];
   /** 主窗口按配置投影的文本模型分组；仅含选择器元数据，不含厂商凭据或地址。 */
   assistantModelGroups: ModelGroup[];
+  mediaModelOptions: MediaModelOption[];
   assistantModelId?: string;
   assistantImageModelId?: string;
   assistantVideoModelId?: string;
@@ -59,6 +61,8 @@ export interface ChatStateSnapshot {
   skillOptions: SkillPickerOption[];
   /** 输入框草稿，独立窗口打开/收回时接力 */
   composerDraft: string;
+  composerDrafts: Record<string, string>;
+  panelView: ChatPanelView;
 }
 
 interface ChatEntityPatch<T> {
@@ -77,6 +81,7 @@ export interface ChatStatePatch {
     projectName: string | null;
     generalModels: GeneralModelConfig[];
     assistantModelGroups: ModelGroup[];
+    mediaModelOptions: MediaModelOption[];
     assistantModelId: string | null;
     assistantImageModelId: string | null;
     assistantVideoModelId: string | null;
@@ -86,6 +91,8 @@ export interface ChatStatePatch {
     dramaAssets: DramaAssetLibrary;
     skillOptions: SkillPickerOption[];
     composerDraft: string;
+    composerDrafts: Record<string, string>;
+    panelView: ChatPanelView;
   }>;
 }
 
@@ -179,6 +186,7 @@ export function createChatStatePatch(
   setChangedField(fields, 'projectName', previous.projectName, next.projectName);
   setChangedField(fields, 'generalModels', previous.generalModels, next.generalModels);
   setChangedField(fields, 'assistantModelGroups', previous.assistantModelGroups, next.assistantModelGroups);
+  setChangedField(fields, 'mediaModelOptions', previous.mediaModelOptions, next.mediaModelOptions);
   setChangedField(fields, 'assistantModelId', previous.assistantModelId, next.assistantModelId);
   setChangedField(fields, 'assistantImageModelId', previous.assistantImageModelId, next.assistantImageModelId);
   setChangedField(fields, 'assistantVideoModelId', previous.assistantVideoModelId, next.assistantVideoModelId);
@@ -193,6 +201,8 @@ export function createChatStatePatch(
   setChangedField(fields, 'dramaAssets', previous.dramaAssets, next.dramaAssets);
   setChangedField(fields, 'skillOptions', previous.skillOptions, next.skillOptions);
   setChangedField(fields, 'composerDraft', previous.composerDraft, next.composerDraft);
+  setChangedField(fields, 'composerDrafts', previous.composerDrafts, next.composerDrafts);
+  setChangedField(fields, 'panelView', previous.panelView, next.panelView);
 
   return {
     conversations: createEntityPatch(previous.conversations, next.conversations),
@@ -280,11 +290,30 @@ export type ChatAction =
   | { type: 'select_model'; modelId?: string; category?: 'text' | 'image' | 'video' }
   | { type: 'focus_node'; nodeId: string }
   | { type: 'set_hovered_node'; nodeId: string | null }
-  | { type: 'set_composer_draft'; draft: string }
-  | { type: 'dock_window' }
+  | { type: 'set_composer_draft'; draft: string; conversationId?: string | null }
+  | { type: 'set_panel_view'; view: ChatPanelView }
+  | { type: 'dock_window'; composerDraft?: ChatComposerHandoff }
   | { type: 'confirm_commands'; messageId: string }
   | { type: 'cancel_commands'; messageId: string }
   | { type: 'request_sync' };
+
+export interface ChatComposerHandoff {
+  conversationId: string | null;
+  draft: string;
+}
+
+export interface ChatWindowState {
+  revision: number;
+  snapshot: ChatStateSnapshot;
+}
+
+/** 旧帧直接忽略；补丁缺前帧时返回 null，让窗口重新请求完整快照。 */
+export function receiveChatStateSync(current: ChatWindowState | null, sync: ChatStateSync): ChatWindowState | null {
+  if (current && sync.revision <= current.revision) return current;
+  if (sync.type === 'snapshot') return { revision: sync.revision, snapshot: sync.snapshot };
+  if (!current || sync.baseRevision !== current.revision) return null;
+  return { revision: sync.revision, snapshot: applyChatStatePatch(current.snapshot, sync.patch) };
+}
 
 // ============================================
 // 主窗口：发送状态 + 接收 action
@@ -297,7 +326,7 @@ export type ChatAction =
  */
 export async function initMainWindowListener(
   onAction: (action: ChatAction) => void,
-  onDetachClosed: () => void,
+  onDetachClosed: (draft?: ChatComposerHandoff) => void,
 ): Promise<() => void> {
   const { listen } = await import('@tauri-apps/api/event');
 
@@ -305,8 +334,8 @@ export async function initMainWindowListener(
     onAction(event.payload);
   });
 
-  const unlistenClose = await listen(CHAT_CLOSE_REQUEST, () => {
-    onDetachClosed();
+  const unlistenClose = await listen<{ composerDraft?: ChatComposerHandoff }>(CHAT_CLOSE_REQUEST, (event) => {
+    onDetachClosed(event.payload.composerDraft);
   });
 
   return () => {
@@ -365,9 +394,9 @@ export async function emitAction(action: ChatAction): Promise<void> {
 }
 
 /** 独立窗口通知主窗口：即将关闭 */
-export async function emitCloseRequest(): Promise<void> {
+export async function emitCloseRequest(composerDraft?: ChatComposerHandoff): Promise<void> {
   try {
     const { emit } = await import('@tauri-apps/api/event');
-    await emit(CHAT_CLOSE_REQUEST, {});
+    await emit(CHAT_CLOSE_REQUEST, { composerDraft });
   } catch { /* ignore */ }
 }

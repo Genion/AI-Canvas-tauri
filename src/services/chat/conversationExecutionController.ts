@@ -383,10 +383,11 @@ function driveAgentTask(
         || mode === 'plan'
         || task.toolAllowlist !== undefined
       ) {
-        return runAgentLoop({
+        const outcome = await runAgentLoop({
           taskId,
           systemPrompt: buildAssistantSystemPrompt({
             agentTools: true,
+            includeToolGuidance: false,
             projectId,
             includeCanvasContext: useAppStore.getState().currentProjectId === projectId,
           }),
@@ -440,6 +441,20 @@ function driveAgentTask(
             },
           },
         });
+        if (outcome === 'paused' && useAppStore.getState().agentTasks.find(
+          (item) => item.id === taskId,
+        )?.pausedReason === 'model_output_truncated') {
+          streamingMessage.flush();
+          streamingMessage.cancel();
+          const current = useAppStore.getState().messages.find((item) => item.id === assistantMessageId);
+          useAppStore.getState().updateMessage(assistantMessageId, {
+            content: current?.content || '模型回复达到输出上限，本轮工具提案未执行，可继续任务。',
+            status: 'partial',
+            finishReason: 'length',
+          });
+          onProgress?.();
+        }
+        return outcome;
       }
 
       await runStreamingPipeline(text, conversationId, {

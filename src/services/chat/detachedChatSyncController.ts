@@ -12,6 +12,7 @@ import type { AgentTask } from '../../types/agent';
 import type { ChatConversation, ChatMessage } from '../../types/chat';
 import {
   getConfiguredModelGroups,
+  getGeneralModelGroups,
   getMediaModelOptions,
   type MediaModelOption,
 } from '../../components/nodes/shared/defaultModels';
@@ -46,6 +47,7 @@ import {
   type ChatAction,
   type ChatStateSnapshot,
   type ChatStateSync,
+  type ChatComposerHandoff,
 } from './chatWindowService';
 import { getAssistantTextModelCandidates } from '../projectSettingsService';
 import { projectSkillPickerOptions } from './skillCatalog';
@@ -68,7 +70,7 @@ interface DetachedChatSyncControllerOptions {
   emitSync?: (sync: ChatStateSync) => Promise<void>;
   initListener?: (
     onAction: (action: ChatAction) => void,
-    onDetachClosed: () => void,
+    onDetachClosed: (draft?: ChatComposerHandoff) => void,
   ) => Promise<() => void>;
   now?: () => number;
 }
@@ -87,6 +89,9 @@ interface DetachedSnapshotSource {
   userSkills: AppState['userSkills'];
   agentPackageSkills: AppState['agentPackageSkills'];
   chatComposerLiveDraft: string;
+  chatComposerDrafts: AppState['chatComposerDrafts'];
+  chatPanelView: AppState['chatPanelView'];
+  workflows: AppState['workflows'];
 }
 
 let cachedAgentTaskSource: AppState['agentTasks'] | null = null;
@@ -221,20 +226,27 @@ export function projectChatNodes(nodes: AppState['nodes']): Node<BaseNodeData>[]
   return cachedNodeProjection;
 }
 
-let cachedMediaConfig: AppState['config'] | null = null;
-let cachedMediaAvailability: Record<string, boolean> = {};
+let cachedModelConfig: AppState['config'] | null = null;
+let cachedWorkflows: AppState['workflows'] | null = null;
+let cachedModelCatalog: Pick<ChatStateSnapshot, 'assistantModelGroups' | 'mediaModelOptions' | 'mediaModelAvailability'>;
 
-/** 媒体模型清单只跟 config 走，别跟着每次消息增量重算 */
-function mediaModelAvailabilityFor(config: AppState['config']): Record<string, boolean> {
-  if (config === cachedMediaConfig) return cachedMediaAvailability;
-  cachedMediaConfig = config;
-  cachedMediaAvailability = getMediaModelAvailability(
-    getMediaModelOptions(config.generalModels ?? [], config),
-    config.generalModels ?? [],
-    config.providers,
-    !!config.dreaminaAuth?.loggedIn,
-  );
-  return cachedMediaAvailability;
+/** 两种窗口共用同一份目录；只投影选项，不把连接凭据或工作流正文交给独立窗口。 */
+export function buildChatModelCatalog(state: Pick<AppState, 'config' | 'workflows'>) {
+  const { config, workflows } = state;
+  if (config === cachedModelConfig && workflows === cachedWorkflows) return cachedModelCatalog;
+  const models = config.generalModels ?? [];
+  const mediaModelOptions = getMediaModelOptions(models, config, workflows);
+  cachedModelCatalog = {
+    assistantModelGroups: [
+      ...getConfiguredModelGroups(config, 'ai-text'),
+      ...getGeneralModelGroups(models, config, 'ai-text'),
+    ],
+    mediaModelOptions,
+    mediaModelAvailability: getMediaModelAvailability(mediaModelOptions, models, config.providers, !!config.dreaminaAuth?.loggedIn),
+  };
+  cachedModelConfig = config;
+  cachedWorkflows = workflows;
+  return cachedModelCatalog;
 }
 
 export function buildDetachedChatSnapshot(state: AppState): ChatStateSnapshot {
@@ -247,21 +259,22 @@ export function buildDetachedChatSnapshot(state: AppState): ChatStateSnapshot {
     projectId: state.currentProjectId,
     projectName: project?.name,
     generalModels: state.config.generalModels ?? [],
-    assistantModelGroups: getConfiguredModelGroups(state.config, 'ai-text'),
+    ...buildChatModelCatalog(state),
     assistantModelId: getAssistantTextModelCandidates(
       project?.settings,
       state.config.assistantModelId,
     )[0],
     assistantImageModelId: state.config.assistantImageModelId,
     assistantVideoModelId: state.config.assistantVideoModelId,
-    mediaModelAvailability: mediaModelAvailabilityFor(state.config),
     localFileGrants: state.activeConversationId
       ? listConversationFileGrants(state.activeConversationId)
       : [],
     nodes: projectChatNodes(state.nodes),
     dramaAssets: state.dramaAssets,
     skillOptions: projectSkillPickerOptions(state.userSkills, state.agentPackageSkills),
-    composerDraft: state.chatComposerLiveDraft,
+    composerDraft: state.activeConversationId ? state.chatComposerDrafts[state.activeConversationId] ?? '' : state.chatComposerLiveDraft,
+    composerDrafts: state.chatComposerDrafts,
+    panelView: state.chatPanelView,
   };
 }
 
@@ -281,7 +294,10 @@ function detachedSnapshotSourceChanged(
     || current.dramaAssets !== previous.dramaAssets
     || current.userSkills !== previous.userSkills
     || current.agentPackageSkills !== previous.agentPackageSkills
-    || current.chatComposerLiveDraft !== previous.chatComposerLiveDraft;
+    || current.chatComposerLiveDraft !== previous.chatComposerLiveDraft
+    || current.chatComposerDrafts !== previous.chatComposerDrafts
+    || current.chatPanelView !== previous.chatPanelView
+    || current.workflows !== previous.workflows;
 }
 
 export function handleDetachedChatAction(
@@ -461,10 +477,15 @@ export function handleDetachedChatAction(
       break;
 
     case 'set_composer_draft':
-      store.setChatComposerLiveDraft(action.draft);
+      store.setChatComposerLiveDraft(action.draft, action.conversationId);
+      break;
+
+    case 'set_panel_view':
+      store.setChatPanelView(action.view);
       break;
 
     case 'dock_window':
+      if (action.composerDraft) store.setChatComposerLiveDraft(action.composerDraft.draft, action.composerDraft.conversationId);
       store.setHoveredMentionNodeId(null);
       store.setChatPanelDetached(false);
       store.openChat();
@@ -499,16 +520,19 @@ export function createDetachedChatSyncController(
   let revision = 0;
   let forceSnapshotPending = false;
   let consecutiveFailures = 0;
+  let generation = 0;
   let cleanupListener: (() => void) | undefined;
   let unsubscribeStore: (() => void) | undefined;
   let unsubscribeFileGrants: (() => void) | undefined;
 
   const resetSyncState = () => {
+    generation += 1;
+    // 已发出的旧帧可能还在路上，重新打开窗口时不能复用它的版本号。
+    if (inFlight) revision += 1;
     pending = false;
     immediatePending = false;
     forceSnapshotPending = false;
     lastSnapshot = null;
-    revision = 0;
     consecutiveFailures = 0;
     if (timer) clearTimeout(timer);
     timer = null;
@@ -528,6 +552,7 @@ export function createDetachedChatSyncController(
     immediatePending = false;
     inFlight = true;
     lastStartedAt = now();
+    const startedGeneration = generation;
 
     try {
       const nextSnapshot = buildDetachedChatSnapshot(state);
@@ -545,6 +570,7 @@ export function createDetachedChatSyncController(
         const baseRevision = revision;
         const nextRevision = revision + 1;
         await emitSync({ type: 'patch', baseRevision, revision: nextRevision, patch });
+        if (disposed || generation !== startedGeneration) return;
         lastSnapshot = nextSnapshot;
         revision = nextRevision;
         consecutiveFailures = 0;
@@ -554,10 +580,12 @@ export function createDetachedChatSyncController(
       const nextRevision = revision + 1;
       forceSnapshotPending = false;
       await emitSync({ type: 'snapshot', revision: nextRevision, snapshot: nextSnapshot });
+      if (disposed || generation !== startedGeneration) return;
       lastSnapshot = nextSnapshot;
       revision = nextRevision;
       consecutiveFailures = 0;
     } catch (error) {
+      if (disposed || generation !== startedGeneration) return;
       consecutiveFailures += 1;
       pending = true;
       forceSnapshotPending = true;
@@ -627,8 +655,9 @@ export function createDetachedChatSyncController(
 
     const listenerCleanup = await initListener(
       (action) => handleDetachedChatAction(action, sync),
-      () => {
+      (draft) => {
         const store = useAppStore.getState();
+        if (draft) store.setChatComposerLiveDraft(draft.draft, draft.conversationId);
         store.setHoveredMentionNodeId(null);
       },
     );
