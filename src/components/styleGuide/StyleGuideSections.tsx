@@ -9,6 +9,7 @@
  */
 import Select from '../shared/Select';
 import NumberStepper from '../shared/NumberStepper';
+import Tabs from '../shared/Tabs';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import StyleGuideMascot from './StyleGuideMascot';
 
@@ -870,6 +871,46 @@ function SelectionSection() {
   );
 }
 
+function TabsSection() {
+  const [assetTab, setAssetTab] = useState('project');
+  const [compactTab, setCompactTab] = useState('project');
+  const [simpleTab, setSimpleTab] = useState('overview');
+  const assetTabs = [
+    { value: 'project', label: '项目文件', count: 12 },
+    { value: 'global', label: '全局资产', count: 229 },
+    { value: 'creative', label: '创作资产', count: 1 },
+    { value: 'ark', label: '方舟素材库', count: 8 },
+    { value: 'nodes', label: '节点列表', count: 36 },
+  ];
+  return (
+    <Section id="sg-tabs" title="Tabs · 滚动页签"
+      desc="下划线与计数徽标复用真实 Tabs 组件。选中项尽量居中，末项靠右；略微越过目标后回弹，滚动边界也保留弹性。支持方向键、Home/End 和系统减少动态效果。">
+      <Demo label="带计数 · 横向滚动与弹簧回弹"
+        code={'<Tabs items={items} value={value} onChange={setValue} aria-label="资产类型" /> · .ui-tabs / .ui-tabs__item / .ui-tabs__count'}>
+        <div className="w-full max-w-sm">
+          <Tabs items={assetTabs} value={assetTab} onChange={setAssetTab} aria-label="带计数页签演示" />
+        </div>
+        <p className="m-0 mt-2 text-xs text-canvas-text-secondary">点击右侧页签查看居中与回弹，末项会滚到最右侧。</p>
+      </Demo>
+      <Demo label="紧凑尺寸 · 资产库侧栏"
+        code={'<Tabs size="sm" items={items} value={value} onChange={setValue} aria-label="资产类型" /> · .ui-tabs--sm'}>
+        <div className="w-full max-w-xs">
+          <Tabs size="sm" items={assetTabs} value={compactTab} onChange={setCompactTab} aria-label="紧凑页签演示" />
+        </div>
+      </Demo>
+      <Demo label="无计数与禁用状态"
+        code="items: [{ value, label, count?, disabled? }] · .is-active / :disabled / :focus-visible">
+        <Tabs items={[
+          { value: 'overview', label: '概览' },
+          { value: 'details', label: '详细信息' },
+          { value: 'unavailable', label: '暂不可用', disabled: true },
+          { value: 'history', label: '操作记录' },
+        ]} value={simpleTab} onChange={setSimpleTab} aria-label="基础页签演示" />
+      </Demo>
+    </Section>
+  );
+}
+
 function CardsSection() {
   const [selectedId, setSelectedId] = useState<string | null>('shot-02');
 
@@ -1234,6 +1275,7 @@ export function StyleGuideContent({ theme }: { theme: 'dark' | 'light' }) {
       <SelectsSection />
       <DropzoneSection />
       <SelectionSection />
+      <TabsSection />
       <CardsSection />
       <BadgesSection />
       <FeedbackSection />

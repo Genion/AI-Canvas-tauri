@@ -1058,6 +1058,70 @@ select:not(.ui-select__control):not(.ui-select__native):disabled {
   box-shadow: 0 0 0 4px var(--brand-alpha-20);
 }
 
+/* Tabs / 页签：真实组件 shared/Tabs.tsx 负责焦点及弹簧滚动。 */
+.ui-tabs {
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border-bottom: 1px solid var(--border-subtle);
+  scrollbar-width: none;
+  scroll-behavior: auto;
+}
+.ui-tabs::-webkit-scrollbar { display: none; }
+.ui-tabs__content {
+  position: relative;
+  display: flex;
+  width: max-content;
+  min-width: 100%;
+}
+.ui-tabs__item {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  padding: 10px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--theme-text-secondary);
+  font-family: inherit;
+  font-size: var(--ui-font-input);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: var(--cursor-pointer, pointer);
+  transition: color var(--transition-base), border-color var(--transition-base);
+}
+.ui-tabs__item:hover:not(:disabled) { color: var(--theme-text); }
+.ui-tabs__item.is-active {
+  color: var(--theme-text);
+  border-bottom-color: var(--brand-light);
+}
+.ui-tabs__item:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: -3px;
+  border-radius: var(--ui-radius-sm);
+}
+.ui-tabs__item:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.ui-tabs__count {
+  padding: 1px 6px;
+  border-radius: var(--ui-radius-lg);
+  background: var(--border-subtle);
+  color: var(--theme-text-secondary);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.ui-tabs__item.is-active .ui-tabs__count {
+  background: color-mix(in srgb, var(--brand-light) 15%, transparent);
+  color: var(--brand-light);
+}
+.ui-tabs--sm .ui-tabs__item {
+  padding: 8px 10px;
+  font-size: var(--ui-font);
+}
+
 /* 分段控件：一组互斥选项，比下拉更直观 */
 .ui-segmented {
   display: inline-flex;
@@ -1729,6 +1793,7 @@ select:not(.ui-select__control):not(.ui-select__native):disabled {
   .ui-switch::after,
   .ui-card--interactive,
   .ui-segmented__item,
+  .ui-tabs__item,
   .ui-slider::-webkit-slider-thumb,
   .ui-progress__bar {
     transition: none;
