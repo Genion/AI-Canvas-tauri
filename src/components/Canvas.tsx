@@ -13,6 +13,7 @@ import { ReactFlow,
   useReactFlow,
   useStoreApi,
   useViewport,
+  useNodesInitialized,
   ReactFlowProvider,
   Panel,
   type OnSelectionChangeParams,
@@ -407,9 +408,17 @@ function ConnectionDropPreview({
   );
 }
 
-function CanvasInner() {
+interface CanvasProps {
+  onReady?: (projectId: string) => void;
+}
+
+function CanvasInner({ onReady }: CanvasProps) {
   const nodes = useAppStore((s) => s.nodes);
   const edges = useAppStore((s) => s.edges);
+  const renderableGraph = useMemo(
+    () => filterHiddenCanvasElements(nodes, edges),
+    [edges, nodes],
+  );
   const selectedNodeIds = useAppStore((s) => s.selectedNodeIds);
   const connectableSelectionCount = useMemo(() => {
     if (selectedNodeIds.length < 2) return 0;
@@ -448,6 +457,36 @@ function CanvasInner() {
   }, [nodes]);
   const reactFlowInstance = useReactFlow();
   const flowStore = useStoreApi();
+  const nodesInitialized = useNodesInitialized();
+  const readyProjectRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!onReady || !currentProjectId || readyProjectRef.current === currentProjectId
+      || !reactFlowInstance.viewportInitialized
+      || (!nodesInitialized && renderableGraph.nodes.some((node) => !node.hidden))) return;
+    let cancelled = false;
+    let layoutFrame = 0;
+    let paintFrame = 0;
+    const reveal = async () => {
+      if (renderableGraph.nodes.some((node) => !node.hidden)) {
+        await reactFlowInstance.fitView(FIT_VIEW_OPTIONS);
+      }
+      if (cancelled) return;
+      // 视野调整完成后给浏览器一帧布局、一帧绘制，再允许开屏淡出。
+      layoutFrame = requestAnimationFrame(() => {
+        paintFrame = requestAnimationFrame(() => {
+          if (cancelled) return;
+          readyProjectRef.current = currentProjectId;
+          onReady(currentProjectId);
+        });
+      });
+    };
+    void reveal();
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(layoutFrame);
+      cancelAnimationFrame(paintFrame);
+    };
+  }, [currentProjectId, renderableGraph.nodes, nodesInitialized, onReady, reactFlowInstance]);
   const lodSession = useMemo(() => ({
     projectId: currentProjectId,
     runtime: createCanvasNodeLodRuntime(reactFlowInstance.getViewport().zoom, undefined, useAppStore.getState().config.performanceMode === true),
@@ -1206,10 +1245,6 @@ function CanvasInner() {
     [smoothLine],
   );
 
-  const renderableGraph = useMemo(
-    () => filterHiddenCanvasElements(nodes, edges),
-    [edges, nodes],
-  );
   const renderedCanvasNodes = useMemo(() => {
     const projected = projectCanvasNodesForReactFlow(
       renderableGraph.nodes,
@@ -1739,10 +1774,10 @@ function CanvasInner() {
   );
 }
 
-export default function Canvas() {
+export default function Canvas({ onReady }: CanvasProps) {
   return (
     <ReactFlowProvider>
-      <CanvasInner />
+      <CanvasInner onReady={onReady} />
     </ReactFlowProvider>
   );
 }

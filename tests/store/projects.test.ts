@@ -922,6 +922,52 @@ describe('project switching', () => {
     expect(fileMocks.saveProject).not.toHaveBeenCalled();
     expect(showToast).toHaveBeenCalledWith('项目数据读取失败，未创建空项目', 'error');
   });
+
+  it('starts at the project list without reading canvas data or resuming generation', async () => {
+    stubInitializationActions();
+    useAppStore.setState({
+      config: { ...useAppStore.getState().config, startupView: 'project-library' },
+    });
+    fileMocks.loadProjectsList.mockResolvedValue([
+      { id: 'project-list', name: '列表项目', createdAt: 1, updatedAt: 2 },
+      { id: 'project-other', name: '其他项目', createdAt: 1, updatedAt: 1 },
+    ]);
+
+    await useAppStore.getState().initFromDb();
+
+    expect(useAppStore.getState()).toMatchObject({
+      currentProjectId: null, projectName: '', projectLoadStatus: 'ready',
+      nodes: [], edges: [], groups: [],
+    });
+    expect(useAppStore.getState().projects.map((project) => project.id)).toEqual(['project-list', 'project-other']);
+    expect(fileMocks.loadProjectData).not.toHaveBeenCalled();
+    expect(fileMocks.saveProject).not.toHaveBeenCalled();
+    expect(pollMocks.resumePendingTasks).not.toHaveBeenCalled();
+    expect(metadataMocks.getLastActiveProjectId).not.toHaveBeenCalled();
+    expect(metadataMocks.setLastActiveProjectId).not.toHaveBeenCalled();
+    expect(useAppStore.getState().loadConversationsForProject).not.toHaveBeenCalled();
+    expect(useAppStore.getState().repairInterruptedAgentTasksForProject).toHaveBeenCalledWith('project-list');
+    expect(useAppStore.getState().repairInterruptedAgentTasksForProject).toHaveBeenCalledWith('project-other');
+
+    fileMocks.loadProjectData.mockResolvedValue({ id: 'project-list', nodes: [], edges: [], name: '列表项目' });
+    await useAppStore.getState().switchProject('project-list');
+    expect(useAppStore.getState().currentProjectId).toBe('project-list');
+    expect(fileMocks.loadProjectData).toHaveBeenCalledWith('project-list');
+    expect(fileMocks.saveProject).not.toHaveBeenCalled();
+  });
+
+  it('keeps an empty startup list without creating a default canvas', async () => {
+    stubInitializationActions();
+    useAppStore.setState({ config: { ...useAppStore.getState().config, startupView: 'project-library' } });
+    fileMocks.loadProjectsList.mockResolvedValue([]);
+
+    await useAppStore.getState().initFromDb();
+
+    expect(useAppStore.getState()).toMatchObject({ projects: [], currentProjectId: null, projectLoadStatus: 'ready' });
+    expect(fileMocks.saveProject).not.toHaveBeenCalled();
+    expect(fileMocks.ensureProjectDataDir).not.toHaveBeenCalled();
+    expect(metadataMocks.setLastActiveProjectId).not.toHaveBeenCalled();
+  });
 });
 
 describe('episode creative content', () => {

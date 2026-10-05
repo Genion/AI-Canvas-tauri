@@ -13,7 +13,7 @@ import Sidebar from './components/Sidebar';
 import Canvas from './components/Canvas';
 import NodeMenu from './components/NodeMenu';
 import Toast from './components/Toast';
-import ProjectSwitchOverlay from './components/ProjectSwitchOverlay';
+import ProjectLibraryModal from './components/ProjectLibraryModal';
 import SplashScreen from './components/SplashScreen';
 import CanvasBackground from './components/backgrounds/CanvasBackground';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
@@ -159,8 +159,22 @@ export default function App() {
   const [updating, setUpdating] = useState(false);
   const configHydrated = useAppStore((state) => state.configHydrated);
   const projectLoadStatus = useAppStore((state) => state.projectLoadStatus);
+  const currentProjectId = useAppStore((state) => state.currentProjectId);
+  const switchingProjectName = useAppStore((state) => state.switchingProjectName);
+  const isCreatingProject = useAppStore((state) => state.isCreatingProject);
+  const [canvasReadyProjectId, setCanvasReadyProjectId] = useState<string | null>(null);
+  const [revealedProjectId, setRevealedProjectId] = useState<string | null>(null);
   const nativePerformanceSynced = useRef(false);
   const [projectBootReady, setProjectBootReady] = useState(false);
+  const showCanvas = projectBootReady && currentProjectId !== null;
+  const projectLoading = projectLoadStatus === 'loading' || switchingProjectName !== null || isCreatingProject;
+  const showProjectSplash = !splashDone || projectLoading || (showCanvas && revealedProjectId !== currentProjectId);
+  const splashReady = projectBootReady && !projectLoading
+    && (!showCanvas || canvasReadyProjectId === currentProjectId);
+  const completeProjectSplash = useCallback(() => {
+    setSplashDone(true);
+    setRevealedProjectId(currentProjectId);
+  }, [currentProjectId]);
   const mcpAutoStart = useAppStore((state) => state.config.mcpAutoStart === true);
 
   // 开屏动画结束后后台静默检查更新
@@ -198,14 +212,13 @@ export default function App() {
     void loadAgentPackages();
   }, [loadAgentPackages]);
   useEffect(() => {
-    void initFromDb().then(() => {
-      const store = useAppStore.getState();
-      if (store.config.startupView === 'project-library') {
-        store.setProjectLibraryOpen(true);
-      }
-      return migrateHistoryAndLoad();
-    }).then(() => setProjectBootReady(true));
-  }, [initFromDb, migrateHistoryAndLoad]);
+    void initFromDb().then(() => setProjectBootReady(true));
+  }, [initFromDb]);
+  useEffect(() => {
+    if (projectBootReady && currentProjectId && projectLoadStatus === 'ready') {
+      void migrateHistoryAndLoad();
+    }
+  }, [currentProjectId, migrateHistoryAndLoad, projectBootReady, projectLoadStatus]);
 
   // 退出期间阻止画布快捷键继续编辑；窗口原生关闭请求由下面的重入锁处理。
   useEffect(() => {
@@ -483,7 +496,7 @@ export default function App() {
   // 侧边栏悬浮显示开关（默认关闭）；最大化时强制非悬浮。
   // 同步到 body 属性，供 CSS 切换侧边栏停靠/悬浮位置 + 弹窗蒙层的左偏移
   const sidebarFloatingCfg = useAppStore((s) => s.config.sidebarFloating);
-  const effectiveFloating = sidebarFloatingCfg === true && !isMaximized;
+  const effectiveFloating = showCanvas && sidebarFloatingCfg === true && !isMaximized;
   const showWindowGlassFrame = windowGlassFrame !== false && !isMaximized && !performanceMode;
   useEffect(() => {
     if (!isTauri) return;
@@ -512,17 +525,24 @@ export default function App() {
     >
       {/* Content area — clip-path clips ALL descendants including fixed-position backdrops */}
       <div className={`app-box app-shell__content absolute ${managedCanvasBackground ? 'bg-transparent' : 'bg-canvas-bg/[0.988]'} shadow-2xl overflow-hidden`}>
-        <div className="app-canvas-viewport absolute inset-0">
-          <CanvasBackground />
-          <Canvas />
-          <ProjectSwitchOverlay />
-        </div>
+        {showCanvas ? (
+          <div className="app-canvas-viewport absolute inset-0">
+            <CanvasBackground />
+            <Canvas key={currentProjectId} onReady={setCanvasReadyProjectId} />
+          </div>
+        ) : projectBootReady ? (
+          <ProjectLibraryModal
+            isOpen
+            presentation="page"
+            onClose={() => useAppStore.getState().setProjectLibraryOpen(false)}
+          />
+        ) : <LazyLoadFallback label="项目列表" />}
         {/* Top drag region */}
         <div data-tauri-drag-region className="fixed top-0 left-0 right-0 h-8 z-10" />
-        <Header />
+        {showCanvas && <Header />}
         <Titlebar />
-        <SessionProjectTabs />
-        <NodeMenu />
+        {showCanvas && <SessionProjectTabs />}
+        {showCanvas && <NodeMenu />}
         <LazyLoadBoundary label="设置面板">
           <Suspense fallback={<LazyLoadFallback label="设置面板" />}>
             {mountSettings && <SettingsPanel />}
@@ -571,10 +591,10 @@ export default function App() {
         <Toast />
       </div>
       {/* Sidebar — outside the overflow-hidden container so it's not clipped */}
-      <Sidebar />
+      {showCanvas && <Sidebar />}
 
       {/* 剧集栏贴窗口右缘，和侧栏一样必须放在裁剪容器外面 */}
-      <SeriesRail />
+      {showCanvas && <SeriesRail />}
 
       {/* 吉祥物 — 可拖动浮层，默认隐藏，Ctrl+Shift+M 切换 */}
       {mascotVisible && (
@@ -707,7 +727,13 @@ export default function App() {
       transition={performanceMode ? { duration: 0 } : undefined}
     >
       <>
-        {!splashDone && <SplashScreen onComplete={() => setSplashDone(true)} />}
+        {showProjectSplash && (
+          <SplashScreen
+            ready={splashReady}
+            label={splashDone ? 'AI Canvas 正在打开项目' : 'AI Canvas 正在启动'}
+            onComplete={completeProjectSplash}
+          />
+        )}
         {appContent}
         <ModalOverlay
           isOpen={closePhase !== null}

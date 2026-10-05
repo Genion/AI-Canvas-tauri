@@ -18,9 +18,13 @@ import { useT } from '../i18n';
 
 type ProjectSort = 'updated' | 'created' | 'name';
 
+const isTauri = typeof window !== 'undefined' && '__TAURI__' in window;
+const isMacOS = typeof navigator !== 'undefined' && /Macintosh|Mac OS X/.test(navigator.userAgent);
+
 interface ProjectLibraryModalProps {
   isOpen: boolean;
   onClose: () => void;
+  presentation?: 'modal' | 'page';
 }
 
 const projectNameCollator = new Intl.Collator('zh-CN', {
@@ -93,8 +97,10 @@ function ProjectSnapshotPreview({ snapshot }: { snapshot?: string }) {
   );
 }
 
-export default function ProjectLibraryModal({ isOpen, onClose }: ProjectLibraryModalProps) {
+export default function ProjectLibraryModal({ isOpen, onClose, presentation = 'modal' }: ProjectLibraryModalProps) {
   const t = useT();
+  const isStartPage = presentation === 'page';
+  const projectLoadStatus = useAppStore((state) => state.projectLoadStatus);
   const {
     projects, currentProjectId, createProject, renameProject, switchProject, deleteProject,
     exportProject, importProject, duplicateProject, isCreatingProject,
@@ -125,6 +131,9 @@ export default function ProjectLibraryModal({ isOpen, onClose }: ProjectLibraryM
   const [isImporting, setIsImporting] = useState(false);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{ project: CanvasProject; x: number; y: number } | null>(null);
+  const [isOpeningProject, setIsOpeningProject] = useState(false);
+  const projectBusy = isOpeningProject || isCreatingProject || isImporting || projectLoadStatus === 'loading';
+  const listUnavailable = projectLoadStatus === 'error' && projects.length === 0;
   const searchInputRef = useRef<HTMLInputElement>(null);
   const createInputRef = useRef<HTMLInputElement>(null);
 
@@ -176,7 +185,7 @@ export default function ProjectLibraryModal({ isOpen, onClose }: ProjectLibraryM
   };
 
   const requestClose = () => {
-    if (isCreatingProject) return;
+    if (projectBusy) return;
     if (contextMenu) {
       setContextMenu(null);
       return;
@@ -190,19 +199,34 @@ export default function ProjectLibraryModal({ isOpen, onClose }: ProjectLibraryM
       setRenameProjectName('');
       return;
     }
-    closeLibrary();
+    if (!isStartPage) closeLibrary();
   };
 
-  const openProject = (projectId: string) => {
+  const openProject = async (projectId: string) => {
+    if (projectBusy || listUnavailable) return;
+    // 在画布中再次点当前剧集时，保留正在编辑的分集，不切回第一集。
+    if (projectId === activeProjectId && projectLoadStatus === 'ready') {
+      closeLibrary();
+      return;
+    }
     // 只有从项目库切走才重拍缩略图 —— 这里是唯一会看到缩略图的地方
-    if (projectId !== activeProjectId) switchProject(projectId, { captureSnapshot: true });
-    closeLibrary();
+    setIsOpeningProject(true);
+    try {
+      await switchProject(projectId, { captureSnapshot: !isStartPage });
+      const state = useAppStore.getState();
+      if (state.currentProjectId === resolveOpenTargetId(state.projects, projectId)
+        && state.projectLoadStatus === 'ready') closeLibrary();
+    } catch {
+      useAppStore.getState().showToast(t('项目打开失败，请重试'), 'error');
+    } finally {
+      setIsOpeningProject(false);
+    }
   };
 
   const submitNewProject = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const name = newProjectName.trim();
-    if (!name || isCreatingProject) return;
+    if (!name || projectBusy || listUnavailable) return;
     const projectId = await createProject(name);
     if (projectId) closeLibrary();
   };
@@ -267,6 +291,7 @@ export default function ProjectLibraryModal({ isOpen, onClose }: ProjectLibraryM
   };
 
   const runImportProject = async () => {
+    if (projectBusy || listUnavailable) return;
     if (isImporting || exportingId) return;
     setIsImporting(true);
     try {
@@ -302,32 +327,29 @@ export default function ProjectLibraryModal({ isOpen, onClose }: ProjectLibraryM
     project.id !== 'default' && deletableProjectCount > 1
   );
 
-  return (
-    <ModalOverlay
-      isOpen={isOpen}
-      onClose={requestClose}
-      ariaLabel={t('项目库')}
-      motionPreset="quick"
-      backdropBlur={false}
-      className="h-[min(560px,calc(100dvh-24px))] w-[min(840px,calc(100vw-24px))]"
-    >
-      <div className="flex min-h-0 flex-1 flex-col">
+  const projectHeading = (
+    <div className="flex shrink-0 items-baseline gap-2">
+      <h2 className="text-sm font-semibold text-canvas-text">{t('项目')}</h2>
+      <span className="text-[11px] tabular-nums text-canvas-text-muted">{topLevelProjects.length}</span>
+    </div>
+  );
+
+  const content = (
+      <div className="relative flex min-h-0 flex-1 flex-col" aria-busy={projectBusy}>
         <header
           inert={deleteTarget ? true : undefined}
           aria-hidden={deleteTarget ? true : undefined}
           className="shrink-0 border-b border-canvas-border px-2.5 py-2"
         >
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <div className="flex items-baseline gap-2">
-                <h2 className="text-sm font-semibold text-canvas-text">{t('项目')}</h2>
-                <span className="text-[11px] tabular-nums text-canvas-text-muted">{topLevelProjects.length}</span>
-              </div>
+          {!isStartPage && (
+            <div className="flex items-center justify-between gap-3">
+              {projectHeading}
+              <PopupCloseButton ariaLabel={t('关闭项目库')} onClick={requestClose} />
             </div>
-            <PopupCloseButton ariaLabel={t('关闭项目库')} onClick={requestClose} />
-          </div>
+          )}
 
-          <div className="mt-3 flex flex-wrap items-center gap-2">
+          <div className={`flex flex-wrap items-center gap-2 ${isStartPage ? '' : 'mt-3'}`}>
+            {isStartPage && projectHeading}
             <label className="relative min-w-[180px] flex-1">
               <span className="sr-only">{t('搜索项目')}</span>
               <Icon
@@ -374,7 +396,7 @@ export default function ProjectLibraryModal({ isOpen, onClose }: ProjectLibraryM
             <button
               type="button"
               onClick={() => void runImportProject()}
-              disabled={isImporting || exportingId !== null}
+              disabled={projectBusy || listUnavailable || exportingId !== null}
               data-tooltip={t('从 .aicanvas 项目包导入')}
               className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-canvas-border bg-canvas-card px-3 text-xs text-canvas-text-secondary transition-colors hover:bg-canvas-hover hover:text-canvas-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-canvas-border disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -392,12 +414,22 @@ export default function ProjectLibraryModal({ isOpen, onClose }: ProjectLibraryM
               type="button"
               onClick={() => setIsCreating(true)}
               className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-indigo-500 px-3 text-xs font-medium text-white transition-colors hover:bg-indigo-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/60 disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={isCreating}
+              disabled={isCreating || projectBusy || listUnavailable}
             >
               <Icon icon="mdi:plus" width="17" height="17" aria-hidden="true" />
               {t('新建')}
             </button>
           </div>
+          {listUnavailable ? (
+            <div className="ui-alert ui-alert--warning mt-3 flex items-center justify-between gap-2" role="alert">
+              <span>{t('项目列表读取失败，请重试后再打开或新建项目')}</span>
+              <button type="button" className="ui-btn ui-btn--sm" onClick={() => void useAppStore.getState().initFromDb()}>
+                {t('重试')}
+              </button>
+            </div>
+          ) : projectBusy ? (
+            <p className="mt-2 text-xs text-canvas-text-secondary" role="status">{t('正在加载项目')}</p>
+          ) : null}
         </header>
 
         <main
@@ -405,7 +437,9 @@ export default function ProjectLibraryModal({ isOpen, onClose }: ProjectLibraryM
           aria-hidden={deleteTarget ? true : undefined}
           className="min-h-0 flex-1 overflow-y-auto bg-canvas-bg/60 p-3"
         >
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
+          <div className={`grid gap-3 ${isStartPage
+            ? 'grid-cols-[repeat(auto-fill,minmax(min(100%,240px),1fr))]'
+            : 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3'}`}>
             {visibleProjects.map((project) => {
               const isCurrent = project.id === activeProjectId;
               const isEditingName = renameTargetId === project.id;
@@ -427,7 +461,7 @@ export default function ProjectLibraryModal({ isOpen, onClose }: ProjectLibraryM
                     aria-label={t('打开项目 {name}', { name: project.name })}
                     aria-current={isCurrent ? 'page' : undefined}
                     onClick={() => openProject(project.id)}
-                    disabled={isEditingName || isRenaming}
+                    disabled={isEditingName || isRenaming || projectBusy || listUnavailable}
                     className="block w-full border-b border-canvas-border text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-400/60"
                   >
                     {/* 剧集自己没有画布，缩略图取点开后会看到的那一集 */}
@@ -480,7 +514,8 @@ export default function ProjectLibraryModal({ isOpen, onClose }: ProjectLibraryM
                     <div className="flex min-h-14 items-center">
                       <button
                         type="button"
-                        onClick={() => openProject(project.id)}
+                        onClick={() => void openProject(project.id)}
+                        disabled={projectBusy || listUnavailable}
                         className="min-w-0 flex-1 px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-400/60"
                       >
                         <span className="flex min-w-0 items-center gap-2">
@@ -571,7 +606,7 @@ export default function ProjectLibraryModal({ isOpen, onClose }: ProjectLibraryM
                       value={newProjectName}
                       onChange={(event) => setNewProjectName(event.target.value)}
                       placeholder={t('输入项目名称')}
-                      disabled={isCreatingProject}
+                      disabled={projectBusy}
                       className="h-9 w-full rounded-md border border-canvas-border bg-canvas-card px-3 text-center text-sm text-canvas-text outline-none placeholder:text-canvas-text-muted focus:border-indigo-400/70 focus:ring-2 focus:ring-indigo-500/15 disabled:cursor-not-allowed disabled:opacity-60"
                     />
                   </label>
@@ -590,7 +625,7 @@ export default function ProjectLibraryModal({ isOpen, onClose }: ProjectLibraryM
                   </button>
                   <button
                     type="submit"
-                    disabled={!newProjectName.trim() || isCreatingProject}
+                    disabled={!newProjectName.trim() || projectBusy || listUnavailable}
                     className="inline-flex h-8 items-center gap-1.5 rounded-md bg-indigo-500 px-3 text-xs font-medium text-white transition-colors hover:bg-indigo-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/60 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     {isCreatingProject ? (
@@ -605,6 +640,7 @@ export default function ProjectLibraryModal({ isOpen, onClose }: ProjectLibraryM
                 <button
                   type="button"
                   onClick={() => setIsCreating(true)}
+                  disabled={projectBusy || listUnavailable}
                   className="group flex min-h-[188px] flex-col items-center justify-center rounded-lg border border-dashed border-canvas-border bg-canvas-surface/60 text-canvas-text-muted transition-[border-color,background-color,color] duration-150 hover:border-indigo-400/40 hover:bg-canvas-surface hover:text-indigo-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/60"
                 >
                   <span className="flex h-10 w-10 items-center justify-center rounded-lg border border-canvas-border bg-canvas-card transition-colors group-hover:border-indigo-400/30 group-hover:bg-indigo-500/10">
@@ -616,7 +652,7 @@ export default function ProjectLibraryModal({ isOpen, onClose }: ProjectLibraryM
             )}
           </div>
 
-          {visibleProjects.length === 0 ? (
+          {visibleProjects.length === 0 && query.trim() ? (
             <div className="flex min-h-[220px] flex-col items-center justify-center text-center">
               <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-canvas-hover text-canvas-text-muted">
                 <Icon icon="mdi:folder-search-outline" width="22" height="22" aria-hidden="true" />
@@ -760,6 +796,51 @@ export default function ProjectLibraryModal({ isOpen, onClose }: ProjectLibraryM
           </div>
         ) : null}
       </div>
+  );
+  if (isStartPage) {
+    return isOpen ? (
+      <section
+        aria-label={t('启动页')}
+        className="absolute inset-0 flex flex-col bg-canvas-bg px-3 pb-3"
+        onKeyDown={(event) => {
+          if (event.key === 'Escape' && !event.defaultPrevented) requestClose();
+        }}
+      >
+        <header
+          data-tauri-drag-region
+          inert={deleteTarget ? true : undefined}
+          aria-hidden={deleteTarget ? true : undefined}
+          className={`relative z-20 mb-2 flex h-9 shrink-0 items-center justify-between gap-3 ${
+            isTauri ? isMacOS ? 'pl-24' : 'pr-[120px]' : ''
+          }`}
+        >
+          <div data-tauri-drag-region className="flex items-center gap-2">
+            <img src="/favicon.svg" alt="" draggable={false} className="h-6 w-6 shrink-0" />
+            <span data-tauri-drag-region className="text-sm font-semibold text-canvas-text">AI Canvas</span>
+          </div>
+          <button
+            type="button"
+            className="ui-btn ui-btn--ghost"
+            onClick={() => useAppStore.getState().setSettingsOpen(true)}
+          >
+            <Icon icon="mdi:cog-outline" width="16" height="16" aria-hidden="true" />
+            {t('设置')}
+          </button>
+        </header>
+        {content}
+      </section>
+    ) : null;
+  }
+  return (
+    <ModalOverlay
+      isOpen={isOpen}
+      onClose={requestClose}
+      ariaLabel={t('项目库')}
+      motionPreset="quick"
+      backdropBlur={false}
+      className="h-[min(560px,calc(100dvh-24px))] w-[min(840px,calc(100vw-24px))]"
+    >
+      {content}
     </ModalOverlay>
   );
 }

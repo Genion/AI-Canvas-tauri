@@ -1459,6 +1459,7 @@ export const createProjectSlice: StateCreator<AppState, [], [], ProjectSlice> = 
   },
 
   initFromDb: async () => {
+    set({ currentProjectId: null, projectLoadStatus: 'loading' });
     try {
       await Promise.all([get().loadConfig(), get().loadWorkflows(), get().loadPresets(), get().loadSkills(), get().loadSubAgentProfiles(), get().loadCustomStyles(), get().loadToolbarLayouts(), get().loadPlugins(), get().loadAppearanceThemes()]);
 
@@ -1468,16 +1469,30 @@ export const createProjectSlice: StateCreator<AppState, [], [], ProjectSlice> = 
         fileService.deleteProjectData('default').catch((e) => console.warn('[初始化] 清理默认项目数据失败:', e));
       }
       let activeProjectId: string | null = null;
-      if (valid.length > 0) {
-        const mapped: CanvasProject[] = withInheritedDataFolders(valid.map((p) => ({
-          id: p.id, name: p.name, createdAt: p.createdAt, updatedAt: p.updatedAt,
-          snapshot: p.snapshot, dataFolder: p.dataFolder, settings: p.settings,
-          parentId: p.parentId, episodeNo: p.episodeNo, episodeOutline: p.episodeOutline,
-          episodeScript: p.episodeScript, episodeCreative: p.episodeCreative,
-          series: p.series,
-        })));
-        fileService.registerProjectFolders(mapped);
-        mapped.sort((a, b) => b.updatedAt - a.updatedAt);
+      const mapped: CanvasProject[] = withInheritedDataFolders(valid.map((p) => ({
+        id: p.id, name: p.name, createdAt: p.createdAt, updatedAt: p.updatedAt,
+        snapshot: p.snapshot, dataFolder: p.dataFolder, settings: p.settings,
+        parentId: p.parentId, episodeNo: p.episodeNo, episodeOutline: p.episodeOutline,
+        episodeScript: p.episodeScript, episodeCreative: p.episodeCreative,
+        series: p.series,
+      })));
+      fileService.registerProjectFolders(mapped);
+      mapped.sort((a, b) => b.updatedAt - a.updatedAt);
+      if (get().config.startupView === 'project-library') {
+        // 启动页只读摘要；选定项目后才通过既有切换流程加载画布及项目域数据。
+        set({
+          projects: mapped,
+          currentProjectId: null,
+          projectName: '',
+          nodes: [],
+          edges: [],
+          groups: [],
+          history: [],
+          historyIndex: -1,
+          selectedNodeIds: [],
+          projectLoadStatus: 'ready',
+        });
+      } else if (valid.length > 0) {
         const rememberedProjectId = await getLastActiveProjectId().catch(() => null);
         const targetId = resolveOpenTargetId(mapped, rememberedProjectId
           && mapped.some((project) => project.id === rememberedProjectId)
@@ -1545,12 +1560,11 @@ export const createProjectSlice: StateCreator<AppState, [], [], ProjectSlice> = 
         get().repairInterruptedForProject(activeProjectId).catch((e) => console.warn('[初始化] 修复中断消息失败:', e));
         get().loadProjectMemoriesForProject(seriesOwnerId(get().projects, activeProjectId))
           .catch((e) => console.warn('[初始化] 加载项目记忆失败:', e));
-        // 应用重启后，所有项目的未完成 Agent 任务都必须恢复为暂停，禁止自动续跑。
-        const projectIds = get().projects.map((project) => project.id);
-        await Promise.all(projectIds.map((projectId) =>
-          get().repairInterruptedAgentTasksForProject(projectId),
-        ));
       }
+      // 即使停留在启动页，也修复所有项目的遗留 Agent 任务，禁止打开项目时自动续跑。
+      await Promise.all(get().projects.map((project) =>
+        get().repairInterruptedAgentTasksForProject(project.id),
+      ));
     } catch (error) {
       console.error('Init from IndexedDB failed:', error);
       set({ currentProjectId: null, projectLoadStatus: 'error' });
