@@ -189,7 +189,7 @@ export default function DirectorPrevisDialog({ nodeId, initialAction = 'editor',
   return (
     <ModalOverlay isOpen onClose={() => { operation.current?.abort(); onClose(); }} ariaLabel="AI 镜头预演"
       className="h-[min(820px,calc(100dvh-32px))] w-[min(1180px,calc(100vw-32px))]" motionPreset="quick">
-      <header className="flex shrink-0 items-center gap-2 border-b border-canvas-border p-3">
+      <header className="flex shrink-0 items-center gap-2 border-b border-canvas-border px-2.5 py-2">
         <Icon icon="lucide:clapperboard" width={18} className="text-canvas-text-secondary" />
         <div className="min-w-0 flex-1">
           <h2 className="truncate text-sm font-semibold text-canvas-text">AI 镜头预演</h2>

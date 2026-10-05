@@ -587,7 +587,7 @@ export default function AssetsPanel() {
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
-              <div className="assets-panel-header">
+              <div className="assets-panel-header px-2.5 py-2">
                 <h2 className="assets-panel-title">
                   {isDrawer ? '资产库' : '资产管理'}
                   {!isDrawer && <span className="assets-panel-subtitle">

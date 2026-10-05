@@ -1211,7 +1211,7 @@ select:not(.ui-select__control):not(.ui-select__native):disabled {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 12px;
+  padding: 8px 10px;
   border-bottom: 1px solid var(--separator-color);
 }
 .ui-card__title {
