@@ -10,6 +10,7 @@
 import Select from '../shared/Select';
 import NumberStepper from '../shared/NumberStepper';
 import Tabs from '../shared/Tabs';
+import PopupCloseButton from '../shared/PopupCloseButton';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import StyleGuideMascot from './StyleGuideMascot';
 
@@ -277,6 +278,13 @@ function ButtonsSection() {
           </div>
         </div>
       </Demo>
+
+      <Demo label="关闭按钮 (统一规范)" code="ui-close-btn anim-btn 或直接复用 <PopupCloseButton />">
+        <div className="ui-row ui-row--loose" style={{ alignItems: 'center' }}>
+          <PopupCloseButton ariaLabel="关闭样例" />
+          <span className="text-xs text-canvas-text-muted">标准弹窗/浮层关闭按钮（悬浮危险色+微缩放动效，透明底主题自适应）</span>
+        </div>
+      </Demo>
     </Section>
   );
 }
@@ -532,14 +540,14 @@ function NumberStepperDemo() {
         </div>
       </div>
 
-      <div data-theme="light" className="rounded-lg border border-canvas-border bg-canvas-surface p-3">
-        <div className="mb-2 text-xs font-semibold text-canvas-text">浅色按钮配色</div>
-        <p className="ui-hint mb-3">淡底色与细分隔线；悬停和按下使用主题色，禁用时保留弱化状态。</p>
+      <div className="rounded-lg border border-canvas-border bg-canvas-card p-3">
+        <div className="mb-2 text-xs font-semibold text-canvas-text">多尺寸联动与状态响应</div>
+        <p className="ui-hint mb-3">各尺寸档位均支持双向受控绑定；微调按钮随主题自动适配背景、描边与悬浮色。</p>
         <div className="flex flex-wrap items-center gap-3">
-          <NumberStepper value={val} onChange={setVal} min={4} max={180} unit="px" size="sm" aria-label="浅色紧凑数字微调" />
-          <NumberStepper value={val} onChange={setVal} min={4} max={180} unit="px" size="md" aria-label="浅色标准数字微调" />
-          <NumberStepper value={val} onChange={setVal} min={4} max={180} unit="px" size="lg" aria-label="浅色突出数字微调" />
-          <NumberStepper value={val} onChange={setVal} unit="px" disabled aria-label="浅色禁用数字微调" />
+          <NumberStepper value={val} onChange={setVal} min={4} max={180} unit="px" size="sm" aria-label="紧凑数字微调" />
+          <NumberStepper value={val} onChange={setVal} min={4} max={180} unit="px" size="md" aria-label="标准数字微调" />
+          <NumberStepper value={val} onChange={setVal} min={4} max={180} unit="px" size="lg" aria-label="突出数字微调" />
+          <NumberStepper value={val} onChange={setVal} unit="px" disabled aria-label="禁用数字微调" />
         </div>
       </div>
 

@@ -266,6 +266,49 @@
   border-radius: var(--ui-radius-sm);
 }
 
+/* 标准关闭按钮：弹窗、浮层、面板、全屏预览与工具栏统一使用（触感微缩放 + 危险色悬浮） */
+.ui-close-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--ui-control-h);
+  height: var(--ui-control-h);
+  min-height: var(--ui-control-h);
+  flex: none;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--ui-radius-lg);
+  background: transparent;
+  color: var(--theme-text-secondary);
+  font-size: var(--ui-font);
+  font-weight: 500;
+  cursor: var(--cursor-pointer, pointer);
+  outline: none;
+  transition:
+    color var(--transition-base),
+    background-color var(--transition-base),
+    border-color var(--transition-base),
+    transform var(--dur-fast, 0.15s) var(--ease-out-quart, cubic-bezier(0.25, 1, 0.5, 1));
+}
+.ui-close-btn:hover:not(:disabled) {
+  color: var(--danger);
+  background: var(--danger-bg);
+  transform: scale(var(--anim-hover-scale, 1.04));
+}
+.ui-close-btn:active:not(:disabled) {
+  transform: scale(var(--anim-tap-scale, 0.96));
+}
+.ui-close-btn:focus-visible {
+  outline: none;
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 2px var(--brand-alpha-15);
+}
+.ui-close-btn:disabled {
+  opacity: 0.35;
+  cursor: var(--cursor-not-allowed, not-allowed);
+  transform: none;
+}
+
 /* 按钮组：相邻按钮共享边框，拼成一条 */
 .ui-btn-group {
   display: inline-flex;
@@ -1784,6 +1827,7 @@ select:not(.ui-select__control):not(.ui-select__native):disabled {
 @media (prefers-reduced-motion: reduce) {
   .ui-btn,
   .ui-icon-btn,
+  .ui-close-btn,
   .ui-input,
   .ui-textarea,
   .ui-select__control,
@@ -1799,7 +1843,9 @@ select:not(.ui-select__control):not(.ui-select__native):disabled {
     transition: none;
   }
   .ui-btn:active:not(:disabled),
-  .ui-icon-btn:active:not(:disabled) { transform: none; }
+  .ui-icon-btn:active:not(:disabled),
+  .ui-close-btn:hover:not(:disabled),
+  .ui-close-btn:active:not(:disabled) { transform: none; }
   .ui-card--interactive:hover { transform: none; }
   .ui-slider::-webkit-slider-thumb:hover { transform: none; }
   .ui-skeleton,

@@ -8,6 +8,7 @@ import { samplePrevisCamera, type DirectorPrevisRenderer } from '../../services/
 import { isTauriEnv } from '../../services/fileService';
 import { parseProjectModelRef } from '../../services/projectSettingsService';
 import ModalOverlay from '../shared/ModalOverlay';
+import PopupCloseButton from '../shared/PopupCloseButton';
 import Select from '../shared/Select';
 import ModelSelector from '../nodes/shared/ModelSelector';
 import MentionEditor, { type MentionEditorHandle } from '../nodes/shared/MentionEditor';
@@ -196,9 +197,10 @@ export default function DirectorPrevisDialog({ nodeId, initialAction = 'editor',
           <p className="ui-hint">空间 · 简模 · 人物走位 · 摄影机运动</p>
         </div>
         <span className="ui-hint">{dirty ? reference ? '有未保存调整' : '示例 · 尚未保存' : '已保存'}</span>
-        <button type="button" className="ui-icon-btn" aria-label="关闭镜头预演" onClick={() => { operation.current?.abort(); onClose(); }}>
-          <Icon icon="lucide:x" width={16} />
-        </button>
+        <PopupCloseButton
+          ariaLabel="关闭镜头预演"
+          onClick={() => { operation.current?.abort(); onClose(); }}
+        />
       </header>
       <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto lg:grid-cols-[minmax(0,1fr)_320px] lg:overflow-hidden">
         <section className="flex min-h-[340px] min-w-0 flex-col gap-2 p-3 lg:min-h-0">
