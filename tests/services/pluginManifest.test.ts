@@ -44,6 +44,26 @@ function manifest(overrides: Record<string, unknown> = {}): string {
 }
 
 describe('AI Canvas Plugin Manifest Standard v1', () => {
+  it('binds exact HTTPS origins to an explicit network permission', () => {
+    const parsed = parsePluginBundle(manifest({
+      permissions: ['node.read', 'node.write', 'network.request', 'settings.read', 'settings.write'],
+      network: { allowedOrigins: ['https://api.example.com'] },
+    }), 'definePlugin({ tools: {} });');
+    expect(parsed.network).toEqual({ allowedOrigins: ['https://api.example.com'] });
+    expect(parsePluginBundle(manifest(), 'definePlugin({ tools: {} });')).not.toHaveProperty('network');
+  });
+
+  it.each([
+    { network: { allowedOrigins: ['https://api.example.com'] } },
+    { permissions: ['node.write', 'network.request'] },
+    ...['http://api.example.com', 'https://127.0.0.1', 'https://[::1]', 'https://localhost', 'https://api.example.com/', 'https://api.example.com:443', 'https://api.example.com:8443', 'https://*.example.com', 'https://api.example.com/items'].map((origin) => ({
+      permissions: ['node.read', 'node.write', 'network.request'],
+      network: { allowedOrigins: [origin] },
+    })),
+  ])('rejects missing or overbroad network declarations %j', (override) => {
+    expect(() => parsePluginBundle(manifest(override), 'definePlugin({ tools: {} });')).toThrow(/network/);
+  });
+
   it('keeps the documented minimal plugin installable with the v1 parser', () => {
     const guide = readFileSync(new URL('../../doc/插件开发规范.md', import.meta.url), 'utf8');
     const example = guide.split('## 3. 最小可运行示例')[1]?.split('## 4.')[0] ?? '';

@@ -190,21 +190,26 @@ function toPluginJson(
   depth = 0,
   redactLocalReferences = false,
 ): PluginJsonValue | undefined {
-  if (depth > MAX_DEPTH || value === undefined || typeof value === 'function' || typeof value === 'symbol') return undefined;
+  if (value === undefined || typeof value === 'function' || typeof value === 'symbol') return undefined;
+  if (depth > MAX_DEPTH) throw new Error(`插件数据嵌套深度不能超过 ${MAX_DEPTH} 层`);
   if (value === null || typeof value === 'boolean') return value;
   if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;
   if (typeof value === 'string') {
     if (redactLocalReferences && isLocalMediaReference(value)) return undefined;
-    return value.slice(0, MAX_STRING_LENGTH);
+    if (value.length > MAX_STRING_LENGTH) throw new Error(`插件数据字符串不能超过 ${MAX_STRING_LENGTH} 个字符`);
+    return value;
   }
   if (Array.isArray(value)) {
-    return value.slice(0, MAX_ARRAY_ITEMS)
+    if (value.length > MAX_ARRAY_ITEMS) throw new Error(`插件数据数组不能超过 ${MAX_ARRAY_ITEMS} 项`);
+    return value
       .map((item) => toPluginJson(item, depth + 1, redactLocalReferences))
       .filter((item): item is PluginJsonValue => item !== undefined);
   }
   if (typeof value === 'object') {
     const output: Record<string, PluginJsonValue> = {};
-    for (const [key, item] of Object.entries(value).slice(0, MAX_OBJECT_KEYS)) {
+    const entries = Object.entries(value);
+    if (entries.length > MAX_OBJECT_KEYS) throw new Error(`插件数据对象不能超过 ${MAX_OBJECT_KEYS} 个键`);
+    for (const [key, item] of entries) {
       if (DANGEROUS_OBJECT_KEYS.has(key) || (redactLocalReferences && FORBIDDEN_INPUT_FIELDS.has(key))) continue;
       const normalized = toPluginJson(item, depth + 1, redactLocalReferences);
       if (normalized !== undefined) output[key] = normalized;
@@ -630,6 +635,36 @@ function parseHostEffect(
 ): PluginNodeHostEffect {
   const raw = recordValue(rawEffect);
   const type = raw.type;
+  if (type === 'network.request') {
+    if (typeof raw.url !== 'string' || raw.url.length > 4096) throw new Error('网络请求 URL 无效');
+    const method = raw.method ?? 'GET';
+    if (!['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(String(method))) throw new Error('网络请求 method 无效');
+    if (raw.body !== undefined && (typeof raw.body !== 'string' || new TextEncoder().encode(raw.body).length > 64 * 1024)) {
+      throw new Error('网络请求正文必须是最多 64 KiB 的字符串');
+    }
+    if (method === 'GET' && raw.body !== undefined) throw new Error('GET 请求不能携带正文');
+    const headers: Record<string, string> = {};
+    if (raw.headers !== undefined) {
+      if (!raw.headers || typeof raw.headers !== 'object' || Array.isArray(raw.headers)) throw new Error('网络请求 headers 必须是对象');
+      const entries = Object.entries(raw.headers);
+      if (entries.length > 16) throw new Error('网络请求最多声明 16 个 header');
+      for (const [key, value] of entries) {
+        if (!['accept', 'content-type', 'authorization', 'x-api-key'].includes(key.toLowerCase())
+          || typeof value !== 'string' || value.length > 4096 || /[\r\n]/u.test(value)) throw new Error('网络请求 header 无效或未获支持');
+        headers[key.toLowerCase()] = value;
+      }
+    }
+    return { type, url: raw.url, method: method as Extract<PluginNodeHostEffect, { type: 'network.request' }>['method'], headers, ...(raw.body === undefined ? {} : { body: raw.body as string }) };
+  }
+  if (type === 'settings.get' || type === 'settings.set' || type === 'settings.delete') {
+    if (typeof raw.key !== 'string' || !/^[A-Za-z][A-Za-z0-9_.-]{0,63}$/u.test(raw.key)) throw new Error('插件设置 key 无效');
+    if (type === 'settings.set') {
+      const value = toPluginJson(raw.value);
+      if (value === undefined) throw new Error('插件设置 value 必须是 JSON 数据');
+      return { type, key: raw.key, value };
+    }
+    return { type, key: raw.key };
+  }
   if (type === 'image.lineArt') {
     if (typeof raw.resourceId !== 'string' || !raw.resourceId.trim() || raw.resourceId.length > 160
       || Object.keys(raw).some((key) => key !== 'type' && key !== 'resourceId')) {
@@ -659,7 +694,7 @@ function parseHostEffect(
     const effect: Extract<PluginNodeHostEffect, { type: 'model.generate' }> = {
       type,
       modelId: String(raw.modelId ?? '').slice(0, 256),
-      prompt: String(raw.prompt ?? '').slice(0, MAX_STRING_LENGTH),
+      prompt: typeof raw.prompt === 'string' ? toPluginJson(raw.prompt) as string : '',
       parameters: raw.parameters === undefined
         ? undefined
         : toPluginJson(recordValue(raw.parameters)) as Record<string, PluginJsonValue>,
@@ -694,7 +729,7 @@ function parseHostEffect(
   if (type === 'resource.createText') {
     return {
       type,
-      content: String(raw.content ?? '').slice(0, MAX_STRING_LENGTH),
+      content: typeof raw.content === 'string' ? toPluginJson(raw.content) as string : '',
       suggestedName: typeof raw.suggestedName === 'string'
         ? raw.suggestedName.slice(0, 120)
         : undefined,
@@ -885,7 +920,7 @@ async function executeModelEffect(
   const parameters = effect.parameters ?? {};
   const common = { prompt: effect.prompt, model: model.id, provider: model.provider, nodeId };
   if (model.category === 'text') {
-    return { text: await generateText({ ...common, imageUrls }) };
+    return { text: await generateText({ ...common, imageUrls, signal }) };
   }
   if (model.category === 'image') {
     const result = await generateImage({
@@ -928,6 +963,7 @@ async function executeModelEffect(
  */
 interface PluginHostEffectContext {
   pluginId: string;
+  toolId?: string;
   projectId: string;
   title: string;
   permissions: PluginPermission[];
@@ -977,6 +1013,25 @@ async function executeHostEffect(
   };
   try {
     if (context.signal?.aborted) throw new Error('插件操作已取消');
+    if (effect.type === 'network.request' || effect.type === 'settings.get' || effect.type === 'settings.set' || effect.type === 'settings.delete') {
+      const permission = effect.type === 'network.request' ? 'network.request' : effect.type === 'settings.get' ? 'settings.read' : 'settings.write';
+      if (!context.permissions.includes(permission)) throw new Error(`插件未声明 ${permission} 权限`);
+      assertFresh();
+      const lease = context.resourceReadContext!;
+      if (!context.toolId) throw new Error('插件工具身份缺失');
+      const identity = { pluginId: context.pluginId, sourceDigest: lease.sourceDigest, revisionDigest: lease.revisionDigest, toolId: context.toolId, invocationId: lease.invocationId };
+      const requestId = createPluginInvocationId();
+      const cancel = () => { void invoke('cancel_plugin_host_effect', { pluginId: context.pluginId, requestId }).catch(() => undefined); };
+      context.signal?.addEventListener('abort', cancel, { once: true });
+      try {
+        assertFresh();
+        const value = await invoke<unknown>('execute_plugin_host_effect', { identity, requestId, effect });
+        assertFresh();
+        return { type: effect.type, ok: true, value: toPluginJson(value) };
+      } finally {
+        context.signal?.removeEventListener('abort', cancel);
+      }
+    }
     if (effect.type === 'model.generate') {
       if (!context.permissions.includes('models.invoke')) throw new Error('插件未声明 models.invoke 权限');
       const resourceImageUrls = await Promise.all((effect.resourceIds ?? []).map(async (resourceId) => {
@@ -1271,6 +1326,7 @@ export async function executePluginNode(
         effectResult = await executeHostEffect(
           {
             pluginId: pluginNode.pluginId,
+            toolId: pluginNode.node.id,
             projectId,
             title: pluginNode.node.title,
             permissions: pluginNode.permissions,
@@ -1501,11 +1557,6 @@ export async function executeNodePluginTool(
     throw new Error('插件界面会话已失效');
   }
   const normalizedParameters: Record<string, PluginJsonValue> = {};
-  for (const [key, value] of Object.entries(parameters)) {
-    if (DANGEROUS_OBJECT_KEYS.has(key)) continue;
-    const normalized = toPluginJson(value);
-    if (normalized !== undefined) normalizedParameters[key] = normalized;
-  }
   const models = buildNodeToolModelCatalog(pluginTool);
   // JavaScript 沙箱没有任意网络能力，媒体引用只能来自本次输入与本轮宿主模型结果。
   // 该集合跨 effect 轮次累积，让后续轮次可以引用前面模型生成的媒体。
@@ -1522,6 +1573,13 @@ export async function executeNodePluginTool(
 
   try {
     assertExecutionFresh();
+    const parameterEntries = Object.entries(parameters);
+    if (parameterEntries.length > MAX_OBJECT_KEYS) throw new Error(`插件数据对象不能超过 ${MAX_OBJECT_KEYS} 个键`);
+    for (const [key, value] of parameterEntries) {
+      if (DANGEROUS_OBJECT_KEYS.has(key)) continue;
+      const normalized = toPluginJson(value);
+      if (normalized !== undefined) normalizedParameters[key] = normalized;
+    }
     const resources = executionLease?.resources ?? await mintPluginInvocationResources({
       pluginId: pluginTool.pluginId,
       sourceDigest,
@@ -1582,6 +1640,7 @@ export async function executeNodePluginTool(
         effectResult = await executeHostEffect(
           {
             pluginId: pluginTool.pluginId,
+            toolId: pluginTool.tool.id,
             projectId,
             title: pluginTool.tool.title,
             permissions: pluginTool.permissions,
@@ -1669,6 +1728,7 @@ export async function getPythonPluginRuntimeStatus(): Promise<PythonPluginRuntim
  */
 export async function executePluginUiHostEffect(options: {
   pluginId: string;
+  toolId?: string;
   projectId: string;
   title: string;
   permissions: PluginPermission[];
@@ -1684,6 +1744,7 @@ export async function executePluginUiHostEffect(options: {
   const result = await executeHostEffect(
     {
       pluginId: options.pluginId,
+      toolId: options.toolId,
       projectId: options.projectId,
       title: options.title,
       permissions: options.permissions,

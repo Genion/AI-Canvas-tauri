@@ -6,6 +6,10 @@ export type PluginPermission =
   | 'node.write'
   | 'models.read'
   | 'models.invoke'
+  /** 由宿主请求 Manifest 中列出的公共 HTTPS 来源。 */
+  | 'network.request'
+  | 'settings.read'
+  | 'settings.write'
   /** 读取当前节点自身与声明输入连线所引用的项目文件；只通过短期 resourceId 暴露。 */
   | 'files.connected.read'
   /** 在项目目录中创建新的派生输出；不允许覆盖上游源文件。 */
@@ -282,6 +286,8 @@ export interface PluginManifest {
   keywords?: string[];
   entry: 'main.js' | 'main.py';
   permissions: PluginPermission[];
+  /** 精确来源白名单，不匹配子域名；只有 network.request 获准后才能使用。 */
+  network?: { allowedOrigins: string[] };
   /** API v1：当前插件 revision 随包安装的不可变资源。 */
   resources?: PluginPackageResourceManifest[];
   /** 自定义界面产物；需配合 nodeTools[].dialog.ui 使用。 */
@@ -394,6 +400,10 @@ export interface PluginInvocationResources {
 }
 
 export type PluginNodeHostEffect =
+  | { type: 'network.request'; url: string; method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'; headers?: Record<string, string>; body?: string }
+  | { type: 'settings.get'; key: string }
+  | { type: 'settings.set'; key: string; value: PluginJsonValue }
+  | { type: 'settings.delete'; key: string }
   | {
       type: 'model.generate';
       modelId: string;

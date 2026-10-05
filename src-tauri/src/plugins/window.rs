@@ -1157,6 +1157,8 @@ mod tests {
                 for command in [
                     "open_plugin_ui_window",
                     "respond_plugin_ui_window_request",
+                    "execute_plugin_host_effect",
+                    "cancel_plugin_host_effect",
                     "plugin:fs|stat",
                     "plugin:shell|execute",
                     "plugin:event|emit",

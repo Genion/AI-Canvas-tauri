@@ -129,3 +129,16 @@ definePlugin({
 ## 回滚
 
 插件记录使用独立 object store。关闭插件入口或降级应用时，旧版本只会忽略该 store，不影响项目画布；禁用插件即可停止其所有节点工具。
+
+## 2026-10-05 宿主能力扩展（代码与自动化验证完成，实机验收待完成）
+
+任务类型为平台能力。用户已确认补齐 UI 数据校验、按域名授权 HTTP 和插件私有设置的范围。保留 API v1；未声明新权限的旧插件不新增授权，不增加依赖、不修改 tauri.conf.json、不开放插件窗口的通用 IPC。UI 超限从裁剪改为明确拒绝。
+
+- 合同：`network.request` 配合 `network.allowedOrigins`，只允许精确的公共 HTTPS 来源；宿主代发有界 HTTP，不跟随重定向、不自动重试。`settings.read/write` 只读写插件自己的非敏感偏好，不存凭据、文件路径或正文。
+- 权威：Manifest、域名白名单和权限绑定 revision，安装/换版使用原生确认；每次执行与返回复核活动版本。设置写入与版本切换共用注册表锁，网络请求可在 UI 关闭、停用、更新、卸载时取消。
+- 文件范围：`types/plugin.ts`、`services/plugins/pluginManifest.ts`、`pluginRuntime.ts`、`pluginUiSessionService.ts`、`components/settings/PluginSettings.tsx`；Rust `plugins/registry.rs`、新增 `plugins/host_effects.rs`、`agent/web.rs`、`lib.rs` 与第一方命令 ACL；对应 Manifest/执行/UI/Store 回归、插件规范及模块文档。
+- 验收：UI 超限不改变参数或提交；无权限、越权来源、私网地址、重定向、超限响应、取消与旧 revision 均拒绝；设置隔离、原子写入和跨版本保留；前端 lint/类型检查/定向测试与 Rust test/check。
+- 回滚：当前宿主内可停用使用新权限的插件并关闭新增 effect，保留偏好供恢复。降级应用前须卸载包含新权限的注册记录并重装兼容 revision；仅停用仍会留下旧宿主无法识别的权限。回退版本不能改为任意联网或文件读写。
+- 实现：新增联网与偏好权限/effect、原生域名授权与活动版本复核、网络取消和私有偏好原子更新；UI 网络 16 次、设置 64 次独立计数。UI 参数合并与提交严格校验；普通工具也拒绝整体参数键数超限，模型提示词与文本创建不再截断，文本生成接入会话取消。HTTP 库的协议重试明确关闭；设置文件损坏或超限拒绝读取，但安全的普通文件仍可随卸载清理。
+- 已验证：14 个前端插件测试文件、356 项通过；应用和测试 TypeScript 类型检查、修改文件 ESLint 通过。`cargo test --lib plugin_ --no-default-features --features tauri-channel-tests` 61 项通过，包含真实应用 capability 下的 MockRuntime 越权命令拒绝；默认特性 `cargo check` 通过。新增 Rust 文件与注册表定向 rustfmt、diff 空白和 UTF-8 检查通过。
+- 待完成：真实 WebView 安装/重新启用授权、关闭取消与重启后偏好恢复，以及实际公共 HTTPS API 的端到端验收；测试响应读取使用本地 HTTP fixture，DNS/IP 校验为原生单元回归，不替代真实 TLS、页面与系统生命周期验收。

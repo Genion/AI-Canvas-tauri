@@ -198,6 +198,9 @@ const PLUGIN_PERMISSION_LABELS: Record<string, string> = {
   'node.write': '修改节点或创建插件节点',
   'models.read': '读取脱敏模型目录',
   'models.invoke': '调用可能产生费用的模型',
+  'network.request': '通过宿主请求声明的公共 HTTPS 来源',
+  'settings.read': '读取插件自己的非敏感设置',
+  'settings.write': '保存或删除插件自己的非敏感设置',
   'files.connected.read': '读取当前节点及直接输入连线的项目资源',
   'files.output.create': '在当前项目目录创建新的文本输出',
   'plugin.resources.read': '读取当前插件 revision 声明的包资源',
@@ -206,7 +209,9 @@ const PLUGIN_PERMISSION_LABELS: Record<string, string> = {
 
 function permissionSummary(manifest: PluginManifest): string {
   return manifest.permissions
-    .map((permission) => PLUGIN_PERMISSION_LABELS[permission] ?? permission)
+    .map((permission) => permission === 'network.request'
+      ? `${PLUGIN_PERMISSION_LABELS[permission]}：${manifest.network?.allowedOrigins.join('、') ?? '未声明'}`
+      : PLUGIN_PERMISSION_LABELS[permission] ?? permission)
     .join('；');
 }
 

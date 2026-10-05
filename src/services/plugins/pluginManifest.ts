@@ -107,6 +107,9 @@ const PERMISSIONS = new Set<PluginPermission>([
   'node.write',
   'models.read',
   'models.invoke',
+  'network.request',
+  'settings.read',
+  'settings.write',
   ...RESOURCE_PERMISSIONS,
   'ui.custom',
 ]);
@@ -543,6 +546,31 @@ function parseManifest(value: unknown): PluginManifest {
   if (permissions.includes('models.invoke') && !permissions.includes('models.read')) {
     throw new Error('models.invoke 必须与 models.read 一起声明');
   }
+  let network: PluginManifest['network'];
+  if (root.network !== undefined) {
+    if (!permissions.includes('network.request')) throw new Error('声明 network 必须包含 network.request 权限');
+    const declaration = objectValue(root.network, 'network');
+    if (!Array.isArray(declaration.allowedOrigins) || declaration.allowedOrigins.length < 1 || declaration.allowedOrigins.length > 16) {
+      throw new Error('network.allowedOrigins 必须包含 1-16 个来源');
+    }
+    const allowedOrigins = declaration.allowedOrigins.map((value, index) => {
+      if (typeof value !== 'string' || value.length > 512) throw new Error(`network.allowedOrigins[${index}] 必须是最多 512 字符的来源`);
+      return value;
+    });
+    for (const origin of allowedOrigins) {
+      let url: URL;
+      try { url = new URL(origin); } catch { throw new Error('network.allowedOrigins 必须是精确的公共 HTTPS 来源'); }
+      if (url.protocol !== 'https:' || url.origin !== origin || url.port || url.username || url.password
+        || url.pathname !== '/' || url.search || url.hash || !url.hostname.includes('.')
+        || !/^[a-z0-9.-]+$/.test(url.hostname) || /^[0-9.]+$/.test(url.hostname)
+        || url.hostname.length > 253 || url.hostname.endsWith('.localhost') || url.hostname.endsWith('.local')
+        || url.hostname.split('.').some((label) => !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label))) {
+        throw new Error('network.allowedOrigins 必须是精确的公共 HTTPS 来源，不能包含路径、端口或 IP');
+      }
+    }
+    network = { allowedOrigins: [...new Set(allowedOrigins)].sort() };
+  }
+  if (permissions.includes('network.request') && !network) throw new Error('network.request 必须声明 network.allowedOrigins');
   const resources = parsePackageResources(root.resources);
   if (resources && !permissions.includes('plugin.resources.read')) {
     throw new Error('声明插件包 resources 必须包含 plugin.resources.read 权限');
@@ -713,6 +741,7 @@ function parseManifest(value: unknown): PluginManifest {
     keywords,
     entry: entry as PluginManifest['entry'],
     permissions: [...new Set(permissions)] as PluginPermission[],
+    ...(network ? { network } : {}),
     resources,
     ui,
     contributes: { nodeTools, nodes: customNodes },
