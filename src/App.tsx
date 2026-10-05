@@ -27,6 +27,7 @@ import * as fileService from './services/fileService';
 import { checkForUpdate, downloadAndInstallUpdate, type UpdateInfo } from './services/updateService';
 import { DOWNLOAD_MASCOT_EVENT } from './components/shared/ModelDownloadDialog';
 import UpdateBubble from './components/shared/mascot/UpdateBubble';
+import HiddenFilmSet from './components/shared/mascot/HiddenFilmSet';
 import LazyLoadBoundary, { LazyLoadFallback } from './components/shared/LazyLoadBoundary';
 import ModalOverlay from './components/shared/ModalOverlay';
 import { useMascotStatus } from './hooks/useMascotStatus';
@@ -395,19 +396,26 @@ export default function App() {
   const handleDismissUpdate = () => {
     setUpdateBubbleVisible(false);
   };
-  const handleMascotActivate = async () => {
+  const handleMascotActivate = async (forceDetached = false) => {
     const store = useAppStore.getState();
     // 独立窗口模式是用户选择的显示偏好；窗口关闭后再次点击应重新打开独立窗口。
-    if (store.chatPanelDetached) {
+    if (forceDetached || store.chatPanelDetached) {
+      if (!isTauri) {
+        store.showToast('独立窗口功能需要 Tauri 环境', 'info');
+        return;
+      }
+      const wasDetached = store.chatPanelDetached;
+      // 独立窗口首帧请求快照前置位，复用现有主窗口同步协议。
+      if (!wasDetached) store.setChatPanelDetached(true);
       try {
         await invoke('open_chat_window');
       } catch {
+        if (!wasDetached) store.setChatPanelDetached(false);
         store.showToast('打开独立窗口失败', 'error');
       }
       return;
     }
-    // 内嵌面板：打开 ⇄ 关闭切换
-    store.toggleChat();
+    store.openChat();
   };
 
   // 同步完整外观快照到 document.documentElement，所有 CSS 组件从这里读取变量。
@@ -594,12 +602,18 @@ export default function App() {
                   : { scale: 1, opacity: 1 }}
                 transition={{ duration: reduceMotion ? 0.12 : 0.18, ease: [0.23, 1, 0.32, 1] }}
               >
-                <button
+                <HiddenFilmSet
+                  available={!mascotShrink && !updating && !mascotLoading && mascotStatus === 'idle'}
+                  reduceMotion={performanceMode || Boolean(reduceMotion)}
+                  mascotHandleRef={mascotHandleRef}
+                  consumeDragClick={consumeMascotDragClick}
                   type="button"
                   className="h-full w-full cursor-grab rounded-full border-0 bg-transparent p-0 active:cursor-grabbing focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/50"
-                  onClick={(event) => {
-                    if (consumeMascotDragClick(event)) return;
+                  onClick={() => {
                     void handleMascotActivate();
+                  }}
+                  onDoubleClick={() => {
+                    void handleMascotActivate(true);
                   }}
                   disabled={mascotShrink}
                   aria-label={mascotStatus === 'thinking'
@@ -644,7 +658,7 @@ export default function App() {
                       />
                     )}
                   </Suspense>
-                </button>
+                </HiddenFilmSet>
               </motion.div>
             </motion.div>
           </div>
