@@ -1,6 +1,8 @@
 import { mkdtemp, readFile, writeFile, mkdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { spawn } from 'node:child_process';
 import { describe, it, expect } from 'vitest';
 import { initPlugin, buildPlugin, checkPlugin } from '../../scripts/plugin-dev.mjs';
 
@@ -47,4 +49,58 @@ describe('plugin developer CLI', () => {
       await expect(checkPlugin(root)).rejects.toThrow();
     } finally { await rm(temporary, { recursive: true, force: true }); }
   });
+
+  it('keeps watching after startup errors and rebuilds when an unchanged manifest follows a source edit', async () => {
+    const temporary = await mkdtemp(join(tmpdir(), 'ai-canvas-plugin-watch-'));
+    const root = join(temporary, 'plugin');
+    let child;
+    let exited;
+    try {
+      await initPlugin(root);
+      const manifest = await readFile(join(root, 'manifest.json'), 'utf8');
+      await writeFile(join(root, 'manifest.json'), '{', 'utf8');
+      child = spawn(process.execPath, [fileURLToPath(new URL('../../scripts/plugin-dev.mjs', import.meta.url)), 'watch', root], {
+        cwd: root, stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      exited = new Promise((resolve, reject) => { child.once('exit', resolve); child.once('error', reject); });
+      let output = '';
+      child.stdout.on('data', (chunk) => { output += chunk; });
+      child.stderr.on('data', (chunk) => { output += chunk; });
+      const waitOutput = (fragment, offset = 0) => new Promise((resolve, reject) => {
+        const cleanup = () => {
+          clearTimeout(timer);
+          child.stdout.off('data', check);
+          child.stderr.off('data', check);
+          child.off('exit', stopped);
+        };
+        const check = () => { if (output.slice(offset).includes(fragment)) { cleanup(); resolve(); } };
+        const stopped = () => { cleanup(); reject(new Error(`监听提前退出：${output}`)); };
+        const timer = setTimeout(() => { cleanup(); reject(new Error(`未收到 ${fragment}：${output}`)); }, 8000);
+        child.stdout.on('data', check);
+        child.stderr.on('data', check);
+        child.once('exit', stopped);
+        check();
+      });
+      await waitOutput('监听已启动');
+      expect(output).not.toContain(root);
+      await writeFile(join(root, 'manifest.json'), manifest, 'utf8');
+      await waitOutput('构建完成');
+      const before = await readFile(join(root, 'main.js'), 'utf8');
+      const failureOffset = output.length;
+      await writeFile(join(root, 'src/main.ts'), 'definePlugin({ tools: { uppercase: () => 42 } });', 'utf8');
+      await waitOutput('main.ts', failureOffset);
+      expect(await readFile(join(root, 'main.js'), 'utf8')).toBe(before);
+      const offset = output.length;
+      await writeFile(join(root, 'src/main.ts'), 'definePlugin({ tools: { uppercase: () => ({ data: { output: "WATCH_RECOVERED" } }) } });', 'utf8');
+      // 清单内容没变，但它的文件事件仍会落在同一轮防抖里。
+      await writeFile(join(root, 'manifest.json'), manifest, 'utf8');
+      await waitOutput('构建完成', offset);
+      expect(await readFile(join(root, 'main.js'), 'utf8')).toContain('WATCH_RECOVERED');
+      child.kill('SIGINT');
+      expect(await exited).toBe(0);
+    } finally {
+      if (child && child.exitCode === null && child.signalCode === null) { child.kill('SIGKILL'); await exited; }
+      await rm(temporary, { recursive: true, force: true });
+    }
+  }, 25000);
 });

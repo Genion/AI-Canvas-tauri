@@ -159,12 +159,24 @@ async function main() {
   if (command === 'sdk') await atomicText(join(root, 'host.d.ts'), await portableSdk());
   else if (command === 'init') await initPlugin(root);
   else if (command === 'check') await checkPlugin(root);
-  else await buildPlugin(root);
-  console.log('插件校验完成；在插件设置中安装或重新载入此目录。');
-  if (command !== 'watch') return;
+  else if (command !== 'watch') await buildPlugin(root);
+  if (command !== 'watch') {
+    console.log('插件校验完成；在插件设置中安装或重新载入此目录。');
+    return;
+  }
+  // 编辑中的错误不会结束监听，修好后仍能继续构建。
+  try { await buildPlugin(root); console.log('构建完成，可重新载入插件。'); }
+  catch (error) { console.error(errorMessage(error, root)); }
   let timer;
   let running = false;
   let dirty = false;
+  const changedPaths = new Set();
+  let lastManifest = await text(join(root, 'manifest.json')).catch(() => '');
+  const resourcePaths = () => {
+    try { return new Set((JSON.parse(lastManifest).resources ?? []).map((resource) => resource.path)); }
+    catch { return new Set(); }
+  };
+  let declaredResources = resourcePaths();
   const rebuild = async () => {
     if (running) { dirty = true; return; }
     running = true;
@@ -179,18 +191,20 @@ async function main() {
     const path = String(filename ?? '').replaceAll('\\', '/');
     if (!['manifest.json', 'tsconfig.json', 'host.d.ts'].includes(path)
       && !path.startsWith('src/') && !declaredResources.has(path)) return;
-    // Manifest 的摘要更新也会触发事件；仅内容实际变化时重建。
+    // 合并这一批事件，避免清单事件盖掉源码变化。
+    changedPaths.add(path);
     clearTimeout(timer);
     timer = setTimeout(async () => {
-      if (path === 'manifest.json' && await text(join(root, path)).catch(() => '') === lastManifest) return;
+      const onlyManifest = changedPaths.size === 1 && changedPaths.has('manifest.json');
+      changedPaths.clear();
+      if (onlyManifest && await text(join(root, 'manifest.json')).catch(() => '') === lastManifest) return;
       await rebuild();
       lastManifest = await text(join(root, 'manifest.json')).catch(() => '');
-      try { declaredResources = new Set((JSON.parse(lastManifest).resources ?? []).map((resource) => resource.path)); } catch { /* 下一次清单编辑会重新校验。 */ }
+      declaredResources = resourcePaths();
     }, 150);
   });
-  let lastManifest = await text(join(root, 'manifest.json'));
-  let declaredResources = new Set((JSON.parse(lastManifest).resources ?? []).map((resource) => resource.path));
   process.once('SIGINT', () => { watcher.close(); clearTimeout(timer); });
+  console.log('监听已启动；保存源码或清单后自动重建。');
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {

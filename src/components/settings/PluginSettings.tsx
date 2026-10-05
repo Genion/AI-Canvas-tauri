@@ -34,6 +34,11 @@ const CATEGORY_LABELS: Record<PluginCategory, string> = {
   utility: '通用工具',
 };
 
+function pluginNodeTypeLabel(nodeType: string): string {
+  const label = getNodeTypeConfig(nodeType.replace(/^source-/u, 'ai-')).label;
+  return nodeType.startsWith('source-') ? label.replace(/^生成/u, '') : label;
+}
+
 function isUpdateAvailable(latest: string, current: string): boolean {
   try {
     return comparePluginVersions(latest, current) > 0;
@@ -961,11 +966,12 @@ export default function PluginSettings() {
           const customNodes = plugin.manifest.contributes.nodes ?? [];
           const inputFields = [...new Set(plugin.manifest.contributes.nodeTools.flatMap((tool) => tool.inputFields))];
           const outputFields = [...new Set(plugin.manifest.contributes.nodeTools.flatMap((tool) => tool.output.fields))];
-          const placements = new Set(plugin.manifest.contributes.nodeTools.flatMap((tool) => tool.placements));
-          const placementLabels = [
-            placements.has('node-context-menu') ? '节点右键菜单' : null,
-            placements.has('node-toolbar') ? '节点工具栏' : null,
-          ].filter(Boolean).join('、');
+          const placementLabels = [...new Set([
+            ...plugin.manifest.contributes.nodeTools.flatMap((tool) => tool.nodeTypes.flatMap((nodeType) => (
+              tool.placements.map((placement) => `${pluginNodeTypeLabel(nodeType)}节点${placement === 'node-context-menu' ? '右键菜单' : '工具栏'}`)
+            ))),
+            ...(customNodes.length ? ['节点选择器'] : []),
+          ])].join('、');
           return (
             <article key={plugin.id} className="rounded-xl border border-canvas-border bg-canvas-card p-3">
               <div className="flex items-start gap-3">
@@ -989,7 +995,7 @@ export default function PluginSettings() {
                   <div className="mt-2 flex flex-wrap gap-1">
                     {nodeTypes.map((nodeType) => (
                       <span key={nodeType} className="rounded bg-canvas-surface px-1.5 py-0.5 text-[10px] text-canvas-text-muted">
-                        {getNodeTypeConfig(nodeType).label}
+                        {pluginNodeTypeLabel(nodeType)}
                       </span>
                     ))}
                     {customNodes.map((node) => (
@@ -1003,7 +1009,7 @@ export default function PluginSettings() {
                       详细信息
                     </summary>
                     <div className="mt-1 break-words text-[10px] leading-4 text-canvas-text-muted">
-                      API v{plugin.manifest.apiVersion} · {plugin.manifest.entry} · 入口：{placementLabels || (customNodes.length ? '节点选择器' : '未声明')}<br />
+                      API v{plugin.manifest.apiVersion} · {plugin.manifest.entry} · 入口：{placementLabels || '未声明'}<br />
                       工具 {plugin.manifest.contributes.nodeTools.length} 个 · 自定义节点 {customNodes.length} 个<br />
                       读取：{inputFields.join('、') || '无'} · 写入：{outputFields.join('、') || '无'}<br />
                       权限：{plugin.manifest.permissions.join('、')}<br />

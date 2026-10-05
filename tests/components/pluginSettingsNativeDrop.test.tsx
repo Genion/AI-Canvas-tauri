@@ -110,6 +110,32 @@ async function setup(options: { tauri?: boolean; delayedRegistration?: boolean; 
 
 const drop = (x = 300): DragDropEvent => ({ type: 'drop', paths: ['G:/plugins/example'], position: new PhysicalPosition(x, 300) });
 
+it('labels each entry with its declared node type without mixing placements from different tools', async () => {
+  const h = await setup();
+  const manifest = JSON.parse(h.manifestText);
+  const tool = manifest.contributes.nodeTools[0];
+  manifest.contributes.nodeTools = [
+    { ...tool, nodeTypes: ['source-text'], placements: ['node-context-menu', 'node-toolbar'] },
+    { ...tool, id: 'image', nodeTypes: ['source-image'], placements: ['node-context-menu'] },
+    { ...tool, id: 'duplicate', nodeTypes: ['source-text'], placements: ['node-context-menu'] },
+  ];
+  manifest.contributes.nodes = [{ id: 'custom', title: '自定义节点' }];
+  h.store.installedPlugins = [{ id: manifest.id, enabled: true, manifest, source: '', installedAt: 1, updatedAt: 1 }];
+  const text = (root: unknown): string => {
+    if (Array.isArray(root)) return root.map(text).join('');
+    if (typeof root === 'string' || typeof root === 'number') return String(root);
+    if (root && typeof root === 'object' && 'props' in root) return text((root as ElementLike).props.children);
+    return '';
+  };
+  try {
+    const content = text(h.renderFull());
+    expect(content).toContain('入口：文本节点右键菜单、文本节点工具栏、图像节点右键菜单、节点选择器');
+    expect(content).not.toContain('图像节点工具栏');
+    expect(content).not.toContain('source-text');
+    expect(content).not.toContain('source-image');
+  } finally { h.dispose(); }
+});
+
 it('receives a native folder drop at scaled coordinates and uses the existing reviewed installation chain', async () => {
   const h = await setup();
   try {

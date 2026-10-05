@@ -484,6 +484,15 @@ describe('plugin execution cancellation and categorized budgets', () => {
 });
 
 describe('node plugin runtime', () => {
+  it('preserves native string diagnostics as an Error without writing the node', async () => {
+    const diagnostic = '插件工具执行失败（error · 调用）：Error: E2E_ERROR [已隐藏]\n    at main.js:3:17';
+    mocks.invoke.mockRejectedValueOnce(diagnostic);
+    const tool = getAvailableNodePluginTools([plugin], 'ai-text')[0];
+    await expect(executeNodePluginTool(tool, 'node-1')).rejects.toThrow(diagnostic);
+    expect(mocks.updateNodeData).not.toHaveBeenCalled();
+    expect(mocks.subscribers.size).toBe(0);
+  });
+
   it('shows enabled tools only on their declared node types and placements', () => {
     expect(getAvailableNodePluginTools([plugin], 'ai-text')).toHaveLength(1);
     expect(getAvailableNodePluginTools([plugin], 'ai-text', 'node-toolbar')).toHaveLength(1);

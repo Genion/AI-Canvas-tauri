@@ -236,6 +236,9 @@ async function invokePluginTool(
     const result = await invoke<unknown>('execute_node_plugin_tool', { ...identity, input });
     if (signal.aborted) throw new Error('插件操作已取消');
     return result;
+  } catch (error) {
+    // Rust command 的错误会以字符串返回，转成 Error 才能让界面显示原生诊断。
+    throw typeof error === 'string' ? new Error(error) : error;
   } finally {
     signal.removeEventListener('abort', cancel);
   }
