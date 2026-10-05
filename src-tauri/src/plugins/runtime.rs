@@ -4,7 +4,7 @@
 //! JavaScript 继续使用 QuickJS 强沙箱。Python 插件是用户显式信任的本机代码，
 //! 通过一次性子进程执行；这里只提供协议、超时和输出上限，不宣称操作系统隔离。
 
-use rquickjs::{Context, Runtime};
+use rquickjs::{Context, Promise, Runtime};
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -43,23 +43,23 @@ const CREATE_NO_WINDOW: u32 = 0x08000000;
 type InvocationKey = (String, String);
 type ActiveInvocationMap = HashMap<InvocationKey, Arc<AtomicBool>>;
 
-static ACTIVE_PYTHON_INVOCATIONS: OnceLock<Mutex<ActiveInvocationMap>> = OnceLock::new();
+static ACTIVE_PLUGIN_INVOCATIONS: OnceLock<Mutex<ActiveInvocationMap>> = OnceLock::new();
 
-fn active_python_invocations() -> &'static Mutex<ActiveInvocationMap> {
-    ACTIVE_PYTHON_INVOCATIONS.get_or_init(|| Mutex::new(HashMap::new()))
+fn active_plugin_invocations() -> &'static Mutex<ActiveInvocationMap> {
+    ACTIVE_PLUGIN_INVOCATIONS.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-struct ActivePythonInvocation {
+struct ActivePluginInvocation {
     key: InvocationKey,
     cancelled: Arc<AtomicBool>,
 }
 
-impl ActivePythonInvocation {
+impl ActivePluginInvocation {
     fn register(plugin_id: &str, invocation_id: &str) -> Result<Self, String> {
         validate_invocation_id(invocation_id)?;
         let key = (plugin_id.to_string(), invocation_id.to_string());
         let cancelled = Arc::new(AtomicBool::new(false));
-        let mut invocations = active_python_invocations()
+        let mut invocations = active_plugin_invocations()
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         if invocations.contains_key(&key) {
@@ -83,9 +83,9 @@ fn validate_invocation_id(invocation_id: &str) -> Result<(), String> {
     }
 }
 
-impl Drop for ActivePythonInvocation {
+impl Drop for ActivePluginInvocation {
     fn drop(&mut self) {
-        let mut invocations = active_python_invocations()
+        let mut invocations = active_plugin_invocations()
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         if invocations
@@ -97,12 +97,12 @@ impl Drop for ActivePythonInvocation {
     }
 }
 
-/// 取消某个插件当前仍在运行的所有 Python 调用。
+/// 取消某个插件当前仍在运行的所有调用。
 ///
 /// 插件停用、卸载或被禁用名单命中时由原生注册表调用。调用记录由执行守卫在
-/// 子进程结束后移除，因此这里仅设置原子标记，避免与等待线程争用进程句柄。
+/// 执行结束后移除，因此这里仅设置原子标记，不与运行线程争用沙箱或进程句柄。
 pub fn cancel_plugin_invocations(plugin_id: &str) {
-    let invocations = active_python_invocations()
+    let invocations = active_plugin_invocations()
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     for ((active_plugin_id, _), cancelled) in invocations.iter() {
@@ -112,11 +112,11 @@ pub fn cancel_plugin_invocations(plugin_id: &str) {
     }
 }
 
-/// 取消所有插件当前仍在运行的 Python 调用。
+/// 取消所有插件当前仍在运行的调用。
 ///
 /// 信任注册表损坏时无法可靠枚举已注册插件，因此修复流程必须撤销整个运行集合。
 pub fn cancel_all_plugin_invocations() {
-    let invocations = active_python_invocations()
+    let invocations = active_plugin_invocations()
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     for cancelled in invocations.values() {
@@ -849,6 +849,7 @@ fn execute_with_timeout(
     tool_id: String,
     input: Value,
     timeout: Duration,
+    cancelled: Option<Arc<AtomicBool>>,
 ) -> Result<Value, String> {
     if source.len() > MAX_SOURCE_BYTES {
         return Err("插件源码超过 512 KiB 上限".to_string());
@@ -867,13 +868,20 @@ fn execute_with_timeout(
     runtime.set_memory_limit(MEMORY_LIMIT_BYTES);
     runtime.set_max_stack_size(MAX_STACK_BYTES);
     let deadline = Instant::now() + timeout;
-    runtime.set_interrupt_handler(Some(Box::new(move || Instant::now() >= deadline)));
+    let interrupt_cancelled = cancelled.clone();
+    runtime.set_interrupt_handler(Some(Box::new(move || {
+        Instant::now() >= deadline
+            || interrupt_cancelled
+                .as_ref()
+                .is_some_and(|flag| flag.load(Ordering::Acquire))
+    })));
     let context =
         Context::full(&runtime).map_err(|error| format!("创建插件上下文失败: {error}"))?;
 
     let script = format!(
         r#"
 "use strict";
+const __serialize = JSON.stringify;
 let __pluginDefinition = null;
 function definePlugin(definition) {{
   if (__pluginDefinition !== null) throw new Error("definePlugin 只能调用一次");
@@ -887,25 +895,50 @@ const __toolId = {tool_id_json};
 const __tool = __pluginDefinition.tools && __pluginDefinition.tools[__toolId];
 if (typeof __tool !== "function") throw new Error("插件未注册该节点工具");
 const __input = Object.freeze({input_json});
-const __result = __tool(__input);
-if (__result && typeof __result.then === "function") {{
-  throw new Error("首版插件工具不支持异步返回值");
-}}
-const __json = JSON.stringify(__result);
-if (typeof __json !== "string") throw new Error("插件必须返回可 JSON 序列化的对象");
-__json;
+(async () => {{
+  const __result = await __tool(__input);
+  const __json = __serialize(__result);
+  if (typeof __json !== "string") throw new Error("插件必须返回可 JSON 序列化的对象");
+  return __json;
+}})();
 "#,
     );
 
-    let output_json = context
-        .with(|ctx| ctx.eval::<String, _>(script))
-        .map_err(|error| {
-            if Instant::now() >= deadline {
-                "插件执行超过 2 秒，已终止".to_string()
-            } else {
-                format!("插件执行失败: {error}")
+    let execution_error = |error: rquickjs::Error| {
+        if cancelled
+            .as_ref()
+            .is_some_and(|flag| flag.load(Ordering::Acquire))
+        {
+            "插件调用已取消".to_string()
+        } else if Instant::now() >= deadline {
+            "插件执行超过 2 秒，已终止".to_string()
+        } else {
+            format!("插件执行失败: {error}")
+        }
+    };
+    let output_json = context.with(|ctx| {
+        let result = ctx.eval::<Promise, _>(script).map_err(&execution_error)?;
+        let mut job_executed = true;
+        loop {
+            if cancelled
+                .as_ref()
+                .is_some_and(|flag| flag.load(Ordering::Acquire))
+            {
+                return Err("插件调用已取消".to_string());
             }
-        })?;
+            if Instant::now() >= deadline {
+                return Err("插件执行超过 2 秒，已终止".to_string());
+            }
+            if let Some(value) = result.result::<String>() {
+                return value.map_err(&execution_error);
+            }
+            if !job_executed {
+                return Err("插件 Promise 未完成，且没有可执行的异步任务".to_string());
+            }
+            // 很短的微任务也可能无限排队，不能只依赖 JS 指令中断来判断超时。
+            job_executed = ctx.execute_pending_job();
+        }
+    })?;
     if output_json.len() > MAX_OUTPUT_BYTES {
         return Err("插件输出超过 1 MiB 上限".to_string());
     }
@@ -917,11 +950,23 @@ fn execute_plugin_tool_inner(
     source: String,
     tool_id: String,
     input: Value,
-    cancelled: Option<&AtomicBool>,
+    cancelled: Option<Arc<AtomicBool>>,
 ) -> Result<Value, String> {
     match runtime.as_str() {
-        "javascript" => execute_with_timeout(source, tool_id, input, JAVASCRIPT_EXECUTION_TIMEOUT),
-        "python" => execute_python(source, tool_id, input, PYTHON_EXECUTION_TIMEOUT, cancelled),
+        "javascript" => execute_with_timeout(
+            source,
+            tool_id,
+            input,
+            JAVASCRIPT_EXECUTION_TIMEOUT,
+            cancelled,
+        ),
+        "python" => execute_python(
+            source,
+            tool_id,
+            input,
+            PYTHON_EXECUTION_TIMEOUT,
+            cancelled.as_deref(),
+        ),
         _ => Err("不支持的插件运行时".to_string()),
     }
 }
@@ -939,35 +984,19 @@ pub async fn execute_node_plugin_tool(
 ) -> Result<Value, String> {
     crate::path_policy::ensure_trusted_caller(&webview)?;
     validate_invocation_id(&invocation_id)?;
-    let mut executable = crate::plugin_registry::load_plugin_for_execution(
+    let active_invocation = ActivePluginInvocation::register(&plugin_id, &invocation_id)?;
+    // 先登记取消守卫再读取活动版本，停用或更新就不会漏掉刚开始的调用。
+    let executable = crate::plugin_registry::load_plugin_for_execution(
         &app,
         &plugin_id,
         &source_digest,
         &revision_digest,
         &tool_id,
     )?;
-    let active_invocation = if executable.runtime == "python" {
-        let active = ActivePythonInvocation::register(&plugin_id, &invocation_id)?;
-        // The registry may be changed between the first lookup and cancellation registration.
-        // Looking it up again closes the remove/disable race: after registration, a later
-        // removal can signal this invocation through `cancel_plugin_invocations`.
-        executable = crate::plugin_registry::load_plugin_for_execution(
-            &app,
-            &plugin_id,
-            &source_digest,
-            &revision_digest,
-            &tool_id,
-        )?;
-        Some(active)
-    } else {
-        None
-    };
 
     tauri::async_runtime::spawn_blocking(move || {
         let _active_invocation = active_invocation;
-        let cancelled = _active_invocation
-            .as_ref()
-            .map(|invocation| invocation.cancelled.as_ref());
+        let cancelled = Some(Arc::clone(&_active_invocation.cancelled));
         execute_plugin_tool_inner(
             executable.runtime,
             executable.source,
@@ -1048,6 +1077,7 @@ mod tests {
             "upper".to_string(),
             json!({ "node": { "data": { "output": "hello" } } }),
             Duration::from_millis(200),
+            None,
         )
         .unwrap();
         assert_eq!(result["data"]["output"], "HELLO");
@@ -1060,6 +1090,7 @@ mod tests {
             "missing".to_string(),
             json!({}),
             Duration::from_millis(200),
+            None,
         )
         .unwrap_err();
         assert!(error.contains("插件执行失败"));
@@ -1072,9 +1103,129 @@ mod tests {
             "loop".to_string(),
             json!({}),
             Duration::from_millis(20),
+            None,
         )
         .unwrap_err();
         assert!(error.contains("已终止"));
+    }
+
+    #[test]
+    fn awaits_async_tools_promise_chains_and_thenables() {
+        for tool in [
+            r#"async (input) => {
+                const parts = await Promise.all([Promise.resolve("异步"), Promise.resolve(input.suffix)]);
+                await Promise.resolve();
+                return { data: { output: parts.join("") } };
+            }"#,
+            r#"(input) => Promise.resolve(input.suffix).then(suffix => ({ data: { output: "异步" + suffix } }))"#,
+            r#"(input) => ({ then(resolve) { resolve({ data: { output: "异步" + input.suffix } }); } })"#,
+        ] {
+            let result = execute_with_timeout(
+                format!("definePlugin({{ tools: {{ run: {tool} }} }});"),
+                "run".into(),
+                json!({"suffix": "完成"}),
+                Duration::from_millis(200),
+                None,
+            )
+            .unwrap();
+            assert_eq!(result["data"]["output"], "异步完成");
+        }
+    }
+
+    #[test]
+    fn async_tools_preserve_effect_reentry_contract() {
+        let source = r#"definePlugin({ tools: { run: async (input) => {
+            await Promise.resolve();
+            if (!input.effectResult) return { effect: { type: "settings.get", key: "preferences" } };
+            return { data: { output: input.effectResult.value.value.language } };
+        } } });"#;
+        let request = execute_with_timeout(
+            source.into(),
+            "run".into(),
+            json!({}),
+            Duration::from_millis(200),
+            None,
+        )
+        .unwrap();
+        assert_eq!(
+            request,
+            json!({"effect": {"type": "settings.get", "key": "preferences"}})
+        );
+        let result = execute_with_timeout(source.into(), "run".into(), json!({
+            "effectResult": { "ok": true, "value": { "found": true, "value": { "language": "zh-CN" } } }
+        }), Duration::from_millis(200), None).unwrap();
+        assert_eq!(result["data"]["output"], "zh-CN");
+    }
+
+    #[test]
+    fn rejects_unresolved_and_rejected_promises_without_serializing_them_as_empty_objects() {
+        for (tool, message) in [
+            ("() => new Promise(() => {})", "Promise 未完成"),
+            (
+                "async () => { await new Promise(() => {}); }",
+                "Promise 未完成",
+            ),
+            ("async () => { throw new Error('failed'); }", "插件执行失败"),
+            ("() => Promise.reject('failed')", "插件执行失败"),
+            ("async () => undefined", "插件执行失败"),
+            (
+                "async () => { const value = {}; value.child = value; return value; }",
+                "插件执行失败",
+            ),
+        ] {
+            let error = execute_with_timeout(
+                format!("definePlugin({{ tools: {{ run: {tool} }} }});"),
+                "run".into(),
+                json!({}),
+                Duration::from_millis(200),
+                None,
+            )
+            .unwrap_err();
+            assert!(error.contains(message), "{error}");
+        }
+    }
+
+    #[test]
+    fn bounds_async_output_and_microtask_loops_with_the_same_deadline() {
+        let error = execute_with_timeout(
+            "definePlugin({ tools: { run: async () => ({ data: { output: 'a'.repeat(1024 * 1024) } }) } });".into(),
+            "run".into(), json!({}), Duration::from_millis(500), None,
+        ).unwrap_err();
+        assert!(error.contains("输出超过"));
+        for tool in [
+            "async () => { while (true) await Promise.resolve(); }",
+            "async () => { await Promise.resolve(); while (true) {} }",
+            "() => ({ then(resolve) { resolve(this); } })",
+        ] {
+            let error = execute_with_timeout(
+                format!("definePlugin({{ tools: {{ run: {tool} }} }});"),
+                "run".into(),
+                json!({}),
+                Duration::from_millis(20),
+                None,
+            )
+            .unwrap_err();
+            assert!(error.contains("已终止"), "{error}");
+        }
+    }
+
+    #[test]
+    fn cancels_running_javascript_and_releases_its_invocation_guard() {
+        let active = ActivePluginInvocation::register("plugin-js-cancel", "js-loop").unwrap();
+        let cancellation_request = Arc::clone(&active.cancelled);
+        let request_thread = thread::spawn(move || {
+            thread::sleep(Duration::from_millis(10));
+            cancellation_request.store(true, Ordering::Release);
+        });
+        let error = execute_with_timeout(
+            "definePlugin({ tools: { run: async () => { while (true) await Promise.resolve(); } } });".into(),
+            "run".into(), json!({}), Duration::from_secs(2), Some(Arc::clone(&active.cancelled)),
+        ).unwrap_err();
+        request_thread.join().unwrap();
+        assert!(error.contains("已取消"), "{error}");
+        drop(active);
+        let fresh = ActivePluginInvocation::register("plugin-js-cancel", "js-loop").unwrap();
+        assert!(!fresh.cancelled.load(Ordering::Acquire));
     }
 
     #[test]
@@ -1292,9 +1443,9 @@ define_plugin({"tools": {"loop": loop}})
 
     #[test]
     fn cancels_all_registered_invocations_for_one_plugin() {
-        let first = ActivePythonInvocation::register("plugin-a", "invocation-1").unwrap();
-        let second = ActivePythonInvocation::register("plugin-a", "invocation-2").unwrap();
-        let other = ActivePythonInvocation::register("plugin-b", "invocation-1").unwrap();
+        let first = ActivePluginInvocation::register("plugin-a", "invocation-1").unwrap();
+        let second = ActivePluginInvocation::register("plugin-a", "invocation-2").unwrap();
+        let other = ActivePluginInvocation::register("plugin-b", "invocation-1").unwrap();
 
         cancel_plugin_invocations("plugin-a");
 
@@ -1305,8 +1456,8 @@ define_plugin({"tools": {"loop": loop}})
 
     #[test]
     fn cancels_every_registered_invocation_during_registry_repair() {
-        let first = ActivePythonInvocation::register("repair-a", "invocation-1").unwrap();
-        let second = ActivePythonInvocation::register("repair-b", "invocation-1").unwrap();
+        let first = ActivePluginInvocation::register("repair-a", "invocation-1").unwrap();
+        let second = ActivePluginInvocation::register("repair-b", "invocation-1").unwrap();
 
         cancel_all_plugin_invocations();
 

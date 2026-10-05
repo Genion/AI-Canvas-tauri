@@ -142,3 +142,16 @@ definePlugin({
 - 实现：新增联网与偏好权限/effect、原生域名授权与活动版本复核、网络取消和私有偏好原子更新；UI 网络 16 次、设置 64 次独立计数。UI 参数合并与提交严格校验；普通工具也拒绝整体参数键数超限，模型提示词与文本创建不再截断，文本生成接入会话取消。HTTP 库的协议重试明确关闭；设置文件损坏或超限拒绝读取，但安全的普通文件仍可随卸载清理。
 - 已验证：14 个前端插件测试文件、356 项通过；应用和测试 TypeScript 类型检查、修改文件 ESLint 通过。`cargo test --lib plugin_ --no-default-features --features tauri-channel-tests` 61 项通过，包含真实应用 capability 下的 MockRuntime 越权命令拒绝；默认特性 `cargo check` 通过。新增 Rust 文件与注册表定向 rustfmt、diff 空白和 UTF-8 检查通过。
 - 待完成：真实 WebView 安装/重新启用授权、关闭取消与重启后偏好恢复，以及实际公共 HTTPS API 的端到端验收；测试响应读取使用本地 HTTP fixture，DNS/IP 校验为原生单元回归，不替代真实 TLS、页面与系统生命周期验收。
+
+## 2026-10-05 JavaScript 异步工具（代码与自动化验证完成）
+
+上一轮已提交推送；按用户继续优化的指示，小步完善平台执行能力。
+
+- 范围：`plugins/runtime.rs`（含原生回归）、插件开发规范和本计划，共 3 个文件，不新增依赖、权限或安全配置。
+- 合同：同步工具兼容保留，工具也可返回 Promise 或使用 async/await，完成值仍为原有 JSON data/effect。只驱动本次 QuickJS 的微任务；宿主 I/O 仍走既有 effect 重入，不提供 fetch、计时器、模块导入或脱离调用的后台任务。
+- 边界：同步脚本、异步微任务和结果序列化共用原有 2 秒期限、64 MiB 内存和输出上限。每个微任务之间主动检查期限和取消，拒绝未完成且无剩余任务的 Promise；更新、停用、卸载与修复注册表时，JavaScript 也接入现有调用取消守卫。
+- 验收：多轮 await/Promise.all、异步 effect、同步兼容、拒绝/未完成/不可序列化/超限、同步与微任务死循环、取消和调用守卫回收；Rust test/check、前端插件兼容回归与文档合同检查。
+- 实现：工具结果通过 Promise 等待完成后序列化；每次只推进一个微任务，并在任务之间检查取消和统一期限，避免短微任务无限排队绕过 JS 指令中断。JavaScript 和 Python 共用既有调用守卫；先登记守卫、再读取原生活动版本，取消登记与版本切换之间不留竞态。
+- 已验证：Rust 运行时定向 19 项通过；完整插件 `cargo test --lib plugin_ --no-default-features --features tauri-channel-tests` 66 项通过；默认特性 `cargo check` 通过。前端执行、Manifest、UI 会话、独立窗口与安装 Store 共 245 项回归通过；定向 rustfmt、diff 空白和 UTF-8 检查通过。
+- 未完成：模块导入、独立后台任务和自定义画布节点 HTML 不在本步范围；异步工具的真实桌面安装与交互仍待验收，上一轮 WebView/公共 HTTPS 端到端验收缺口保持开放。
+- 回滚：恢复仅同步执行实现并重装同步工具 revision；使用 async 工具的插件须配套宿主升级，旧宿主会拒绝 Promise 返回值。
