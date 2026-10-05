@@ -238,6 +238,7 @@ export type PluginUiWindowEvent =
  * DOM、store 或凭据；写回画布仍要过 output.fields 白名单与媒体来源校验。
  */
 export interface PluginUISurfaceProps {
+  readonly host: PluginHostInfo;
   /** 当前挂载点；v1 固定为节点工具弹窗。 */
   surface: PluginUISurface;
   /** 宿主主题；内嵌时实时同步，原生窗口重新聚焦时刷新，并派发 ai-canvas-theme-change。 */
@@ -270,8 +271,19 @@ export type PluginUIMount = (
   props: PluginUISurfaceProps,
 ) => void | (() => void) | Promise<void | (() => void)>;
 
+export interface PluginHostInfo {
+  version: string;
+  apiVersions: readonly number[];
+  /** 宿主支持的功能，不代表插件已经获得对应权限。 */
+  capabilities: readonly string[];
+  limits: Record<'tool' | 'ui', Record<string, number>>;
+}
+
 export interface PluginManifest {
-  apiVersion: 1;
+  apiVersion: 1 | 2;
+  /** 兼容声明仅用于 API 2，旧宿主会在安装时拒绝该版本。 */
+  minHostVersion?: string;
+  requiredCapabilities?: string[];
   /** v1 显式选择 QuickJS 或可信 Python。 */
   runtime: PluginRuntime;
   id: string;
@@ -314,6 +326,7 @@ export interface InstalledPlugin {
 }
 
 export interface NodePluginInvocationInput {
+  host?: PluginHostInfo;
   projectId: string;
   /** 本轮执行时实际生效的宿主语言。 */
   locale: Locale;
@@ -447,6 +460,7 @@ export interface PluginNodeHostEffectResult {
 }
 
 export interface PluginNodeInvocationInput {
+  host?: PluginHostInfo;
   projectId: string;
   /** 本轮执行时实际生效的宿主语言。 */
   locale: Locale;

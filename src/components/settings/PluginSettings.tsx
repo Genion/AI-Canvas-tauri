@@ -345,6 +345,8 @@ export default function PluginSettings() {
   const inputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
   const busyRef = useRef(false);
+  // 目录授权只用于当前面板的开发重载，不写入插件记录或普通配置。
+  const [localDirectories, setLocalDirectories] = useState<Record<string, string>>({});
   const plugins = useAppStore((state) => state.installedPlugins);
   const installPluginBundle = useAppStore((state) => state.installPluginBundle);
   const setPluginEnabled = useAppStore((state) => state.setPluginEnabled);
@@ -510,7 +512,7 @@ export default function PluginSettings() {
   };
 
   // Tauri 原生目录选择/拖拽共用按 Manifest 读取的安装链。
-  const installFromPaths = async (paths: string[], requireManifest = false) => {
+  const installFromPaths = async (paths: string[], requireManifest = false, expectedPluginId?: string) => {
     if (busyRef.current || paths.length === 0) return;
     busyRef.current = true;
     setBusy(true);
@@ -518,6 +520,7 @@ export default function PluginSettings() {
       const bundle = await readLocalPluginPackage(paths, requireManifest);
       if (!bundle) return;
       const { manifestText, manifest, source, uiSource, resourcePayloads } = bundle;
+      if (expectedPluginId && manifest.id !== expectedPluginId) throw new Error('本地目录的插件 ID 已变化，请重新安装');
       const action = plugins.some((installed) => installed.id === manifest.id) ? '更新' : '安装';
       const sourceDigest = await reviewPluginInstall(manifest, source, action, '本地文件夹');
       if (!sourceDigest) return;
@@ -527,6 +530,7 @@ export default function PluginSettings() {
         uiSource,
         resourcePayloads,
       });
+      if (bundle.directory) setLocalDirectories((previous) => ({ ...previous, [manifest.id]: bundle.directory }));
     } catch (error) {
       showToast(pluginOperationErrorMessage(error, '插件安装失败'), 'error');
     } finally {
@@ -1008,6 +1012,18 @@ export default function PluginSettings() {
                   </details>
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
+                  {localDirectories[plugin.id] && (
+                    <AnimatedButton
+                      type="button"
+                      disabled={busy}
+                      aria-label={`重新载入 ${plugin.manifest.name}`}
+                      className="ui-btn ui-btn--sm"
+                      onClick={() => void installFromPaths([localDirectories[plugin.id]], true, plugin.id)}
+                    >
+                      <Icon icon="lucide:refresh-cw" width={14} height={14} />
+                      重新载入
+                    </AnimatedButton>
+                  )}
                   <AnimatedButton
                     type="button"
                     role="switch"
@@ -1059,7 +1075,7 @@ export default function PluginSettings() {
           </span>
           <div className="min-w-0 flex-1">
             <h2 className="text-sm font-semibold text-canvas-text">AI Canvas 插件开发规范</h2>
-            <p className="mt-0.5 text-[11px] text-canvas-text-muted">Plugin API v1 · 与当前插件运行时同步</p>
+            <p className="mt-0.5 text-[11px] text-canvas-text-muted">Plugin API 1 / 2 · 与当前插件运行时同步</p>
           </div>
           <AnimatedButton
             type="button"

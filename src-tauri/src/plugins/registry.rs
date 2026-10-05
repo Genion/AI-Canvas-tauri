@@ -71,6 +71,10 @@ struct PluginRevision {
     permissions: Vec<String>,
     #[serde(default)]
     network_origins: Vec<String>,
+    #[serde(default)]
+    min_host_version: Option<String>,
+    #[serde(default)]
+    required_capabilities: Vec<String>,
     declared_tool_ids: Vec<String>,
     #[serde(default)]
     native_approved: bool,
@@ -220,7 +224,7 @@ fn is_valid_scoped_id(value: &str, max_bytes: usize) -> bool {
         })
 }
 
-fn validate_plugin_id(plugin_id: &str) -> Result<(), String> {
+pub(crate) fn validate_plugin_id(plugin_id: &str) -> Result<(), String> {
     if !is_valid_scoped_id(plugin_id, MAX_PLUGIN_ID_BYTES) {
         return Err("插件 ID 无效".to_string());
     }
@@ -575,6 +579,70 @@ fn parse_ui_declaration(
     Ok((Some(expected), Some(entry)))
 }
 
+fn host_version_parts(value: &str) -> Result<Vec<u32>, String> {
+    let parts = value.split('.').collect::<Vec<_>>();
+    if parts.len() != 3
+        || parts.iter().any(|part| {
+            part.is_empty()
+                || part.len() > 9
+                || !part.bytes().all(|byte| byte.is_ascii_digit())
+                || part.len() > 1 && part.starts_with('0')
+        })
+    {
+        return Err("minHostVersion 必须是稳定版本号，例如 0.9.23".into());
+    }
+    parts
+        .into_iter()
+        .map(|part| part.parse::<u32>().map_err(|_| "最低宿主版本无效".into()))
+        .collect()
+}
+
+fn validate_compatibility_shape(
+    minimum: Option<&str>,
+    capabilities: &[String],
+) -> Result<(), String> {
+    if let Some(minimum) = minimum {
+        host_version_parts(minimum)?;
+    }
+    if capabilities.len() > 16
+        || capabilities.windows(2).any(|pair| pair[0] >= pair[1])
+        || capabilities.iter().any(|name| {
+            name.len() > 64
+                || name.split('.').any(|part| {
+                    !part.as_bytes().first().is_some_and(u8::is_ascii_lowercase)
+                        || !part.bytes().all(|byte| byte.is_ascii_alphanumeric())
+                })
+        })
+    {
+        return Err("所需宿主能力清单无效".into());
+    }
+    Ok(())
+}
+
+fn ensure_host_compatibility(minimum: Option<&str>, capabilities: &[String]) -> Result<(), String> {
+    if let Some(minimum) = minimum {
+        if host_version_parts(minimum)? > host_version_parts(env!("CARGO_PKG_VERSION"))? {
+            return Err(format!(
+                "插件需要宿主 {minimum} 或更高版本，当前为 {}",
+                env!("CARGO_PKG_VERSION")
+            ));
+        }
+    }
+    let host = crate::plugin_runtime::host_info();
+    let supported = host["capabilities"]
+        .as_array()
+        .expect("内置能力清单必须是数组");
+    for capability in capabilities {
+        if !supported
+            .iter()
+            .any(|name| name.as_str() == Some(capability))
+        {
+            return Err(format!("宿主不支持插件所需能力: {capability}"));
+        }
+    }
+    Ok(())
+}
+
 fn parse_revision_with_resources(
     manifest: &Value,
     source: &str,
@@ -594,10 +662,28 @@ fn parse_revision_with_resources(
     let plugin_id = required_string(root, "id", "插件 ID", MAX_PLUGIN_ID_BYTES)?;
     validate_plugin_id(&plugin_id)?;
     let version = required_string(root, "version", "插件版本", MAX_VERSION_BYTES)?;
-    root.get("apiVersion")
+    let api_version = root
+        .get("apiVersion")
         .and_then(Value::as_u64)
-        .filter(|value| *value == 1)
+        .filter(|value| matches!(value, 1 | 2))
         .ok_or_else(|| "插件 apiVersion 无效".to_string())?;
+    if api_version == 1
+        && (root.contains_key("minHostVersion") || root.contains_key("requiredCapabilities"))
+    {
+        return Err("兼容声明需要 apiVersion: 2，避免旧宿主忽略声明".into());
+    }
+    let min_host_version = if root.contains_key("minHostVersion") {
+        Some(required_string(root, "minHostVersion", "最低宿主版本", 32)?)
+    } else {
+        None
+    };
+    let required_capabilities = if root.contains_key("requiredCapabilities") {
+        string_list(root, "requiredCapabilities", "所需宿主能力", 16, 64)?
+    } else {
+        Vec::new()
+    };
+    validate_compatibility_shape(min_host_version.as_deref(), &required_capabilities)?;
+    ensure_host_compatibility(min_host_version.as_deref(), &required_capabilities)?;
     let runtime = root
         .get("runtime")
         .and_then(Value::as_str)
@@ -655,6 +741,8 @@ fn parse_revision_with_resources(
             entry,
             permissions,
             network_origins,
+            min_host_version,
+            required_capabilities,
             declared_tool_ids,
             native_approved: false,
             ui_digest,
@@ -957,6 +1045,10 @@ fn registry_backup_file(private_dir: &Path) -> PathBuf {
 }
 
 fn validate_stored_revision(revision: &PluginRevision) -> Result<(), String> {
+    validate_compatibility_shape(
+        revision.min_host_version.as_deref(),
+        &revision.required_capabilities,
+    )?;
     validate_source_digest(&revision.revision_digest)?;
     validate_source_digest(&revision.source_digest)?;
     if revision.version.is_empty()
@@ -1056,7 +1148,7 @@ fn validate_stored_revision(revision: &PluginRevision) -> Result<(), String> {
 }
 
 fn validate_registry(registry: &PluginRegistry) -> Result<(), String> {
-    if registry.schema_version != REGISTRY_SCHEMA_VERSION {
+    if registry.schema_version != REGISTRY_SCHEMA_VERSION && registry.schema_version != 2 {
         return Err("插件信任注册表版本不受支持".to_string());
     }
     if registry.plugins.len() > MAX_PLUGIN_REGISTRATIONS {
@@ -1194,10 +1286,25 @@ fn repair_corrupt_registry_at(private_dir: &Path) -> Result<bool, String> {
 fn write_registry_at(private_dir: &Path, registry: &PluginRegistry) -> Result<(), String> {
     ensure_private_directory(private_dir)?;
     validate_registry(registry)?;
+    let mut persisted = registry.clone();
+    // 旧宿主会忽略新字段；有兼容声明时必须升级表版本，让旧读取器明确拒绝。
+    persisted.schema_version = if registry.plugins.values().any(|record| {
+        [&record.active, &record.previous, &record.staged]
+            .into_iter()
+            .flatten()
+            .any(|revision| {
+                revision.min_host_version.is_some() || !revision.required_capabilities.is_empty()
+            })
+    }) {
+        2
+    } else {
+        REGISTRY_SCHEMA_VERSION
+    };
     let file = registry_file(private_dir);
     let temporary = registry_temp_file(private_dir);
     let backup = registry_backup_file(private_dir);
-    let body = serde_json::to_vec(registry).map_err(|_| "无法序列化插件信任注册表".to_string())?;
+    let body =
+        serde_json::to_vec(&persisted).map_err(|_| "无法序列化插件信任注册表".to_string())?;
     if body.len() as u64 > MAX_REGISTRY_BYTES {
         return Err("插件信任注册表超过大小限制".to_string());
     }
@@ -1557,6 +1664,8 @@ fn revision_security_manifest_matches(left: &PluginRevision, right: &PluginRevis
         && left.entry == right.entry
         && left.permissions == right.permissions
         && left.network_origins == right.network_origins
+        && left.min_host_version == right.min_host_version
+        && left.required_capabilities == right.required_capabilities
         && left.declared_tool_ids == right.declared_tool_ids
         && left.ui_digest == right.ui_digest
         && left.ui_entry == right.ui_entry
@@ -1714,6 +1823,10 @@ fn cancel_committed_plugin_invocations(plugin_id: &str) {
 }
 
 fn ensure_native_execution_approved(revision: &PluginRevision) -> Result<(), String> {
+    ensure_host_compatibility(
+        revision.min_host_version.as_deref(),
+        &revision.required_capabilities,
+    )?;
     if revision_requests_native_approval(revision) && !revision.native_approved {
         return Err("插件尚未完成原生高风险授权，请停用后重新启用".to_string());
     }
@@ -1743,6 +1856,12 @@ fn commit_activation_at(
     let (slot, approval_required) = {
         let (slot, candidate) = activation_candidate(record, revision_digest)
             .ok_or_else(|| "指定插件版本未暂存，也不是可回滚版本".to_string())?;
+        if enabled {
+            ensure_host_compatibility(
+                candidate.min_host_version.as_deref(),
+                &candidate.required_capabilities,
+            )?;
+        }
         let _ = read_verified_source_at(private_dir, plugin_id, candidate)?;
         (
             slot,
@@ -1795,6 +1914,10 @@ fn commit_enabled_at(
             .active
             .as_ref()
             .ok_or_else(|| "插件没有可启用的活动版本".to_string())?;
+        ensure_host_compatibility(
+            active.min_host_version.as_deref(),
+            &active.required_capabilities,
+        )?;
         let _ = read_verified_source_at(private_dir, plugin_id, active)?;
     }
     if approval_required && !native_approval_granted {
@@ -2408,6 +2531,75 @@ mod tests {
         assert!(is_valid_digest(&revision.source_digest));
         assert_eq!(revision.declared_tool_ids, ["custom-node", "upper"]);
         assert!(!revision.native_approved);
+    }
+
+    #[test]
+    fn api_two_requirements_are_checked_natively_and_retained_for_future_execution() {
+        let mut value = manifest("javascript");
+        value["apiVersion"] = json!(2);
+        value["minHostVersion"] = json!(env!("CARGO_PKG_VERSION"));
+        value["requiredCapabilities"] = json!(["javascript.async", "invocation.cancel"]);
+        let (_, revision) = parse_revision(&value, "definePlugin({});", None).unwrap();
+        assert_eq!(
+            revision.min_host_version.as_deref(),
+            Some(env!("CARGO_PKG_VERSION"))
+        );
+        ensure_native_execution_approved(&revision).unwrap();
+        let directory = temporary_directory("compatibility-schema");
+        let mut registry = PluginRegistry::default();
+        registry.plugins.insert(
+            "plugin.compatibility".into(),
+            PluginRegistration {
+                plugin_id: "plugin.compatibility".into(),
+                enabled: true,
+                active: Some(revision.clone()),
+                previous: None,
+                staged: None,
+                installed_at: 1,
+                updated_at: 1,
+            },
+        );
+        write_registry_at(&directory, &registry).unwrap();
+        let persisted = read_registry_at(&directory).unwrap();
+        assert_eq!(persisted.schema_version, 2);
+        assert_eq!(
+            persisted.plugins["plugin.compatibility"]
+                .active
+                .as_ref()
+                .unwrap(),
+            &revision
+        );
+        let record = registry.plugins.get_mut("plugin.compatibility").unwrap();
+        record.active.as_mut().unwrap().min_host_version = None;
+        record
+            .active
+            .as_mut()
+            .unwrap()
+            .required_capabilities
+            .clear();
+        write_registry_at(&directory, &registry).unwrap();
+        assert_eq!(read_registry_at(&directory).unwrap().schema_version, 1);
+        fs::remove_dir_all(directory).unwrap();
+        let mut unsupported = revision.clone();
+        unsupported.required_capabilities = vec!["unknown.feature".into()];
+        // 不兼容的单个插件不能把整个注册表判成损坏，但任何执行都必须拒绝。
+        validate_stored_revision(&unsupported).unwrap();
+        assert!(ensure_native_execution_approved(&unsupported).is_err());
+        for requirement in [
+            json!("999.0.0"),
+            json!("0.09.23"),
+            json!("0.9.23-beta"),
+            Value::Null,
+        ] {
+            value["minHostVersion"] = requirement;
+            assert!(parse_revision(&value, "definePlugin({});", None).is_err());
+        }
+        value["minHostVersion"] = json!(env!("CARGO_PKG_VERSION"));
+        value["apiVersion"] = json!(1);
+        assert!(parse_revision(&value, "definePlugin({});", None).is_err());
+        value["apiVersion"] = json!(2);
+        value["requiredCapabilities"] = json!(["unknown.feature"]);
+        assert!(parse_revision(&value, "definePlugin({});", None).is_err());
     }
 
     #[test]
@@ -3070,6 +3262,8 @@ mod tests {
             entry: "main.js".to_string(),
             permissions: vec!["node.read".to_string(), "node.write".to_string()],
             network_origins: Vec::new(),
+            min_host_version: None,
+            required_capabilities: Vec::new(),
             declared_tool_ids,
             native_approved: false,
             ui_digest: None,

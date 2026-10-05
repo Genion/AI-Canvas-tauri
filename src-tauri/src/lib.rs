@@ -1257,6 +1257,7 @@ pub fn run() {
             plugin_window::respond_plugin_ui_window_request,
             plugin_window::plugin_ui_window_request,
             plugin_runtime::execute_node_plugin_tool,
+            plugin_runtime::cancel_node_plugin_tool,
             plugin_host_effects::execute_plugin_host_effect,
             plugin_host_effects::cancel_plugin_host_effect,
             plugin_runtime::get_python_plugin_runtime_status,

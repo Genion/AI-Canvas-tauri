@@ -1,4 +1,5 @@
 import type { NodeType } from '../../types';
+import { assertPluginCompatibility } from './pluginHost';
 import type {
   InstalledPlugin,
   PluginCategory,
@@ -528,8 +529,18 @@ function parseCustomNodes(value: unknown): PluginCustomNodeManifest[] {
 
 function parseManifest(value: unknown): PluginManifest {
   const root = objectValue(value, 'manifest');
-  if (root.apiVersion !== 1) throw new Error('仅支持 apiVersion: 1');
-  const apiVersion = 1 as const;
+  if (root.apiVersion !== 1 && root.apiVersion !== 2) throw new Error('仅支持 apiVersion: 1 或 2');
+  const apiVersion = root.apiVersion;
+  if (apiVersion === 1 && (root.minHostVersion !== undefined || root.requiredCapabilities !== undefined)) {
+    throw new Error('兼容声明需要 apiVersion: 2，避免旧宿主忽略声明');
+  }
+  const minHostVersion = root.minHostVersion === undefined ? undefined : nonEmptyString(root.minHostVersion, 'minHostVersion', 32);
+  const requiredCapabilities = root.requiredCapabilities === undefined ? undefined
+    : [...new Set(stringArray(root.requiredCapabilities, 'requiredCapabilities', 16))].sort();
+  if (requiredCapabilities?.some((name) => !/^[a-z][a-zA-Z0-9]*(?:\.[a-z][a-zA-Z0-9]*)*$/u.test(name) || name.length > 64)) {
+    throw new Error('requiredCapabilities 必须包含有效的能力名称');
+  }
+  assertPluginCompatibility({ minHostVersion, requiredCapabilities });
   const id = nonEmptyString(root.id, '插件 id', 128);
   if (!PLUGIN_ID_RE.test(id)) throw new Error('插件 id 只能使用小写字母、数字、点、下划线和短横线');
   const entry = nonEmptyString(root.entry, 'entry', 32);
@@ -728,6 +739,8 @@ function parseManifest(value: unknown): PluginManifest {
 
   return {
     apiVersion,
+    ...(minHostVersion !== undefined ? { minHostVersion } : {}),
+    ...(requiredCapabilities !== undefined ? { requiredCapabilities } : {}),
     runtime,
     id,
     name: nonEmptyString(root.name, '插件名称', 80),

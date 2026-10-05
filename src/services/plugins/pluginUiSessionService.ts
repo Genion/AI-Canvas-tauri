@@ -24,6 +24,7 @@ import {
   type CanvasDerivationGuard,
 } from '../canvasDerivationGuard';
 import { buildPluginModelCatalog, collectDeclaredModelCategories } from './pluginModelCatalog';
+import { assertPluginCompatibility, PLUGIN_HOST } from './pluginHost';
 import {
   collectTrustedNodeMediaReferences,
   executeNodePluginTool,
@@ -36,15 +37,15 @@ import {
 } from './pluginResourceService';
 
 const MESSAGE_CHANNEL = 'ai-canvas-plugin-ui-v1';
-const MAX_UI_EFFECTS = 4;
-const MAX_UI_RANGE_READS = 96;
-const MAX_UI_RANGE_BYTES = 16 * 1024 * 1024;
-const MAX_UI_MEDIA_EFFECTS = 96;
-const MAX_UI_EXPORT_EFFECTS = 12;
+const MAX_UI_EFFECTS = PLUGIN_HOST.limits.ui.ordinary;
+const MAX_UI_RANGE_READS = PLUGIN_HOST.limits.ui.resourceRangeRead;
+const MAX_UI_RANGE_BYTES = PLUGIN_HOST.limits.ui.resourceRangeBytes;
+const MAX_UI_MEDIA_EFFECTS = PLUGIN_HOST.limits.ui.media;
+const MAX_UI_EXPORT_EFFECTS = PLUGIN_HOST.limits.ui.resourceWrite;
 const MAX_UI_SESSIONS = 4;
-const MAX_UI_REQUESTS = 192;
-const MAX_UI_NETWORK_EFFECTS = 16;
-const MAX_UI_SETTINGS_EFFECTS = 64;
+const MAX_UI_REQUESTS = PLUGIN_HOST.limits.ui.total;
+const MAX_UI_NETWORK_EFFECTS = PLUGIN_HOST.limits.ui.network;
+const MAX_UI_SETTINGS_EFFECTS = PLUGIN_HOST.limits.ui.settings;
 const MAX_REQUEST_ID_LENGTH = 64;
 const MAX_KIND_LENGTH = 32;
 const MAX_JSON_DEPTH = 8;
@@ -170,6 +171,7 @@ function resolveLivePlugin(session: PluginUiSession, checkCanvas = true): Instal
   const state = useAppStore.getState();
   const plugin = state.installedPlugins.find((item) => item.id === session.pluginId);
   if (!plugin?.enabled) throw new Error('插件已停用或卸载');
+  assertPluginCompatibility(plugin.manifest);
   if (plugin.sourceDigest !== session.sourceDigest || plugin.revisionDigest !== session.revisionDigest) {
     throw new Error('插件 revision 已变化');
   }
@@ -297,6 +299,7 @@ async function dispatchRequest(
         return {
           ok: true,
           value: {
+            host: PLUGIN_HOST,
             surface: session.surface,
             theme: state.config.theme,
             locale: getLocale(),

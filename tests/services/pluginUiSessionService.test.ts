@@ -160,6 +160,10 @@ describe('pluginUiSessionService', () => {
     }
     expect(mocks.executeEffect).not.toHaveBeenCalled();
     expect(await session.request('context', null)).toMatchObject({ ok: true, value: { surface: 'tool-dialog', theme: 'light', resources } });
+    expect(await session.request('context', null)).toMatchObject({ ok: true, value: {
+      host: { apiVersions: [1, 2], capabilities: expect.arrayContaining(['javascript.async', 'invocation.cancel']),
+        limits: { tool: { total: 32, model: 4 } } },
+    } });
     session.dispose();
     expect(await session.request('effect', {})).toMatchObject({ ok: false });
     expect(mocks.executeEffect).not.toHaveBeenCalled();

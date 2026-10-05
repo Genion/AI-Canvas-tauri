@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { Script } from 'node:vm';
 import { describe, expect, it } from 'vitest';
+import { assertPluginCompatibility, PLUGIN_HOST } from '../../src/services/plugins/pluginHost';
 import {
   createInstalledPlugin,
   parsePluginBundle,
@@ -43,7 +44,24 @@ function manifest(overrides: Record<string, unknown> = {}): string {
   });
 }
 
-describe('AI Canvas Plugin Manifest Standard v1', () => {
+describe('AI Canvas Plugin Manifest Standard', () => {
+  it('checks API 2 compatibility and preserves the declaration in the revision manifest', () => {
+    const declaration = { apiVersion: 2, minHostVersion: PLUGIN_HOST.version,
+      requiredCapabilities: ['javascript.async', 'invocation.cancel', 'javascript.async'] };
+    const parsed = parsePluginBundle(manifest(declaration), 'definePlugin({});');
+    expect(parsed).toMatchObject({ ...declaration, requiredCapabilities: ['invocation.cancel', 'javascript.async'] });
+    expect(() => parsePluginBundle(manifest({ ...declaration, apiVersion: 1 }), 'definePlugin({});')).toThrow('兼容声明');
+    expect(() => assertPluginCompatibility(parsed, { ...PLUGIN_HOST, capabilities: [] })).toThrow('所需能力');
+  });
+
+  it.each([
+    { minHostVersion: '999.0.0' }, { minHostVersion: '0.9' }, { minHostVersion: '0.09.23' },
+    { minHostVersion: '0.9.23-beta' }, { minHostVersion: null },
+    { requiredCapabilities: ['unknown.feature'] }, { requiredCapabilities: ['../escape'] },
+    { requiredCapabilities: ['javascript.async', 42] }, { requiredCapabilities: null },
+  ])('rejects incompatible or malformed host requirements %j', (declaration) => {
+    expect(() => parsePluginBundle(manifest({ apiVersion: 2, ...declaration }), 'definePlugin({});')).toThrow();
+  });
   it('binds exact HTTPS origins to an explicit network permission', () => {
     const parsed = parsePluginBundle(manifest({
       permissions: ['node.read', 'node.write', 'network.request', 'settings.read', 'settings.write'],

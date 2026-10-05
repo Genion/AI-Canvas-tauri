@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { LOCALES, setLocale } from '../../src/i18n';
 import type { InstalledPlugin, PluginInvocationResources } from '../../src/types/plugin';
+import { PLUGIN_HOST } from '../../src/services/plugins/pluginHost';
 
 const mocks = vi.hoisted(() => ({
   invoke: vi.fn(),
@@ -25,11 +26,15 @@ const mocks = vi.hoisted(() => ({
   generateImage: vi.fn(),
   buildModelCatalog: vi.fn(() => [] as Array<Record<string, unknown>>),
   state: {} as Record<string, unknown>,
+  subscribers: new Set<() => void>(),
 }));
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: mocks.invoke }));
 vi.mock('../../src/store/useAppStore', () => ({
-  useAppStore: { getState: () => mocks.state },
+  useAppStore: { getState: () => mocks.state, subscribe: (listener: () => void) => {
+    mocks.subscribers.add(listener);
+    return () => mocks.subscribers.delete(listener);
+  } },
 }));
 vi.mock('../../src/services/plugins/pluginModelCatalog', () => ({
   buildPluginModelCatalog: mocks.buildModelCatalog,
@@ -72,6 +77,7 @@ import {
 } from '../../src/services/plugins/pluginRuntime';
 import {
   completeCanvasDerivation,
+  cancelProjectCanvasDerivations,
   isCanvasDerivationFresh,
   registerCanvasDerivation,
 } from '../../src/services/canvasDerivationGuard';
@@ -343,6 +349,7 @@ beforeEach(() => {
   setLocale('zh-CN');
   vi.clearAllMocks();
   mocks.revision = 3;
+  mocks.subscribers.clear();
   mocks.state = {
     currentProjectId: 'project-1',
     nodes: [{
@@ -403,6 +410,77 @@ beforeEach(() => {
   });
   mocks.buildModelCatalog.mockReturnValue(modelCatalog);
   mocks.generateImage.mockResolvedValue({ url: 'https://example.com/result.png', width: 1024, height: 1024 });
+});
+
+describe('plugin execution cancellation and categorized budgets', () => {
+  const notify = () => { for (const listener of mocks.subscribers) listener(); };
+
+  it.each(['project', 'node', 'revision', 'plugin', 'guard'])('cancels an active native tool after %s changes and releases listeners', async (change) => {
+    let finish!: (value: unknown) => void;
+    mocks.invoke.mockImplementation((command) => command === 'execute_node_plugin_tool'
+      ? new Promise((resolve) => { finish = resolve; }) : Promise.resolve());
+    const run = executeNodePluginTool(getAvailableNodePluginTools([plugin], 'ai-text')[0], 'node-1');
+    const assertion = expect(run).rejects.toThrow(/已取消|已变化|禁用/);
+    await vi.waitFor(() => expect(finish).toBeTypeOf('function'));
+    if (change === 'project') mocks.state.currentProjectId = 'other';
+    if (change === 'node') mocks.state.nodes = [];
+    if (change === 'revision') mocks.revision += 1;
+    if (change === 'plugin') mocks.state.installedPlugins = [{ ...plugin, enabled: false }];
+    if (change === 'guard') cancelProjectCanvasDerivations('project-1');
+    notify();
+    expect(mocks.invoke).toHaveBeenCalledWith('cancel_node_plugin_tool', expect.objectContaining({ pluginId: plugin.id }));
+    finish({ data: { output: 'late' } });
+    await assertion;
+    expect(mocks.updateNodeData).not.toHaveBeenCalled();
+    expect(mocks.subscribers.size).toBe(0);
+  });
+
+  it('aborts a custom node model request when its project is switched', async () => {
+    mocks.state.installedPlugins = [customNodePlugin];
+    mocks.invoke.mockResolvedValue({ effect: { type: 'model.generate', modelId: 'text-model', prompt: '测试' } });
+    let receivedSignal: AbortSignal | undefined;
+    mocks.generateText.mockImplementation(({ signal }) => {
+      receivedSignal = signal;
+      return new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(new Error('取消生成')), { once: true }));
+    });
+    const run = executePluginNode(getAvailablePluginNodes([customNodePlugin])[0], 'node-1', [
+      { id: 'text-model', name: '文本', provider: 'general', category: 'text' },
+    ]);
+    const assertion = expect(run).rejects.toThrow(/已变化|已取消/);
+    await vi.waitFor(() => expect(receivedSignal).toBeDefined());
+    mocks.state.currentProjectId = 'other';
+    notify();
+    await assertion;
+    expect(receivedSignal!.aborted).toBe(true);
+    expect(mocks.updateNodeData).not.toHaveBeenCalled();
+    expect(mocks.subscribers.size).toBe(0);
+  });
+
+  it.each([false, true])('uses separate settings and network budgets, exceed=%s', async (exceed) => {
+    const installed: InstalledPlugin = { ...plugin, manifest: { ...plugin.manifest,
+      permissions: ['node.read', 'node.write', 'settings.read', 'network.request'],
+      network: { allowedOrigins: ['https://api.example.com'] },
+    } };
+    mocks.state.installedPlugins = [installed];
+    mocks.invoke.mockImplementation(async (command, args) => {
+      if (command === 'execute_plugin_host_effect') return { found: false };
+      const iteration = args.input.iteration;
+      if (iteration < 8) return { effect: { type: 'settings.get', key: 'preferences' } };
+      if (iteration < (exceed ? 17 : 10)) return { effect: { type: 'network.request', url: 'https://api.example.com' } };
+      return { data: { output: '完成' } };
+    });
+    const run = executeNodePluginTool(getAvailableNodePluginTools([installed], 'ai-text')[0], 'node-1');
+    if (exceed) {
+      await expect(run).rejects.toThrow('network 操作不能超过 8 次');
+      expect(mocks.updateNodeData).not.toHaveBeenCalled();
+      expect(mocks.invoke.mock.calls.filter(([command]) => command === 'execute_plugin_host_effect')).toHaveLength(16);
+    } else {
+      await run;
+      expect(mocks.updateNodeData).toHaveBeenCalledWith('node-1', { output: '完成' });
+      expect(mocks.invoke.mock.calls.filter(([command]) => command === 'execute_plugin_host_effect')).toHaveLength(10);
+    }
+    expect(mocks.subscribers.size).toBe(0);
+  });
 });
 
 describe('node plugin runtime', () => {
@@ -518,6 +596,7 @@ describe('node plugin runtime', () => {
       toolId: 'rewrite',
       invocationId: expect.any(String),
       input: {
+        host: PLUGIN_HOST,
         projectId: 'project-1',
         locale: 'zh-CN',
         iteration: 0,
@@ -1587,7 +1666,7 @@ describe('node plugin runtime', () => {
       category: 'image',
     }]);
 
-    expect(mocks.generateImage).toHaveBeenCalledWith(expect.objectContaining({ image_urls: [] }), undefined);
+    expect(mocks.generateImage).toHaveBeenCalledWith(expect.objectContaining({ image_urls: [] }), expect.any(AbortSignal));
   });
 });
 
@@ -2026,7 +2105,8 @@ describe('node plugin tool model effects', () => {
       })).rejects.toThrow(reason === 'abort' ? '已取消' : '画布已变化');
       expect(mocks.generateText).not.toHaveBeenCalled();
       expect(mocks.updateNodeData).not.toHaveBeenCalled();
-      expect(mocks.invoke).toHaveBeenCalledOnce();
+      expect(mocks.invoke.mock.calls.filter(([command]) => command === 'execute_node_plugin_tool')).toHaveLength(1);
+      if (reason === 'abort') expect(mocks.invoke).toHaveBeenCalledWith('cancel_node_plugin_tool', { pluginId: plugin.id, invocationId: 'cancelled-ui' });
     } finally { completeCanvasDerivation(guard); }
   });
 
@@ -2186,7 +2266,7 @@ describe('node plugin tool model effects', () => {
 
     await expect(
       executeNodePluginTool(getAvailableNodePluginTools([modelToolPlugin], 'ai-text')[0], 'node-1'),
-    ).rejects.toThrow('宿主操作不能超过 4 次');
+    ).rejects.toThrow('model 操作不能超过 4 次');
     expect(mocks.addNode).not.toHaveBeenCalled();
     expect(mocks.updateNodeData).not.toHaveBeenCalled();
   });
