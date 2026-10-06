@@ -310,6 +310,14 @@ export function imageHistoryReferenceKey(reference: string | undefined): string 
 
 /** 预览时只读查询匹配的最新成功图片记录；不加载或切换 Store 历史面板。 */
 export async function findImageHistoryByReferences(references: string[], projectId?: string, signal?: AbortSignal): Promise<HistoryRecord | null> {
+  return findMediaHistoryByReferences(references, 'ai-image', projectId, signal);
+}
+
+export async function findVideoHistoryByReferences(references: string[], projectId?: string, signal?: AbortSignal): Promise<HistoryRecord | null> {
+  return findMediaHistoryByReferences(references, 'ai-video', projectId, signal);
+}
+
+async function findMediaHistoryByReferences(references: string[], nodeType: 'ai-image' | 'ai-video', projectId?: string, signal?: AbortSignal): Promise<HistoryRecord | null> {
   const keys = new Set(references.map(imageHistoryReferenceKey).filter((key): key is string => !!key));
   if (!keys.size) return null;
   if (signal?.aborted) throw new DOMException('Preview closed', 'AbortError');
@@ -328,18 +336,18 @@ export async function findImageHistoryByReferences(references: string[], project
     tx.oncomplete = () => { signal?.removeEventListener('abort', abort); resolve(latest); };
     tx.onabort = () => {
       signal?.removeEventListener('abort', abort);
-      reject(signal?.aborted ? new DOMException('Preview closed', 'AbortError') : tx.error ?? new Error('图片生成记录读取失败'));
+      reject(signal?.aborted ? new DOMException('Preview closed', 'AbortError') : tx.error ?? new Error('生成记录读取失败'));
     };
     request.onerror = () => { /* 由事务统一报告读取失败 */ };
     request.onsuccess = () => {
       const cursor = request.result;
       if (!cursor) return;
       if (++scanned > 100_000) {
-        reject(new Error('生成记录过多，无法完成图片来源查询'));
+        reject(new Error('生成记录过多，无法完成媒体来源查询'));
         abort(); return;
       }
       const record = cursor.value as HistoryRecord;
-      if (record.nodeType === 'ai-image' && record.status === 'success'
+      if (record.nodeType === nodeType && record.status === 'success'
         && [record.filePath, record.mediaUrl, record.output].some((reference) => {
           const key = imageHistoryReferenceKey(reference); return !!key && keys.has(key);
         }) && (!latest || record.timestamp > latest.timestamp || record.timestamp === latest.timestamp && record.id > latest.id)) {

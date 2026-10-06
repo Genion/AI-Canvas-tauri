@@ -12,6 +12,8 @@ interface AssetThumbProps {
   assetUrl?: string;
   filePath?: string;
   videoExpanded?: boolean;
+  videoPresentation?: 'inline' | 'fullscreen';
+  videoProjectId?: string;
   onVideoExpandedChange?: (expanded: boolean) => void;
   name: string;
   category: FileCategory;
@@ -23,10 +25,11 @@ interface AssetThumbProps {
   onImagePreview?: () => void;
 }
 
-export default function AssetThumb({ assetUrl, filePath, videoExpanded = false, onVideoExpandedChange, name, category, size, badge, children, onImagePreview }: AssetThumbProps) {
+export default function AssetThumb({ assetUrl, filePath, videoExpanded = false, videoPresentation, videoProjectId, onVideoExpandedChange, name, category, size, badge, children, onImagePreview }: AssetThumbProps) {
   return category === 'video' ? (
     <div className="assets-card-img-wrap assets-card-video-wrap">
       <ResourceVideoPreview src={assetUrl} filePath={filePath} name={name} expanded={videoExpanded}
+        presentation={videoPresentation} projectId={videoProjectId} size={size}
         onExpandedChange={(expanded) => onVideoExpandedChange?.(expanded)} />
       <span className="assets-card-size">{formatSize(size)}</span>
       {badge && <span className="assets-card-badge">{badge}</span>}

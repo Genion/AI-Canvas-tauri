@@ -210,6 +210,15 @@ afterEach(() => {
 });
 
 describe('资产库 Tab 抽屉', () => {
+  it('Tab 抽屉指定浮动视频，大弹窗改为全屏且携带查看项目', async () => {
+    key(); render(); await settle();
+    expect(cards()[0].props).toMatchObject({ videoPresentation: 'inline', videoProjectId: 'project-1' });
+    driver.store!.getState().setAssetsPanelOpen(true); render(); await settle();
+    expect(cards()[0].props).toMatchObject({ videoPresentation: 'fullscreen', videoProjectId: 'project-1' });
+    click(all(tree, (el) => el.props.role === 'tab')[1]); render(); await settle();
+    expect(cards()[0].props.videoProjectId).toBeUndefined();
+    expect(cards()[0].props.videoPresentation).toBe('fullscreen');
+  });
   it('画布 Tab 打开/收起，长按不连发且不发生焦点跳转', () => {
     expect(key().defaultPrevented).toBe(true);
     expect(driver.store!.getState().assetsPanelMode).toBe('drawer');

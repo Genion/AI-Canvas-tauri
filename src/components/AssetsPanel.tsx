@@ -819,6 +819,7 @@ export default function AssetsPanel() {
                               </button>
                             </div>
                             <CanvasNodeCardContent nodeId={node.id} data={node.data} projectId={currentProjectId} connectable={isDrawer}
+                              videoPresentation={isDrawer ? 'inline' : 'fullscreen'}
                               videoExpanded={videoPreview.expandedId === node.id}
                               onVideoExpandedChange={(expanded) => videoPreview.setExpanded(expanded ? node.id : null)} />
                           </li>
@@ -976,6 +977,8 @@ export default function AssetsPanel() {
                                   onSave={() => handleSavePermanent(file)}
                                   onDelete={() => handleDeletePermanent(file)}
                                   videoExpanded={videoPreview.expandedId === assetKey(file)}
+                                  videoPresentation={isDrawer ? 'inline' : 'fullscreen'}
+                                  videoProjectId={activeTab === 'project' ? selectedProjectId ?? currentProjectId ?? undefined : undefined}
                                   onVideoExpandedChange={(expanded) => videoPreview.setExpanded(expanded ? assetKey(file) : null)}
                                   onImagePreview={file.category === 'image' ? () => openImagePreview(file) : undefined}
                                 />
@@ -1045,6 +1048,8 @@ interface AssetCardProps {
   onSave: () => void;
   onDelete: () => void;
   videoExpanded?: boolean;
+  videoPresentation?: 'inline' | 'fullscreen';
+  videoProjectId?: string;
   onVideoExpandedChange?: (expanded: boolean) => void;
   onImagePreview?: () => void;
 }
@@ -1052,7 +1057,7 @@ interface AssetCardProps {
 function AssetCard({
   file, isProject, draggable, onDragStart, editing, tagDraft,
   onToggleEdit, onTagDraftChange, onAddTag, onRemoveTag, onSave, onDelete,
-  videoExpanded = false, onVideoExpandedChange, onImagePreview,
+  videoExpanded = false, videoPresentation, videoProjectId, onVideoExpandedChange, onImagePreview,
 }: AssetCardProps) {
   const tags = file.tags ?? [];
   return (
@@ -1065,6 +1070,8 @@ function AssetCard({
         assetUrl={file.assetUrl}
         filePath={file.path}
         videoExpanded={videoExpanded}
+        videoPresentation={videoPresentation}
+        videoProjectId={videoProjectId}
         onVideoExpandedChange={onVideoExpandedChange}
         name={file.name}
         category={file.category}
