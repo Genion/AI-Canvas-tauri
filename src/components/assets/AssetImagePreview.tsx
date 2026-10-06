@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from '@iconify/react';
 import type { AssetFileEntry } from '../../services/fileService';
 import type { HistoryRecord } from '../../services/indexedDbService';
-import { describeAssetImageHistory, loadAssetImageDetails } from '../../services/assetImageDetails';
+import { describeAssetImageHistory, loadAssetImageDetails, resolvePromptImageReferences } from '../../services/assetImageDetails';
 import { useAppStore } from '../../store/useAppStore';
 import type { AssetImageLoadedDetails, AssetImageReferenceView } from '../../types/assetImage';
 import { MAX_ASSET_IMAGE_PROMPT, MAX_ASSET_IMAGE_REFERENCES, pickAssetImageReferences, previewPendingAssetImageReferences, resolveAssetImageReferences } from '../../services/fs/assetImageMetadata';
@@ -10,6 +10,8 @@ import { copyText } from '../../services/clipboardService';
 import { formatSize } from '../../utils/assetFormat';
 import ModalOverlay from '../shared/ModalOverlay';
 import ZoomableImage from '../shared/ZoomableImage';
+import { getNodeMetaMap } from '../nodes/shared/mentionEditorDom';
+import { renderPromptWithChips } from '../nodes/shared/PromptChipViewer';
 
 /** 资产库专用图片预览。列表与画布保留原状态，历史信息按图片身份只读加载。 */
 export default function AssetImagePreview({ files, initialPath, projectId, onClose }: {
@@ -26,6 +28,10 @@ export default function AssetImagePreview({ files, initialPath, projectId, onClo
   const [metadata, setMetadata] = useState<{ key: string; history: HistoryRecord | null; saved: AssetImageLoadedDetails | null; error: boolean } | null>(null);
   const [copyStatus, setCopyStatus] = useState<{ key: string; message: string } | null>(null);
   const saveAction = useAppStore((state) => state.saveAssetImageDetails);
+  const nodes = useAppStore((state) => state.nodes ?? []);
+  const dramaAssets = useAppStore((state) => state.dramaAssets);
+  const nodeMetaMap = useMemo(() => getNodeMetaMap(nodes), [nodes]);
+  const [promptReferences, setPromptReferences] = useState<AssetImageReferenceView[]>([]);
   const [draft, setDraft] = useState<{ key: string; prompt: string; references: AssetImageReferenceView[]; pending: Array<{ path: string; name: string; url: string }> } | null>(null);
   const [operation, setOperation] = useState<{ key: string; message: string; busy: boolean } | null>(null);
   const [referenceState, setReferencePreview] = useState<{ key: string; url: string; name: string } | null>(null);
@@ -46,7 +52,20 @@ export default function AssetImagePreview({ files, initialPath, projectId, onClo
   const editing = draft?.key === queryKey;
   const busy = operation?.key === queryKey && operation.busy;
   const prompt = saved?.record?.prompt ?? history?.prompt ?? '';
-  const referenceViews = editing ? draft.references : saved?.references ?? [];
+  const referenceViews = useMemo(() => {
+    if (editing) return draft?.references ?? [];
+    const savedRefs = saved?.references ?? [];
+    if (savedRefs.length === 0) return promptReferences;
+    const seenUrls = new Set(savedRefs.map((r) => r.url).filter(Boolean));
+    const merged = [...savedRefs];
+    for (const ref of promptReferences) {
+      if (ref.url && !seenUrls.has(ref.url)) {
+        seenUrls.add(ref.url);
+        merged.push(ref);
+      }
+    }
+    return merged;
+  }, [editing, draft?.references, saved?.references, promptReferences]);
   const canEdit = !!saved?.identity && metadata?.key === queryKey && !metadata.error;
 
   const loading = metadata?.key !== queryKey;
@@ -74,6 +93,22 @@ export default function AssetImagePreview({ files, initialPath, projectId, onClo
     });
     return () => controller.abort();
   }, [file, queryKey, projectId, onClose]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const effectiveProjectId = projectId || history?.projectId;
+    void resolvePromptImageReferences(prompt, {
+      nodes,
+      dramaAssets,
+      projectId: effectiveProjectId,
+      signal: controller.signal,
+    }).then((refs) => {
+      if (!controller.signal.aborted) setPromptReferences(refs);
+    }).catch(() => {
+      if (!controller.signal.aborted) setPromptReferences([]);
+    });
+    return () => controller.abort();
+  }, [prompt, nodes, dramaAssets, projectId, history?.projectId]);
 
   useEffect(() => () => {
     operationRef.current?.abort();
@@ -194,9 +229,9 @@ export default function AssetImagePreview({ files, initialPath, projectId, onClo
                 void copyText(prompt).then((copied) => setCopyStatus({ key, message: copied ? '提示词已复制' : '复制失败，请重试' }));
               }}><Icon icon="lucide:copy" aria-hidden="true" />复制提示词</button>
             </div>
-            {!loading && !metadataError && <div className="asset-image-preview-references">
+            {!loading && !metadataError && (referenceViews.length > 0 || editing) && <div className="asset-image-preview-references">
               {referenceViews.map((reference) => <div className="asset-image-preview-reference" key={reference.id}>
-                <button type="button" aria-label={`查看参考图 ${reference.name}`} disabled={!reference.url} onClick={() => setReferencePreview({ key: queryKey, url: reference.url!, name: reference.name })}>
+                <button type="button" aria-label={`查看参考图 ${reference.name}`} title={`查看参考图 ${reference.name}`} disabled={!reference.url} onClick={() => setReferencePreview({ key: queryKey, url: reference.url!, name: reference.name })}>
                   {reference.url ? <img src={reference.url} alt={reference.name} /> : <span className="text-xs text-canvas-text-muted">参考图不可用</span>}
                 </button>
                 {editing && <button type="button" className="ui-close-btn asset-image-preview-reference-remove" disabled={busy} aria-label={`移除参考图 ${reference.name}`}
@@ -214,7 +249,13 @@ export default function AssetImagePreview({ files, initialPath, projectId, onClo
                 <button type="button" className="ui-btn ui-btn--ghost ui-btn--sm" onClick={() => setRetry((value) => value + 1)}>重试读取</button></div>
               : editing ? <textarea className="ui-textarea asset-image-preview-editor" aria-label="编辑图片提示词" value={draft.prompt} maxLength={MAX_ASSET_IMAGE_PROMPT} disabled={busy}
                 onChange={(event) => setDraft((current) => current ? { ...current, prompt: event.target.value } : current)} />
-              : <p className="asset-image-preview-prompt whitespace-pre-wrap break-words text-sm leading-relaxed text-canvas-text">{prompt || (saved?.record ? '尚未填写提示词' : history ? '此记录未保存提示词' : '暂无生成信息')}</p>}
+              : <p className="asset-image-preview-prompt whitespace-pre-wrap break-words text-sm leading-relaxed text-canvas-text">{renderPromptWithChips(prompt, {
+                  nodes,
+                  dramaAssets,
+                  nodeMetaMap,
+                  emptyText: saved?.record ? '尚未填写提示词' : history ? '此记录未保存提示词' : '暂无生成信息',
+                  onPreviewImage: (preview) => setReferencePreview({ key: queryKey, url: preview.url, name: preview.name }),
+                })}</p>}
             {saved?.warning && <p className="pt-2 text-xs text-canvas-text-muted">{saved.warning}</p>}
             {canEdit && <div className="flex justify-end gap-2 pt-2">
               {editing ? <><button type="button" className="ui-btn ui-btn--sm" disabled={busy} onClick={() => { setDraft(null); setOperation(null); }}>取消编辑</button>

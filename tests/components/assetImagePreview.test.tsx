@@ -9,7 +9,17 @@ interface Harness {
   pending: Array<() => void>;
   stateIndex: number; memoIndex: number; effectIndex: number;
 }
-const driver = vi.hoisted(() => ({ current: null as Harness | null, load: vi.fn(), copy: vi.fn(), save: vi.fn(), pick: vi.fn(), pending: vi.fn(), resolve: vi.fn() }));
+const driver = vi.hoisted(() => ({
+  current: null as Harness | null,
+  load: vi.fn(),
+  copy: vi.fn(),
+  save: vi.fn(),
+  pick: vi.fn(),
+  pending: vi.fn(),
+  resolve: vi.fn(),
+  nodes: [] as unknown[],
+  dramaAssets: { characters: [], scenes: [], props: [] } as unknown,
+}));
 vi.mock('react', async () => {
   const memo = <T,>(factory: () => T, deps: readonly unknown[]) => {
     const scope = driver.current!; const index = scope.memoIndex++;
@@ -46,7 +56,10 @@ vi.mock('../../src/services/assetImageDetails', async () => ({
     return value && 'history' in value ? value : { identity: { assetId: 'asset-image', digest: 'a'.repeat(64), bytes: 1000 }, record: null, references: [], warning: null, contentChanged: false, history: value };
   },
 }));
-vi.mock('../../src/store/useAppStore', () => ({ useAppStore: (selector: (state: unknown) => unknown) => selector({ saveAssetImageDetails: driver.save }) }));
+vi.mock('../../src/store/useAppStore', () => ({
+  useAppStore: (selector: (state: unknown) => unknown) =>
+    selector({ saveAssetImageDetails: driver.save, nodes: driver.nodes, dramaAssets: driver.dramaAssets }),
+}));
 vi.mock('../../src/services/fs/assetImageMetadata', () => ({ MAX_ASSET_IMAGE_PROMPT: 30000, MAX_ASSET_IMAGE_REFERENCES: 16, pickAssetImageReferences: driver.pick, previewPendingAssetImageReferences: driver.pending, resolveAssetImageReferences: driver.resolve }));
 vi.mock('../../src/services/clipboardService', () => ({ copyText: driver.copy }));
 vi.mock('../../src/components/shared/ModalOverlay', () => ({ default: 'preview-modal' }));
@@ -102,6 +115,7 @@ beforeEach(() => {
   driver.load.mockReset().mockResolvedValue(history()); driver.copy.mockReset().mockResolvedValue(true);
   driver.save.mockReset().mockImplementation(async (_file, input) => ({ id: 'asset-image:record', assetId: 'asset-image', contentDigest: 'a'.repeat(64), prompt: input.prompt, references: input.references, revision: 1, updatedAt: 1, fileName: '人物.png' }));
   driver.pick.mockReset().mockResolvedValue([]); driver.pending.mockReset().mockResolvedValue([]); driver.resolve.mockReset().mockResolvedValue([]);
+  driver.nodes = []; driver.dramaAssets = { characters: [], scenes: [], props: [] };
 });
 afterEach(() => { scope.effects.forEach((effect) => effect.cleanup?.()); vi.unstubAllGlobals(); });
 
@@ -240,4 +254,36 @@ describe('asset image fullscreen preview', () => {
     tree = AssetThumb({ name: '视频', category: 'video', size: 10, onImagePreview: open });
     expect(elements(tree).some((element) => element.props.className === 'asset-image-preview-trigger')).toBe(false);
   });
+
+  it('renders prompt mentions as prompt-chips and shows referenced images in the top section with stage preview', async () => {
+    driver.nodes = [
+      { id: 'node-c90a1u5s7', data: { label: '生成图像', type: 'ai-image', imageUrl: 'https://images.test/ref-thumb.png', displayId: 1 } },
+    ];
+    driver.load.mockResolvedValueOnce(history('一个韩系美女跳舞@{node-c90a1u5s7:生成图像}'));
+    render();
+    await settle();
+    await settle();
+
+    // 检查提示词芯片渲染
+    const chip = find((element) => element.props.className && String(element.props.className).includes('prompt-chip-node'));
+    expect(chip).toBeDefined();
+    expect(chip.props['data-ref-id']).toBe('node-c90a1u5s7');
+
+    // 检查上方参考图区域
+    const refButton = button('查看参考图 生成图像');
+    expect(refButton).toBeDefined();
+    expect(find((element) => element.type === 'img' && element.props.src === 'https://images.test/ref-thumb.png')).toBeDefined();
+
+    // 点击参考图切换到预览舞台
+    click(refButton);
+    render();
+    expect(find((element) => element.type === 'zoomable-image').props.src).toBe('https://images.test/ref-thumb.png');
+    expect(button('返回原图')).toBeDefined();
+
+    // 点击返回原图恢复
+    click(button('返回原图'));
+    render();
+    expect(find((element) => element.type === 'zoomable-image').props.src).toBe(files[0].assetUrl);
+  });
 });
+

@@ -90,4 +90,37 @@ describe('asset image generation details', () => {
     ]);
     expect(JSON.stringify(rows)).not.toContain('test-only-secret');
   });
+
+  it('resolves reference images mentioned in prompts from nodes, assets, and history', async () => {
+    const db = await import('../../src/services/indexedDbService');
+    const { resolvePromptImageReferences } = await import('../../src/services/assetImageDetails');
+
+    await db.putHistoryEntries([
+      { ...history('hist-node', 'project-a', '/hist.png', 10), nodeId: 'node-from-hist', nodeLabel: '历史节点', mediaUrl: 'https://images.test/hist.png' },
+    ]);
+
+    const prompt = '韩系美女跳舞 @{node-canvas:生成图像} @asset{%2Fassets%2Fref.png} @drama{char_1:林小满} @{node-from-hist:历史节点}';
+    const nodes = [
+      { id: 'node-canvas', data: { label: '生成图像', type: 'ai-image', imageUrl: 'https://images.test/canvas.png' } },
+    ];
+    const dramaAssets = {
+      characters: [
+        { id: 'char_1', name: '林小满', kind: 'character' as const, imageUrl: 'https://images.test/lin.png' },
+      ],
+      scenes: [],
+      props: [],
+    };
+
+    const refs = await resolvePromptImageReferences(prompt, {
+      nodes: nodes as never,
+      dramaAssets: dramaAssets as never,
+      projectId: 'project-a',
+    });
+
+    expect(refs).toHaveLength(4);
+    expect(refs[0]).toMatchObject({ name: '生成图像', url: 'https://images.test/canvas.png' });
+    expect(refs[1]).toMatchObject({ name: 'ref.png', url: '/assets/ref.png' });
+    expect(refs[2]).toMatchObject({ name: '林小满', url: 'https://images.test/lin.png' });
+    expect(refs[3]).toMatchObject({ name: '历史节点', url: 'https://images.test/hist.png' });
+  });
 });
