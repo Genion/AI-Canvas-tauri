@@ -26,6 +26,7 @@ vi.mock('../../src/services/indexedDbService', () => ({
   getAssetIndexById: async (id: string) => driver.indexes.has(id) ? { path: driver.indexes.get(id) } : null,
   putAssetImageRecord: driver.put,
   findImageHistoryByReferences: async () => ({ prompt: '原始生成提示词', params: { imageSize: '2K' } }),
+  putGlobalCharacterOrder: vi.fn(),
 }));
 vi.mock('../../src/services/fs/core', () => ({ isTauriEnv: () => true, getBaseDir: async () => '/managed',
   joinPath: (...parts: string[]) => parts.join('/'), CATEGORY_EXTENSIONS: { image: ['.png', '.jpg'] },

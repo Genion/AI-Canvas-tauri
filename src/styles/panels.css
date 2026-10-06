@@ -1417,6 +1417,39 @@ button.wf-ionode-badge.is-default {
   opacity: 0.5;
 }
 
+/* Text preview wrapper */
+.assets-card-text-wrap {
+  position: relative;
+  width: 100%;
+  height: 120px;
+  overflow: hidden;
+  background: var(--media-well-soft);
+  box-sizing: border-box;
+}
+.assets-card-text-content {
+  margin: 0;
+  padding: 8px 10px 22px;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: var(--theme-text-secondary);
+  white-space: pre-wrap;
+  word-break: break-all;
+  overflow-wrap: break-word;
+  user-select: none;
+  pointer-events: none;
+  box-sizing: border-box;
+}
+.assets-card-text-fade {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 32px;
+  background: linear-gradient(to bottom, transparent, var(--media-well-soft));
+  pointer-events: none;
+}
+
 /* Size badge — top‑right overlay */
 .assets-card-size {
   position: absolute;
@@ -1759,6 +1792,8 @@ button.wf-ionode-badge.is-default {
 .assets-panel--drawer .assets-card-actions { right: 3px; bottom: 3px; gap: 2px; }
 .assets-panel--drawer .assets-card-action-btn { width: 24px; height: 24px; }
 .assets-panel--drawer .assets-card-size { top: 3px; right: 3px; padding: 1px 3px; }
+.assets-panel--drawer .assets-card-text-wrap { height: 104px; }
+.assets-panel--drawer .assets-card-text-content { font-size: 10px; padding: 6px 8px 18px; }
 .assets-panel--drawer .assets-folder-row { max-height: 80px; overflow-y: auto; }
 .assets-panel--drawer .assets-file-scroll { overscroll-behavior: contain; }
 
