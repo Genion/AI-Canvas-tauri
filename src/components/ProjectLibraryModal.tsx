@@ -354,7 +354,7 @@ export default function ProjectLibraryModal({ isOpen, onClose, presentation = 'm
 
           <div className={`flex flex-wrap items-center gap-2 ${isStartPage ? '' : 'mt-3'}`}>
             {isStartPage && projectHeading}
-            <label className="relative min-w-[180px] flex-1">
+            <label className="relative w-56 max-w-full ml-auto">
               <span className="sr-only">{t('搜索项目')}</span>
               <Icon
                 icon="mdi:magnify"
