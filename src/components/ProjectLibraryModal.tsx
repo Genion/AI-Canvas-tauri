@@ -21,7 +21,7 @@ const RecentAssetsSection = lazy(() => import('./assets/RecentAssetsSection'));
 type ProjectSort = 'updated' | 'created' | 'name';
 
 const isTauri = typeof window !== 'undefined' && '__TAURI__' in window;
-const isMacOS = typeof navigator !== 'undefined' && /Macintosh|Mac OS X/.test(navigator.userAgent);
+const isMacOSPlatform = () => typeof navigator !== 'undefined' && /Macintosh|Mac OS X/.test(navigator.userAgent);
 
 interface ProjectLibraryModalProps {
   isOpen: boolean;
@@ -102,6 +102,7 @@ function ProjectSnapshotPreview({ snapshot }: { snapshot?: string }) {
 export default function ProjectLibraryModal({ isOpen, onClose, presentation = 'modal' }: ProjectLibraryModalProps) {
   const t = useT();
   const isStartPage = presentation === 'page';
+  const isMacOS = isMacOSPlatform();
   const resourcePageOpen = useAppStore((state) => isStartPage && state.assetsPanelOpen && state.assetsPanelMode === 'page');
   const projectLoadStatus = useAppStore((state) => state.projectLoadStatus);
   const {
@@ -819,13 +820,15 @@ export default function ProjectLibraryModal({ isOpen, onClose, presentation = 'm
             isTauri ? isMacOS ? 'pl-24' : 'pr-[120px]' : ''
           }`}
         >
-          <div data-tauri-drag-region className="flex items-center gap-2">
-            <img src="/favicon.svg" alt="" draggable={false} className="h-6 w-6 shrink-0" />
-            <span data-tauri-drag-region className="text-sm font-semibold text-canvas-text">AI Canvas</span>
-          </div>
+          {!isMacOS && (
+            <div data-tauri-drag-region className="flex items-center gap-2">
+              <img src="/favicon.svg" alt="" draggable={false} className="h-6 w-6 shrink-0" />
+              <span data-tauri-drag-region className="text-sm font-semibold text-canvas-text">AI Canvas</span>
+            </div>
+          )}
           <button
             type="button"
-            className="ui-btn ui-btn--ghost"
+            className="ui-btn ui-btn--ghost ml-auto"
             onClick={() => useAppStore.getState().setSettingsOpen(true)}
           >
             <Icon icon="mdi:cog-outline" width="16" height="16" aria-hidden="true" />
