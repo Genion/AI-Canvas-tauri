@@ -35,6 +35,7 @@ vi.mock('../../src/i18n', () => ({
 vi.mock('../../src/components/shared/ModalOverlay', () => ({ default: 'modal-overlay' }));
 vi.mock('../../src/components/shared/PopupCloseButton', () => ({ default: 'close-button' }));
 vi.mock('../../src/components/shared/Select', () => ({ default: 'select-control' }));
+vi.mock('../../src/components/assets/RecentAssetsSection', () => ({ default: 'recent-assets-section' }));
 vi.mock('../../src/services/fileService', () => ({}));
 vi.mock('../../src/utils/assetSearchWindow', () => ({ openAssetSearchWindow: vi.fn() }));
 vi.mock('../../src/utils/nodeAnimations', () => ({ playNodeExit: vi.fn() }));
@@ -114,6 +115,20 @@ describe('project startup page', () => {
       && Array.isArray(element.props.children) && element.props.children.includes('设置'));
     await click(settings);
     expect(driver.state.setSettingsOpen).toHaveBeenCalledWith(true);
+    expect(driver.state.currentProjectId).toBeNull();
+  });
+
+  it('进入资源库整页时隐藏启动页，返回后保留项目搜索条件', () => {
+    let tree = render();
+    const search = find(tree, (element) => element.type === 'input' && element.props.placeholder === '搜索项目');
+    (search.props.onChange as (event: unknown) => void)({ target: { value: '示例' } });
+    driver.state = { ...driver.state, assetsPanelOpen: true, assetsPanelMode: 'page' };
+    tree = render();
+    expect(tree.props.hidden).toBe(true);
+    driver.state = { ...driver.state, assetsPanelOpen: false, assetsPanelMode: 'modal' };
+    tree = render();
+    expect(tree.props.hidden).toBe(false);
+    expect(find(tree, (element) => element.type === 'input' && element.props.placeholder === '搜索项目').props.value).toBe('示例');
     expect(driver.state.currentProjectId).toBeNull();
   });
 
@@ -199,6 +214,22 @@ describe('project startup page', () => {
     expect(onClose).toHaveBeenCalledOnce();
     expect(driver.state.switchProject).not.toHaveBeenCalled();
     expect(driver.state.currentProjectId).toBe('ep2');
+  });
+});
+
+describe('启动页资源区', () => {
+  it('只在启动页项目列表下方显示资源区，项目管理弹窗保持原有范围', () => {
+    const main = find(render(), (element) => element.type === 'main');
+    const children = main.props.children as Element[];
+    expect(children.at(-1)?.type).toBe(Symbol.for('react.suspense'));
+    expect(findAll(render(false), (element) => element.type === Symbol.for('react.suspense'))).toHaveLength(0);
+  });
+  it('新建项目仍是首张卡片，资源区不改变项目排序和搜索', () => {
+    const grid = find(render(), (element) => typeof element.props.className === 'string'
+      && element.props.className.includes('grid gap-3'));
+    const first = (grid.props.children as Element[])[0];
+    expect(first.type).toBe('button');
+    expect(button(first, '新建项目')).toBe(first);
   });
 });
 

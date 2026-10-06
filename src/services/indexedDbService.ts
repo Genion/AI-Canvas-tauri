@@ -6,6 +6,7 @@ import type { ConversationContextSummary } from '../types/chat';
 import type { ProjectMemory } from '../types/memory';
 import type { DramaCharacter } from '../types/dramaAssets';
 import type { ProjectVisualDescription } from '../types/visualMemory';
+import type { AssetUsageRecord } from '../types/assetUsage';
 import { StorageError } from './storageDiagnostics';
 import { configValuesEqual } from './configPatch';
 import { createDurableSettingsTransaction } from './indexedDb/catalogRepository';
@@ -35,6 +36,55 @@ import { withRelocatedMedia } from './indexedDb/mediaRelocations';
 import { localMediaUrlToPath } from '../utils/mediaUrl';
 
 const LAST_ACTIVE_PROJECT_KEY = 'last-active-project';
+const RECENT_ASSET_USAGE_KEY = 'recent-asset-usage';
+const MAX_RECENT_ASSET_USAGE = 50;
+
+function normalizeAssetUsage(value: unknown): AssetUsageRecord[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  return value.filter((entry): entry is AssetUsageRecord => {
+    if (!entry || typeof entry !== 'object' || typeof entry.assetId !== 'string'
+      || !entry.assetId.trim() || entry.assetId.length > 256
+      || typeof entry.usedAt !== 'number' || !Number.isFinite(entry.usedAt) || entry.usedAt < 0) return false;
+    return true;
+  }).sort((a, b) => b.usedAt - a.usedAt).filter((entry) => {
+    if (seen.has(entry.assetId)) return false;
+    seen.add(entry.assetId);
+    return true;
+  }).slice(0, MAX_RECENT_ASSET_USAGE).map(({ assetId, usedAt }) => ({ assetId, usedAt }));
+}
+
+export async function getRecentAssetUsage(): Promise<AssetUsageRecord[]> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_METADATA, 'readonly');
+    const request = tx.objectStore(STORE_METADATA).get(RECENT_ASSET_USAGE_KEY);
+    request.onsuccess = () => resolve(normalizeAssetUsage(request.result?.entries));
+    request.onerror = () => reject(request.error);
+  });
+}
+
+/** 同一事务读取并合并，多个窗口/快速点击不能相互覆盖最近使用记录。 */
+export async function recordRecentAssetUsage(assetId: string, usedAt = Date.now()): Promise<void> {
+  if (normalizeAssetUsage([{ assetId, usedAt }]).length !== 1) throw new Error('最近使用记录无效');
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_METADATA, 'readwrite');
+    const store = tx.objectStore(STORE_METADATA);
+    const request = store.get(RECENT_ASSET_USAGE_KEY);
+    request.onsuccess = () => {
+      const previous = normalizeAssetUsage(request.result?.entries);
+      const existing = previous.find((entry) => entry.assetId === assetId);
+      const entries = normalizeAssetUsage([
+        { assetId, usedAt: Math.max(usedAt, existing?.usedAt ?? 0) },
+        ...previous.filter((entry) => entry.assetId !== assetId),
+      ]);
+      store.put({ id: RECENT_ASSET_USAGE_KEY, entries });
+    };
+    tx.oncomplete = () => resolve();
+    tx.onerror = tx.onabort = () => reject(tx.error ?? new Error('最近使用记录保存失败'));
+  });
+}
 
 export interface ProjectRecord extends ProjectSummaryRecord {
   nodes: unknown;

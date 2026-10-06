@@ -23,6 +23,7 @@ import { createPortal } from 'react-dom';
 import { Icon } from '@iconify/react';
 import { motion, AnimatePresence, MotionConfig, useReducedMotion } from 'framer-motion';
 import { useShallow } from 'zustand/react/shallow';
+import { cursorPosition, getCurrentWindow } from '@tauri-apps/api/window';
 import { useAppStore } from '../store/useAppStore';
 import {
   listProjectFiles,
@@ -50,6 +51,7 @@ import { loadAssetImageDetails } from '../services/assetImageDetails';
 import { loadAssetVideoHistory } from '../services/assetVideoDetails';
 import { getAllAssetMeta, putAssetMeta, deleteAssetMeta } from '../services/indexedDbService';
 import { startAssetDrag, prepareDragIcon } from '../utils/assetDrag';
+import { isExternalDropCaptured, setExternalDropCaptured } from '../utils/dropCapture';
 import { ALL_CATEGORIES, CATEGORY_ICONS, shortFolderName } from '../utils/assetFormat';
 import AssetThumb from './shared/AssetThumb';
 import PopupCloseButton from './shared/PopupCloseButton';
@@ -110,6 +112,8 @@ export default function AssetsPanel() {
   const {
     assetsPanelOpen,
     assetsPanelMode,
+    assetsPanelRequest,
+    markAssetUsed,
     setAssetsPanelOpen,
     dramaAssetsPanelOpen,
     setDramaAssetsPanelOpen,
@@ -128,6 +132,8 @@ export default function AssetsPanel() {
       useShallow((s) => ({
         assetsPanelOpen: s.assetsPanelOpen,
         assetsPanelMode: s.assetsPanelMode,
+        assetsPanelRequest: s.assetsPanelRequest,
+        markAssetUsed: s.markAssetUsed,
         setAssetsPanelOpen: s.setAssetsPanelOpen,
         dramaAssetsPanelOpen: s.dramaAssetsPanelOpen,
         setDramaAssetsPanelOpen: s.setDramaAssetsPanelOpen,
@@ -164,6 +170,7 @@ export default function AssetsPanel() {
   const [nodeSearch, setNodeSearch] = useState('');
   const deferredNodeSearch = useDeferredValue(nodeSearch);
   const isDrawer = assetsPanelMode === 'drawer';
+  const isPage = assetsPanelMode === 'page';
   const waterfallColumns = isDrawer ? DEFAULT_WATERFALL_COLUMNS : normalizeWaterfallColumns(assetWaterfallColumns);
 
   const [projectFiles, setProjectFiles] = useState<AssetFileEntry[]>([]);
@@ -228,6 +235,21 @@ export default function AssetsPanel() {
   }
 
   const folders = useMemo(() => assetFolders ?? [], [assetFolders]);
+  const [previousRequest, setPreviousRequest] = useState<typeof assetsPanelRequest>(null);
+  if (assetsPanelRequest !== previousRequest) {
+    setPreviousRequest(assetsPanelRequest);
+    if (assetsPanelOpen && assetsPanelRequest) {
+      setActiveTab(assetsPanelRequest.tab);
+      setSelectedProjectId(assetsPanelRequest.projectId ?? null);
+      setFolderSelection(assetsPanelRequest.folder ?? { kind: 'all' });
+      setArkLibraryOpen(false);
+      setNodeListOpen(false);
+      setSearch('');
+      setActiveCategory(null);
+      setActiveTag(null);
+      setVisibleCount(PAGE_SIZE);
+    }
+  }
 
   const toast = useCallback((msg: string) => {
     setToastMsg(msg);
@@ -394,26 +416,85 @@ export default function AssetsPanel() {
     }
   }, [currentProjectId, handleClose, isDrawer, toast]);
 
-  // 拖拽文件到画布：dragstart 内同步发起原生拖拽，并立即隐藏弹窗露出画布
+  const dragMonitorRef = useRef<(() => void) | null>(null);
+  useEffect(() => () => { dragMonitorRef.current?.(); }, [assetsPanelOpen, assetsPanelMode, currentProjectId]);
+  const releaseDropCaptureRef = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    if (!assetsPanelOpen || isDrawer) return;
+    // 整页或弹窗覆盖画布时，不允许窗口级 drop 在背后创建节点。
+    // 尊重先前已存在的独占状态；拖出弹窗时提前释放，露出的画布可接收落点。
+    const previouslyCaptured = isExternalDropCaptured();
+    setExternalDropCaptured(true);
+    const release = () => {
+      if (releaseDropCaptureRef.current !== release) return;
+      releaseDropCaptureRef.current = null;
+      setExternalDropCaptured(previouslyCaptured);
+    };
+    releaseDropCaptureRef.current = release;
+    return release;
+  }, [assetsPanelOpen, isDrawer]);
+
+  // 原生拖拽不会持续发送 DOM dragover；仅弹窗用系统坐标检测越界。
+  // startAssetDrag 仍在 dragstart 中同步调用，避免丢失鼠标手势。
   const handleCardDragStart = useCallback((file: AssetFileEntry, e: DragEvent) => {
     if (!isDraggableEntry(file)) return;
     e.preventDefault();
-    startAssetDrag(file);
-    setAssetsPanelOpen(false);
-  }, [setAssetsPanelOpen]);
+    dragMonitorRef.current?.();
+    if (isPage || isDrawer || !currentProjectId) {
+      startAssetDrag(file);
+      if (isDrawer) setAssetsPanelOpen(false);
+      return;
+    }
+    const bounds = e.currentTarget.closest('.assets-panel')?.getBoundingClientRect();
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const stop = () => {
+      stopped = true;
+      if (timer !== undefined) clearTimeout(timer);
+      if (dragMonitorRef.current === stop) dragMonitorRef.current = null;
+    };
+    dragMonitorRef.current = stop;
+    if (bounds && bounds.width > 0 && bounds.height > 0) {
+      void (async () => {
+        try {
+          const nativeWindow = getCurrentWindow();
+          const [origin, scale] = await Promise.all([nativeWindow.innerPosition(), nativeWindow.scaleFactor()]);
+          if (!Number.isFinite(scale) || scale <= 0) { stop(); return; }
+          const checkPosition = async () => {
+            if (stopped) return;
+            try {
+              const point = await cursorPosition();
+              if (stopped) return;
+              const state = useAppStore.getState();
+              if (!state.assetsPanelOpen || state.assetsPanelMode !== 'modal' || state.currentProjectId !== currentProjectId) { stop(); return; }
+              const x = (point.x - origin.x) / scale;
+              const y = (point.y - origin.y) / scale;
+              if (!Number.isFinite(x) || !Number.isFinite(y)) { stop(); return; }
+              if (x < bounds.left || x > bounds.right || y < bounds.top || y > bounds.bottom) {
+                stop(); releaseDropCaptureRef.current?.(); setAssetsPanelOpen(false); return;
+              }
+              timer = setTimeout(() => { void checkPosition(); }, 50);
+            } catch { stop(); }
+          };
+          await checkPosition();
+        } catch { stop(); }
+      })();
+    }
+    startAssetDrag(file, stop);
+  }, [currentProjectId, isDrawer, isPage, setAssetsPanelOpen]);
 
   // Esc 关闭
   useEffect(() => {
     if (!assetsPanelOpen) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key !== 'Escape' || e.defaultPrevented) return;
-      // 抽屉之上的确认框/选择器先消费 Esc，避免连带关闭资产库。
-      if (isDrawer && document.querySelector('[aria-modal="true"], [role="listbox"], dialog[open]')) return;
+      // 抽屉或整页之上的确认框/选择器先消费 Esc，避免连带关闭资产库。
+      if ((isDrawer || isPage) && document.querySelector('[aria-modal="true"], [role="listbox"], dialog[open]')) return;
       handleClose();
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [assetsPanelOpen, handleClose, isDrawer]);
+  }, [assetsPanelOpen, handleClose, isDrawer, isPage]);
 
   // 点击外部关闭「添加」菜单
   const addWrapRef = useRef<HTMLDivElement | null>(null);
@@ -618,6 +699,7 @@ export default function AssetsPanel() {
   const openImagePreview = (file: AssetFileEntry) => {
     videoPreview.setExpanded(null);
     setImagePreview({ path: file.path, scope: previewScope });
+    void markAssetUsed(file);
   };
 
   const filteredNodes = useMemo(() => {
@@ -742,7 +824,7 @@ export default function AssetsPanel() {
     <AnimatePresence>
       {assetsPanelOpen && (
         <>
-          {!isDrawer && <motion.div
+          {!isDrawer && !isPage && <motion.div
             data-tauri-drag-region
             className="assets-panel-backdrop"
             variants={backdropVariants}
@@ -750,14 +832,18 @@ export default function AssetsPanel() {
             transition={{ duration: 0.2 }}
             onClick={handleClose}
           />}
-          <div className={`assets-panel-wrapper${isDrawer ? ' assets-panel-wrapper--drawer' : ''}`}>
+          <div className={isPage ? 'absolute inset-0 z-40' : `assets-panel-wrapper${isDrawer ? ' assets-panel-wrapper--drawer' : ''}`}>
             <motion.div
               data-resource-video-boundary
-              className={`assets-panel${isDrawer ? ' assets-panel--drawer' : ''}`}
-              role={isDrawer ? 'region' : 'dialog'}
-              aria-label={isDrawer ? '资产库快捷面板' : '资产管理'}
-              aria-modal={isDrawer ? undefined : true}
-              variants={isDrawer ? {
+              className={isPage ? 'flex h-full min-h-0 w-full flex-col overflow-hidden bg-canvas-bg pb-3' : `assets-panel${isDrawer ? ' assets-panel--drawer' : ''}`}
+              role={isPage ? 'main' : isDrawer ? 'region' : 'dialog'}
+              aria-label={isPage ? '资源库' : isDrawer ? '资产库快捷面板' : '资产管理'}
+              aria-modal={isDrawer || isPage ? undefined : true}
+              variants={isPage ? {
+                hidden: { opacity: 0 },
+                visible: { opacity: 1, transition: { duration: 0.12 } },
+                exit: { opacity: 0, transition: { duration: 0 } },
+              } : isDrawer ? {
                 hidden: { opacity: 0, x: reduceMotion ? 0 : '-100%' },
                 visible: { opacity: 1, x: 0, transition: drawerTransition },
                 exit: { opacity: 0, x: reduceMotion ? 0 : '-100%', transition: drawerTransition },
@@ -766,10 +852,13 @@ export default function AssetsPanel() {
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
-              <div className="assets-panel-header px-2.5 py-2">
+              <div data-tauri-drag-region={isPage ? true : undefined} className={isPage ? 'relative flex h-11 shrink-0 items-center gap-3 px-3' : 'assets-panel-header px-2.5 py-2'}>
+                {isPage && <button type="button" autoFocus className="ui-btn ui-btn--ghost ui-btn--sm" onClick={handleClose}>
+                  <Icon icon="mdi:arrow-left" width="16" aria-hidden="true" /> 返回启动页
+                </button>}
                 <h2 className="assets-panel-title">
-                  {isDrawer ? '资产库' : '资产管理'}
-                  {!isDrawer && <span className="assets-panel-subtitle">
+                  {isPage ? '资源库' : isDrawer ? '资产库' : '资产管理'}
+                  {!isDrawer && !isPage && <span className="assets-panel-subtitle">
                     {visibleTab === 'drama' ? '管理人物、场景和道具简介与绑图' : visibleTab === 'ark' ? '管理火山方舟虚拟人像素材' : isNodeList ? '查看当前画布中的全部节点' : '拖拽卡片到画布即可添加节点'}
                   </span>}
                 </h2>
@@ -777,7 +866,7 @@ export default function AssetsPanel() {
                   <button type="button" className="ui-btn ui-btn--ghost ui-btn--sm" onClick={handleClose} aria-label="收起资产库">
                     收起 <kbd>Tab</kbd>
                   </button>
-                ) : <PopupCloseButton onClick={handleClose} />}
+                ) : !isPage && <PopupCloseButton onClick={handleClose} />}
               </div>
 
               {/* Tabs */}
@@ -1071,7 +1160,10 @@ export default function AssetsPanel() {
                                   videoExpanded={videoPreview.expandedId === assetKey(file)}
                                   videoPresentation={isDrawer ? 'inline' : 'fullscreen'}
                                   videoProjectId={activeTab === 'project' ? selectedProjectId ?? currentProjectId ?? undefined : undefined}
-                                  onVideoExpandedChange={(expanded) => videoPreview.setExpanded(expanded ? assetKey(file) : null)}
+                                  onVideoExpandedChange={(expanded) => {
+                                    videoPreview.setExpanded(expanded ? assetKey(file) : null);
+                                    if (expanded) void markAssetUsed(file);
+                                  }}
                                   onImagePreview={file.category === 'image' ? () => openImagePreview(file) : undefined}
                                 />
                               ))}
@@ -1113,7 +1205,7 @@ export default function AssetsPanel() {
 
   // 关闭 Action 会重置展示模式；保留上次打开的动效宿主，避免退场被中断。
   // 局部覆盖性能模式，仍尊重系统减少动态效果设置。
-  const presentationPanel = motionMode === 'drawer'
+  const presentationPanel = motionMode === 'page' ? panel : motionMode === 'drawer'
     ? <MotionConfig reducedMotion="user" transition={drawerTransition}>{panel}</MotionConfig>
     : createPortal(panel, document.body);
   return <>{presentationPanel}
@@ -1207,7 +1299,6 @@ function AssetCard({
           )}
         </div>
       )}
-      {!isProject && <div className="assets-card-name">{file.name}</div>}
     </div>
   );
 }

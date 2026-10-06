@@ -1,7 +1,7 @@
 /**
  * 项目库弹窗，提供项目搜索、排序、创建、重命名、打开和删除等管理操作。
  */
-import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '@iconify/react';
 import { motion } from 'framer-motion';
@@ -15,6 +15,8 @@ import ModalOverlay from './shared/ModalOverlay';
 import PopupCloseButton from './shared/PopupCloseButton';
 import Select from './shared/Select';
 import { useT } from '../i18n';
+
+const RecentAssetsSection = lazy(() => import('./assets/RecentAssetsSection'));
 
 type ProjectSort = 'updated' | 'created' | 'name';
 
@@ -100,6 +102,7 @@ function ProjectSnapshotPreview({ snapshot }: { snapshot?: string }) {
 export default function ProjectLibraryModal({ isOpen, onClose, presentation = 'modal' }: ProjectLibraryModalProps) {
   const t = useT();
   const isStartPage = presentation === 'page';
+  const resourcePageOpen = useAppStore((state) => isStartPage && state.assetsPanelOpen && state.assetsPanelMode === 'page');
   const projectLoadStatus = useAppStore((state) => state.projectLoadStatus);
   const {
     projects, currentProjectId, createProject, renameProject, switchProject, deleteProject,
@@ -160,10 +163,10 @@ export default function ProjectLibraryModal({ isOpen, onClose, presentation = 'm
   }, [activeProjectId, topLevelProjects, query, sort]);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || resourcePageOpen) return;
     const focusFrame = requestAnimationFrame(() => searchInputRef.current?.focus());
     return () => cancelAnimationFrame(focusFrame);
-  }, [isOpen]);
+  }, [isOpen, resourcePageOpen]);
 
   useEffect(() => {
     if (!isCreating) return;
@@ -440,6 +443,66 @@ export default function ProjectLibraryModal({ isOpen, onClose, presentation = 'm
           <div className={`grid gap-3 ${isStartPage
             ? 'grid-cols-[repeat(auto-fill,minmax(min(100%,240px),1fr))]'
             : 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3'}`}>
+            {isCreating ? (
+              <form
+                onSubmit={submitNewProject}
+                className="flex min-h-[188px] flex-col justify-between rounded-lg border border-indigo-400/40 bg-canvas-surface p-3 ring-2 ring-indigo-500/10"
+              >
+                <div className="flex flex-1 flex-col items-center justify-center gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-500/15 text-indigo-400">
+                    <Icon icon="mdi:folder-plus-outline" width="21" height="21" aria-hidden="true" />
+                  </span>
+                  <label className="w-full">
+                    <span className="sr-only">{t('新项目名称')}</span>
+                    <input
+                      ref={createInputRef}
+                      value={newProjectName}
+                      onChange={(event) => setNewProjectName(event.target.value)}
+                      placeholder={t('输入项目名称')}
+                      disabled={projectBusy}
+                      className="h-9 w-full rounded-md border border-canvas-border bg-canvas-card px-3 text-center text-sm text-canvas-text outline-none placeholder:text-canvas-text-muted focus:border-indigo-400/70 focus:ring-2 focus:ring-indigo-500/15 disabled:cursor-not-allowed disabled:opacity-60"
+                    />
+                  </label>
+                </div>
+                <div className="mt-3 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCreating(false);
+                      setNewProjectName('');
+                    }}
+                    disabled={isCreatingProject}
+                    className="h-8 rounded-md px-3 text-xs text-canvas-text-secondary transition-colors hover:bg-canvas-hover hover:text-canvas-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-canvas-border disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {t('取消')}
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={!newProjectName.trim() || projectBusy || listUnavailable}
+                    className="inline-flex h-8 items-center gap-1.5 rounded-md bg-indigo-500 px-3 text-xs font-medium text-white transition-colors hover:bg-indigo-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/60 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {isCreatingProject ? (
+                      <Icon icon="mdi:loading" width="15" height="15" className="animate-spin" aria-hidden="true" />
+                    ) : null}
+                    {isCreatingProject ? t('创建中') : t('创建')}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              !query.trim() ? (
+                <button
+                  type="button"
+                  onClick={() => setIsCreating(true)}
+                  disabled={projectBusy || listUnavailable}
+                  className="group flex min-h-[188px] flex-col items-center justify-center rounded-lg border border-dashed border-canvas-border bg-canvas-surface/60 text-canvas-text-muted transition-[border-color,background-color,color] duration-150 hover:border-indigo-400/40 hover:bg-canvas-surface hover:text-indigo-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/60"
+                >
+                  <span className="flex h-10 w-10 items-center justify-center rounded-lg border border-canvas-border bg-canvas-card transition-colors group-hover:border-indigo-400/30 group-hover:bg-indigo-500/10">
+                    <Icon icon="mdi:plus" width="21" height="21" aria-hidden="true" />
+                  </span>
+                  <span className="mt-3 text-xs font-medium text-canvas-text-secondary group-hover:text-indigo-400">{t('新建项目')}</span>
+                </button>
+              ) : null
+            )}
             {visibleProjects.map((project) => {
               const isCurrent = project.id === activeProjectId;
               const isEditingName = renameTargetId === project.id;
@@ -590,66 +653,6 @@ export default function ProjectLibraryModal({ isOpen, onClose, presentation = 'm
               );
             })}
 
-            {isCreating ? (
-              <form
-                onSubmit={submitNewProject}
-                className="flex min-h-[188px] flex-col justify-between rounded-lg border border-indigo-400/40 bg-canvas-surface p-3 ring-2 ring-indigo-500/10"
-              >
-                <div className="flex flex-1 flex-col items-center justify-center gap-3">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-500/15 text-indigo-400">
-                    <Icon icon="mdi:folder-plus-outline" width="21" height="21" aria-hidden="true" />
-                  </span>
-                  <label className="w-full">
-                    <span className="sr-only">{t('新项目名称')}</span>
-                    <input
-                      ref={createInputRef}
-                      value={newProjectName}
-                      onChange={(event) => setNewProjectName(event.target.value)}
-                      placeholder={t('输入项目名称')}
-                      disabled={projectBusy}
-                      className="h-9 w-full rounded-md border border-canvas-border bg-canvas-card px-3 text-center text-sm text-canvas-text outline-none placeholder:text-canvas-text-muted focus:border-indigo-400/70 focus:ring-2 focus:ring-indigo-500/15 disabled:cursor-not-allowed disabled:opacity-60"
-                    />
-                  </label>
-                </div>
-                <div className="mt-3 flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsCreating(false);
-                      setNewProjectName('');
-                    }}
-                    disabled={isCreatingProject}
-                    className="h-8 rounded-md px-3 text-xs text-canvas-text-secondary transition-colors hover:bg-canvas-hover hover:text-canvas-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-canvas-border disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    {t('取消')}
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={!newProjectName.trim() || projectBusy || listUnavailable}
-                    className="inline-flex h-8 items-center gap-1.5 rounded-md bg-indigo-500 px-3 text-xs font-medium text-white transition-colors hover:bg-indigo-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/60 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    {isCreatingProject ? (
-                      <Icon icon="mdi:loading" width="15" height="15" className="animate-spin" aria-hidden="true" />
-                    ) : null}
-                    {isCreatingProject ? t('创建中') : t('创建')}
-                  </button>
-                </div>
-              </form>
-            ) : (
-              !query.trim() ? (
-                <button
-                  type="button"
-                  onClick={() => setIsCreating(true)}
-                  disabled={projectBusy || listUnavailable}
-                  className="group flex min-h-[188px] flex-col items-center justify-center rounded-lg border border-dashed border-canvas-border bg-canvas-surface/60 text-canvas-text-muted transition-[border-color,background-color,color] duration-150 hover:border-indigo-400/40 hover:bg-canvas-surface hover:text-indigo-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/60"
-                >
-                  <span className="flex h-10 w-10 items-center justify-center rounded-lg border border-canvas-border bg-canvas-card transition-colors group-hover:border-indigo-400/30 group-hover:bg-indigo-500/10">
-                    <Icon icon="mdi:plus" width="21" height="21" aria-hidden="true" />
-                  </span>
-                  <span className="mt-3 text-xs font-medium text-canvas-text-secondary group-hover:text-indigo-400">{t('新建项目')}</span>
-                </button>
-              ) : null
-            )}
           </div>
 
           {visibleProjects.length === 0 && query.trim() ? (
@@ -667,6 +670,7 @@ export default function ProjectLibraryModal({ isOpen, onClose, presentation = 'm
               </button>
             </div>
           ) : null}
+          {isStartPage && <Suspense fallback={<p className="mt-6 text-xs text-canvas-text-muted">{t('正在读取最近使用…')}</p>}><RecentAssetsSection /></Suspense>}
         </main>
 
         {contextMenu ? createPortal(
@@ -801,7 +805,8 @@ export default function ProjectLibraryModal({ isOpen, onClose, presentation = 'm
     return isOpen ? (
       <section
         aria-label={t('启动页')}
-        className="absolute inset-0 flex flex-col bg-canvas-bg px-2 pb-3"
+        hidden={resourcePageOpen}
+        className={`absolute inset-0 ${resourcePageOpen ? 'hidden' : 'flex'} flex-col bg-canvas-bg px-2 pb-3`}
         onKeyDown={(event) => {
           if (event.key === 'Escape' && !event.defaultPrevented) requestClose();
         }}
