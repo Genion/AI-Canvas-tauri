@@ -351,5 +351,5 @@ export async function saveAssetToPermanent(
 
 /** 删除全局资产的文件（移入回收站） */
 export async function deletePermanentFile(filePath: string): Promise<void> {
-  await moveToTrash(filePath);
+  await moveToTrash(filePath, { throwOnError: true });
 }

@@ -16,6 +16,8 @@ import {
   useRef,
   useDeferredValue,
   type DragEvent,
+  type MouseEvent as ReactMouseEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
 } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '@iconify/react';
@@ -34,6 +36,8 @@ import {
   pickAssetFolder,
   saveAssetToPermanent,
   deletePermanentFile,
+  revealFileInFolder,
+  isTauriEnv,
   extractFilesFromNodeData,
   CATEGORY_LABELS,
   type AssetFileEntry,
@@ -41,7 +45,9 @@ import {
   type AssetFolderEntry,
   type AssetFolderSelection,
 } from '../services/fileService';
-import { copyFile, readClipboardFolders } from '../services/clipboardService';
+import { copyFile, copyText, readClipboardFolders } from '../services/clipboardService';
+import { loadAssetImageDetails } from '../services/assetImageDetails';
+import { loadAssetVideoHistory } from '../services/assetVideoDetails';
 import { getAllAssetMeta, putAssetMeta, deleteAssetMeta } from '../services/indexedDbService';
 import { startAssetDrag, prepareDragIcon } from '../utils/assetDrag';
 import { ALL_CATEGORIES, CATEGORY_ICONS, shortFolderName } from '../utils/assetFormat';
@@ -56,6 +62,7 @@ import { getNodeTypeConfig } from '../types';
 import CanvasNodeCardContent from './assets/CanvasNodeCardContent';
 import AssetFolderNavigation from './assets/AssetFolderNavigation';
 import AssetImagePreview from './assets/AssetImagePreview';
+import AssetFileContextMenu from './assets/AssetFileContextMenu';
 import { useResourceVideoPreview } from '../hooks/useResourceVideoPreview';
 
 const DramaAssetsPanel = lazy(() => import('./DramaAssetsPanel'));
@@ -64,6 +71,11 @@ const VolcengineAssetLibraryPanel = lazy(() => import('./volcengine/VolcengineAs
 /** 仅磁盘真实文件可拖拽（排除节点引用的 node:// / virtual:// 虚拟路径）*/
 function isDraggableEntry(file: AssetFileEntry): boolean {
   return !!file.path && !file.path.startsWith('node://') && !file.path.startsWith('virtual://');
+}
+
+function isLocalAssetFile(file: AssetFileEntry): boolean {
+  return isDraggableEntry(file) && file.availability !== 'offline'
+    && (!/^[a-z][\w+.-]*:/i.test(file.path) || /^[a-z]:[\\/]/i.test(file.path));
 }
 
 type FileTabKey = 'project' | 'permanent';
@@ -162,6 +174,15 @@ export default function AssetsPanel() {
   const folderOperationRef = useRef<AbortController | null>(null);
   const [folderSelection, setFolderSelection] = useState<AssetFolderSelection>({ kind: 'all' });
   const [imagePreview, setImagePreview] = useState<{ path: string; scope: string } | null>(null);
+  const [fileMenu, setFileMenu] = useState<{ file: AssetFileEntry; scope: string; projectId?: string; x: number; y: number; confirmDelete?: boolean } | null>(null);
+  const fileOperationRef = useRef<AbortController | null>(null);
+  const fileScopeRef = useRef<string | null>(null);
+  // 删除不改画布节点；防止刷新时将节点中残留的旧路径重新补入列表。
+  const deletedFilePathsRef = useRef(new Set<string>());
+  const closeFileMenu = useCallback(() => {
+    fileOperationRef.current?.abort();
+    setFileMenu(null);
+  }, []);
   const closeImagePreview = useCallback(() => setImagePreview(null), []);
   const [folderScanTruncated, setFolderScanTruncated] = useState(false);
   // 标签 Map（path -> tags），作为标签的唯一真相源，编辑时只更新它，避免重新读盘
@@ -189,6 +210,7 @@ export default function AssetsPanel() {
   if (presentation !== previousPresentation) {
     setPreviousPresentation(presentation);
     setImagePreview(null);
+    setFileMenu(null);
     if (presentation) setMotionMode(presentation);
     if (presentation === 'drawer') {
       setActiveTab('project');
@@ -243,13 +265,14 @@ export default function AssetsPanel() {
         const diskFiles = await listProjectFiles(viewProjectId);
         if (!isCurrentRequest()) return;
         const known = new Set(diskFiles.map((f) => f.path));
+        for (const file of diskFiles) deletedFilePathsRef.current.delete(file.path);
         const nodeEntries: AssetFileEntry[] = [];
         // 仅当查看的是「当前项目」时，才并入画布上尚未落盘的节点文件
         // （store.nodes 始终是当前项目的画布，其他项目无法从内存取节点）
         if (viewProjectId === currentProjectId) {
           for (const node of useAppStore.getState().nodes) {
             const entry = extractFilesFromNodeData(node.data as Record<string, unknown>);
-            if (entry && !known.has(entry.path)) { nodeEntries.push(entry); known.add(entry.path); }
+            if (entry && !known.has(entry.path) && !deletedFilePathsRef.current.has(entry.path)) { nodeEntries.push(entry); known.add(entry.path); }
           }
         }
         setProjectFiles([...diskFiles, ...nodeEntries]);
@@ -521,6 +544,76 @@ export default function AssetsPanel() {
 
   const visibleFiles = useMemo(() => filteredFiles.slice(0, visibleCount), [filteredFiles, visibleCount]);
   const previewScope = JSON.stringify([currentProjectId, selectedProjectId, activeTab, folderSelection, assetsPanelMode, visibleTab]);
+  useEffect(() => {
+    fileScopeRef.current = assetsPanelOpen ? previewScope : null;
+    return () => { fileScopeRef.current = null; fileOperationRef.current?.abort(); };
+  }, [assetsPanelOpen, previewScope]);
+
+  const openFileMenu = (file: AssetFileEntry, x: number, y: number, confirmDelete = false) => {
+    fileOperationRef.current?.abort();
+    setFileMenu({ file, scope: previewScope, x, y, confirmDelete,
+      projectId: activeTab === 'project' ? selectedProjectId ?? currentProjectId ?? undefined : undefined });
+  };
+  const handleFileContextMenu = (file: AssetFileEntry, event: ReactMouseEvent<HTMLDivElement>) => {
+    if ((event.target as HTMLElement).closest?.('input, textarea, [contenteditable="true"]')) return;
+    event.preventDefault(); event.stopPropagation(); event.currentTarget.focus();
+    openFileMenu(file, event.clientX, event.clientY);
+  };
+  const handleFileMenuKey = (file: AssetFileEntry, event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) return;
+    if ((event.target as HTMLElement).closest?.('input, textarea, [contenteditable="true"]')) return;
+    event.preventDefault(); event.stopPropagation(); event.currentTarget.focus();
+    const rect = event.currentTarget.getBoundingClientRect();
+    openFileMenu(file, rect.left + 12, rect.top + 12);
+  };
+
+  const performFileAction = async (action: 'copy' | 'prompt' | 'reveal' | 'delete') => {
+    const target = fileMenu;
+    if (!target || fileScopeRef.current !== target.scope) return;
+    fileOperationRef.current?.abort();
+    const controller = new AbortController();
+    fileOperationRef.current = controller;
+    const isCurrent = () => !controller.signal.aborted && fileScopeRef.current === target.scope
+      && useAppStore.getState().assetsPanelOpen && useAppStore.getState().currentProjectId === currentProjectId;
+    try {
+      if (!isCurrent()) return;
+      if (action === 'prompt') {
+        toast('正在读取提示词…');
+        const details = target.file.category === 'image'
+          ? await loadAssetImageDetails(target.file, target.projectId, controller.signal) : null;
+        const history = target.file.category === 'video'
+          ? await loadAssetVideoHistory(target.file.path, target.file.assetUrl, target.projectId, controller.signal) : details?.history;
+        if (!isCurrent()) return;
+        const prompt = details?.record?.prompt ?? history?.prompt ?? '';
+        if (!prompt.trim()) { toast('此资产暂无提示词'); return; }
+        if (!(await copyText(prompt))) throw new Error('clipboard');
+        if (isCurrent()) toast('提示词已复制');
+      } else {
+        if (!isLocalAssetFile(target.file) || !isTauriEnv()) throw new Error('unavailable');
+        if (action === 'copy') {
+          if (!(await copyFile(target.file.path))) throw new Error('clipboard');
+          if (isCurrent()) toast('文件已复制，可在系统中粘贴');
+        } else if (action === 'reveal') {
+          await revealFileInFolder(target.file.path);
+        } else {
+          await deletePermanentFile(target.file.path);
+          deletedFilePathsRef.current.add(target.file.path);
+          if (!isCurrent()) return;
+          setProjectFiles((prev) => prev.filter((file) => file.path !== target.file.path));
+          setPermanentFiles((prev) => prev.filter((file) => file.path !== target.file.path));
+          await loadFiles();
+          if (isCurrent()) toast('文件已移入系统回收站');
+        }
+      }
+    } catch {
+      if (!isCurrent()) return;
+      if (action === 'delete') throw new Error('删除失败');
+      toast(action === 'copy' ? '复制失败，请检查文件和系统剪贴板'
+        : action === 'prompt' ? '提示词读取或复制失败，请重试' : '打开目录失败，请检查文件位置和权限');
+    } finally {
+      if (fileOperationRef.current === controller) fileOperationRef.current = null;
+    }
+  };
   const imageFiles = useMemo(() => filteredFiles.filter((file) => file.category === 'image' && !!file.assetUrl), [filteredFiles]);
   const openImagePreview = (file: AssetFileEntry) => {
     videoPreview.setExpanded(null);
@@ -593,12 +686,6 @@ export default function AssetsPanel() {
     toast(dest ? `已保存: ${file.name}` : '保存失败');
     if (dest && activeTab === 'permanent') await loadFiles();
   }, [activeTab, loadFiles, toast]);
-
-  const handleDeletePermanent = useCallback(async (file: AssetFileEntry) => {
-    await deletePermanentFile(file.path);
-    setPermanentFiles((prev) => prev.filter((f) => f.path !== file.path));
-    toast(`已删除: ${file.name}`);
-  }, [toast]);
 
   // ── 标签编辑（手动）──
   const persistTags = useCallback(async (assetId: string, path: string, tags: string[]) => {
@@ -975,7 +1062,12 @@ export default function AssetsPanel() {
                                   onAddTag={(t) => { addTag(file, t); setTagDraft(''); }}
                                   onRemoveTag={(t) => removeTag(file, t)}
                                   onSave={() => handleSavePermanent(file)}
-                                  onDelete={() => handleDeletePermanent(file)}
+                                  onDelete={() => {
+                                    if (isLocalAssetFile(file) && isTauriEnv()) openFileMenu(file, 0, 0, true);
+                                    else toast('此文件无法使用系统回收站');
+                                  }}
+                                  onContextMenu={(event) => handleFileContextMenu(file, event)}
+                                  onMenuKeyDown={(event) => handleFileMenuKey(file, event)}
                                   videoExpanded={videoPreview.expandedId === assetKey(file)}
                                   videoPresentation={isDrawer ? 'inline' : 'fullscreen'}
                                   videoProjectId={activeTab === 'project' ? selectedProjectId ?? currentProjectId ?? undefined : undefined}
@@ -1025,6 +1117,13 @@ export default function AssetsPanel() {
     ? <MotionConfig reducedMotion="user" transition={drawerTransition}>{panel}</MotionConfig>
     : createPortal(panel, document.body);
   return <>{presentationPanel}
+    {assetsPanelOpen && fileMenu?.scope === previewScope &&
+      <AssetFileContextMenu key={`${fileMenu.scope}:${fileMenu.file.path}:${fileMenu.confirmDelete}`} name={fileMenu.file.name}
+        x={fileMenu.x} y={fileMenu.y} confirmDelete={fileMenu.confirmDelete}
+        canFileActions={isLocalAssetFile(fileMenu.file) && isTauriEnv()}
+        canCopyPrompt={fileMenu.file.category === 'image' || fileMenu.file.category === 'video'}
+        onCopy={() => performFileAction('copy')} onCopyPrompt={() => performFileAction('prompt')}
+        onReveal={() => performFileAction('reveal')} onDelete={() => performFileAction('delete')} onClose={closeFileMenu} />}
     {assetsPanelOpen && imagePreview?.scope === previewScope &&
       <AssetImagePreview key={`${imagePreview.scope}:${imagePreview.path}`} files={imageFiles} initialPath={imagePreview.path}
         projectId={activeTab === 'project' ? selectedProjectId ?? currentProjectId ?? undefined : undefined} onClose={closeImagePreview} />}
@@ -1047,6 +1146,8 @@ interface AssetCardProps {
   onRemoveTag: (tag: string) => void;
   onSave: () => void;
   onDelete: () => void;
+  onContextMenu: (event: ReactMouseEvent<HTMLDivElement>) => void;
+  onMenuKeyDown: (event: ReactKeyboardEvent<HTMLDivElement>) => void;
   videoExpanded?: boolean;
   videoPresentation?: 'inline' | 'fullscreen';
   videoProjectId?: string;
@@ -1056,7 +1157,7 @@ interface AssetCardProps {
 
 function AssetCard({
   file, isProject, draggable, onDragStart, editing, tagDraft,
-  onToggleEdit, onTagDraftChange, onAddTag, onRemoveTag, onSave, onDelete,
+  onToggleEdit, onTagDraftChange, onAddTag, onRemoveTag, onSave, onDelete, onContextMenu, onMenuKeyDown,
   videoExpanded = false, videoPresentation, videoProjectId, onVideoExpandedChange, onImagePreview,
 }: AssetCardProps) {
   const tags = file.tags ?? [];
@@ -1065,6 +1166,11 @@ function AssetCard({
       className={`assets-waterfall-card anim-card-in${videoExpanded ? ' has-expanded-video' : ''}`}
       draggable={draggable && !videoExpanded}
       onDragStart={onDragStart}
+      tabIndex={0}
+      aria-label={file.name}
+      aria-haspopup="menu"
+      onContextMenu={onContextMenu}
+      onKeyDown={onMenuKeyDown}
     >
       <AssetThumb
         assetUrl={file.assetUrl}
