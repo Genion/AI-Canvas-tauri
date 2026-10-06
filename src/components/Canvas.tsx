@@ -13,7 +13,6 @@ import { ReactFlow,
   useReactFlow,
   useStoreApi,
   useViewport,
-  useNodesInitialized,
   ReactFlowProvider,
   Panel,
   type OnSelectionChangeParams,
@@ -36,6 +35,7 @@ import NodeRenderBoundary from './nodes/shared/NodeRenderBoundary';
 import CanvasNodeLodBoundary from './nodes/shared/CanvasNodeLodBoundary';
 import { CanvasNodeLodContext } from '../hooks/useCanvasNodeLod';
 import { createCanvasNodeLodRuntime } from '../services/canvasNodeLodRuntime';
+import { waitForCanvasFirstPaint } from '../services/canvasReadyService';
 import { isEditableTarget } from '../utils/textSelection';
 import { playNodeFocusPulse } from '../utils/nodeAnimations';
 import ConnectionMenu from './canvas/ConnectionMenu';
@@ -457,36 +457,20 @@ function CanvasInner({ onReady }: CanvasProps) {
   }, [nodes]);
   const reactFlowInstance = useReactFlow();
   const flowStore = useStoreApi();
-  const nodesInitialized = useNodesInitialized();
   const readyProjectRef = useRef<string | null>(null);
+  const hasRenderableNodes = renderableGraph.nodes.some((node) => !node.hidden);
   useEffect(() => {
     if (!onReady || !currentProjectId || readyProjectRef.current === currentProjectId
-      || !reactFlowInstance.viewportInitialized
-      || (!nodesInitialized && renderableGraph.nodes.some((node) => !node.hidden))) return;
-    let cancelled = false;
-    let layoutFrame = 0;
-    let paintFrame = 0;
-    const reveal = async () => {
-      if (renderableGraph.nodes.some((node) => !node.hidden)) {
-        await reactFlowInstance.fitView(FIT_VIEW_OPTIONS);
-      }
-      if (cancelled) return;
-      // 视野调整完成后给浏览器一帧布局、一帧绘制，再允许开屏淡出。
-      layoutFrame = requestAnimationFrame(() => {
-        paintFrame = requestAnimationFrame(() => {
-          if (cancelled) return;
-          readyProjectRef.current = currentProjectId;
-          onReady(currentProjectId);
-        });
-      });
-    };
-    void reveal();
-    return () => {
-      cancelled = true;
-      cancelAnimationFrame(layoutFrame);
-      cancelAnimationFrame(paintFrame);
-    };
-  }, [currentProjectId, renderableGraph.nodes, nodesInitialized, onReady, reactFlowInstance]);
+      || !reactFlowInstance.viewportInitialized) return;
+    // 不依赖节点数组：测量写回会持续替换数组，不能反复取消、重启首帧等待。
+    return waitForCanvasFirstPaint(
+      () => hasRenderableNodes ? reactFlowInstance.fitView(FIT_VIEW_OPTIONS) : Promise.resolve(false),
+      () => {
+        readyProjectRef.current = currentProjectId;
+        onReady(currentProjectId);
+      },
+    );
+  }, [currentProjectId, hasRenderableNodes, onReady, reactFlowInstance]);
   const lodSession = useMemo(() => ({
     projectId: currentProjectId,
     runtime: createCanvasNodeLodRuntime(reactFlowInstance.getViewport().zoom, undefined, useAppStore.getState().config.performanceMode === true),

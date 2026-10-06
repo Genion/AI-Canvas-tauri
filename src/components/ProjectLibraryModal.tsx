@@ -511,12 +511,12 @@ export default function ProjectLibraryModal({ isOpen, onClose, presentation = 'm
                       </button>
                     </form>
                   ) : (
-                    <div className="flex min-h-14 items-center">
+                    <div className="flex items-center">
                       <button
                         type="button"
                         onClick={() => void openProject(project.id)}
                         disabled={projectBusy || listUnavailable}
-                        className="min-w-0 flex-1 px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-400/60"
+                        className="min-w-0 flex-1 px-2 py-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-400/60"
                       >
                         <span className="flex min-w-0 items-center gap-2">
                           <span className="truncate text-xs font-medium text-canvas-text">{project.name}</span>
@@ -801,7 +801,7 @@ export default function ProjectLibraryModal({ isOpen, onClose, presentation = 'm
     return isOpen ? (
       <section
         aria-label={t('启动页')}
-        className="absolute inset-0 flex flex-col bg-canvas-bg px-3 pb-3"
+        className="absolute inset-0 flex flex-col bg-canvas-bg px-2 pb-3"
         onKeyDown={(event) => {
           if (event.key === 'Escape' && !event.defaultPrevented) requestClose();
         }}

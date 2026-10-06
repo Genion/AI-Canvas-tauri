@@ -970,6 +970,82 @@ describe('project switching', () => {
   });
 });
 
+describe('returning to the startup page', () => {
+  function openProject() {
+    useAppStore.setState({
+      projects: [{ id: 'logo-project', name: 'Logo 项目', createdAt: 1, updatedAt: 1 }],
+      currentProjectId: 'logo-project', projectName: 'Logo 项目',
+      nodes: [{ id: 'text', type: 'ai-text', position: { x: 0, y: 0 }, data: { label: '已编辑内容' } as BaseNodeData }],
+      selectedNodeIds: ['text'], assetsPanelOpen: true, chatOpen: true,
+      activeNodeId: 'text', projectLibraryOpen: true,
+    });
+  }
+
+  it('waits for saving before leaving the canvas and keeps the project available to reopen', async () => {
+    openProject();
+    let finishSave!: (id: string) => void;
+    fileMocks.saveProject.mockImplementation(() => new Promise<string>((resolve) => { finishSave = resolve; }));
+    const pending = useAppStore.getState().returnToStartPage();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(useAppStore.getState().currentProjectId).toBe('logo-project');
+    expect(useAppStore.getState().isReturningToStartPage).toBe(true);
+    finishSave('logo-project');
+    expect(await pending).toBe(true);
+    expect(fileMocks.saveProject).toHaveBeenCalledWith(expect.objectContaining({ id: 'logo-project', nodes: expect.arrayContaining([expect.objectContaining({ id: 'text' })]) }));
+    expect(useAppStore.getState()).toMatchObject({
+      currentProjectId: null, projectLoadStatus: 'ready', nodes: [], edges: [], groups: [],
+      selectedNodeIds: [], activeNodeId: null, assetsPanelOpen: false, chatOpen: false,
+      projectLibraryOpen: false, isReturningToStartPage: false,
+    });
+    expect(useAppStore.getState().projects).toHaveLength(1);
+    fileMocks.loadProjectData.mockResolvedValue({ id: 'logo-project', nodes: [], edges: [] });
+    await useAppStore.getState().switchProject('logo-project');
+    expect(useAppStore.getState().currentProjectId).toBe('logo-project');
+  });
+
+  it('keeps the current canvas when saving fails', async () => {
+    openProject();
+    fileMocks.saveProject.mockRejectedValue(new Error('Save unavailable'));
+    expect(await useAppStore.getState().returnToStartPage()).toBe(false);
+    expect(useAppStore.getState()).toMatchObject({ currentProjectId: 'logo-project', nodes: [expect.objectContaining({ id: 'text' })], isReturningToStartPage: false });
+  });
+
+  it('does not replace a different project selected while saving was in progress', async () => {
+    openProject();
+    let finishSave!: (id: string) => void;
+    fileMocks.saveProject.mockImplementation(() => new Promise<string>((resolve) => { finishSave = resolve; }));
+    const pending = useAppStore.getState().returnToStartPage();
+    await vi.advanceTimersByTimeAsync(0);
+    useAppStore.setState({ currentProjectId: 'another-project' });
+    finishSave('logo-project');
+    expect(await pending).toBe(false);
+    expect(useAppStore.getState().currentProjectId).toBe('another-project');
+  });
+
+  it('ignores repeated returns and blocks create/switch until saving finishes', async () => {
+    openProject();
+    let finishSave!: (id: string) => void;
+    fileMocks.saveProject.mockImplementation(() => new Promise<string>((resolve) => { finishSave = resolve; }));
+    const pending = useAppStore.getState().returnToStartPage();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(await useAppStore.getState().returnToStartPage()).toBe(false);
+    expect(await useAppStore.getState().createProject()).toBeUndefined();
+    await useAppStore.getState().switchProject('logo-project');
+    expect(fileMocks.loadProjectData).not.toHaveBeenCalled();
+    expect(fileMocks.saveProject).toHaveBeenCalledOnce();
+    finishSave('logo-project');
+    await pending;
+  });
+
+  it('leaves an unready project intact', async () => {
+    openProject();
+    useAppStore.setState({ projectLoadStatus: 'error' });
+    expect(await useAppStore.getState().returnToStartPage()).toBe(false);
+    expect(fileMocks.saveProject).not.toHaveBeenCalled();
+    expect(useAppStore.getState().currentProjectId).toBe('logo-project');
+  });
+});
+
 describe('episode creative content', () => {
   it('原子保存大纲、正文和创作要点到当前分集', async () => {
     useAppStore.setState({

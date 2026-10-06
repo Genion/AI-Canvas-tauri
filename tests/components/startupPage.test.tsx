@@ -21,7 +21,7 @@ vi.mock('react', async () => ({
 }));
 vi.mock('zustand/react/shallow', () => ({ useShallow: <T,>(selector: T) => selector }));
 vi.mock('react-dom', () => ({ createPortal: (children: unknown) => children }));
-vi.mock('framer-motion', () => ({ motion: { div: 'div' } }));
+vi.mock('framer-motion', () => ({ motion: { div: 'div', button: 'motion-button' } }));
 vi.mock('../../src/store/useAppStore', () => ({
   useAppStore: Object.assign((selector: (state: AppState) => unknown) => selector(driver.state), {
     getState: () => driver.state,
@@ -44,6 +44,7 @@ vi.mock('@tauri-apps/api/window', () => ({ getCurrentWindow: () => { throw new E
 vi.mock('@tauri-apps/plugin-global-shortcut', () => ({}));
 
 import ProjectLibraryModal from '../../src/components/ProjectLibraryModal';
+import Header from '../../src/components/Header';
 import { useKeyboardShortcuts } from '../../src/hooks/useKeyboardShortcuts';
 
 const onClose = vi.fn();
@@ -84,6 +85,8 @@ beforeEach(() => {
   driver.state = {
     projects: [{ id: 'p1', name: '示例项目', createdAt: 1, updatedAt: 2 }],
     currentProjectId: null, projectLoadStatus: 'ready', isCreatingProject: false,
+    isReturningToStartPage: false, switchingProjectName: null,
+    returnToStartPage: vi.fn(async () => true),
     createProject: vi.fn(async () => undefined),
     switchProject: vi.fn(async () => undefined),
     importProject: vi.fn(async () => undefined),
@@ -196,6 +199,21 @@ describe('project startup page', () => {
     expect(onClose).toHaveBeenCalledOnce();
     expect(driver.state.switchProject).not.toHaveBeenCalled();
     expect(driver.state.currentProjectId).toBe('ep2');
+  });
+});
+
+describe('header startup page entry', () => {
+  it('exposes an accessible logo button which calls the return action', async () => {
+    await click(button(Header() as Element, '返回启动页'));
+    expect(driver.state.returnToStartPage).toHaveBeenCalledOnce();
+  });
+
+  it.each(['returning', 'creating', 'switching'])('disables the logo while %s', (busy) => {
+    driver.state.isReturningToStartPage = busy === 'returning';
+    driver.state.isCreatingProject = busy === 'creating';
+    driver.state.switchingProjectName = busy === 'switching' ? '另一个项目' : null;
+    const label = busy === 'returning' ? '正在返回启动页' : '返回启动页';
+    expect(button(Header() as Element, label).props.disabled).toBe(true);
   });
 });
 

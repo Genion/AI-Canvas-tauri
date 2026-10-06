@@ -162,12 +162,18 @@ export default function App() {
   const currentProjectId = useAppStore((state) => state.currentProjectId);
   const switchingProjectName = useAppStore((state) => state.switchingProjectName);
   const isCreatingProject = useAppStore((state) => state.isCreatingProject);
+  const isReturningToStartPage = useAppStore((state) => state.isReturningToStartPage);
   const [canvasReadyProjectId, setCanvasReadyProjectId] = useState<string | null>(null);
   const [revealedProjectId, setRevealedProjectId] = useState<string | null>(null);
   const nativePerformanceSynced = useRef(false);
   const [projectBootReady, setProjectBootReady] = useState(false);
   const showCanvas = projectBootReady && currentProjectId !== null;
-  const projectLoading = projectLoadStatus === 'loading' || switchingProjectName !== null || isCreatingProject;
+  const projectLoading = projectLoadStatus === 'loading' || switchingProjectName !== null || isCreatingProject || isReturningToStartPage;
+  // 启动页没有挂载画布；再次打开同一项目也必须重新等待本次首帧。
+  if (!showCanvas && (canvasReadyProjectId !== null || revealedProjectId !== null)) {
+    setCanvasReadyProjectId(null);
+    setRevealedProjectId(null);
+  }
   const showProjectSplash = !splashDone || projectLoading || (showCanvas && revealedProjectId !== currentProjectId);
   const splashReady = projectBootReady && !projectLoading
     && (!showCanvas || canvasReadyProjectId === currentProjectId);
@@ -220,16 +226,16 @@ export default function App() {
     }
   }, [currentProjectId, migrateHistoryAndLoad, projectBootReady, projectLoadStatus]);
 
-  // 退出期间阻止画布快捷键继续编辑；窗口原生关闭请求由下面的重入锁处理。
+  // 退出或保存后返回启动页期间，阻止画布快捷键继续编辑。
   useEffect(() => {
-    if (!closePhase) return;
+    if (!closePhase && !isReturningToStartPage) return;
     const blockKeyDown = (event: KeyboardEvent) => {
       event.preventDefault();
       event.stopImmediatePropagation();
     };
     window.addEventListener('keydown', blockKeyDown, true);
     return () => window.removeEventListener('keydown', blockKeyDown, true);
-  }, [closePhase]);
+  }, [closePhase, isReturningToStartPage]);
 
   // 性能模式重启与原生关闭共用互斥锁和输入遮罩；保存编排由服务负责。
   useEffect(() => registerPerformanceRestartHost(async (work) => {
@@ -730,7 +736,7 @@ export default function App() {
         {showProjectSplash && (
           <SplashScreen
             ready={splashReady}
-            label={splashDone ? 'AI Canvas 正在打开项目' : 'AI Canvas 正在启动'}
+            label={isReturningToStartPage ? 'AI Canvas 正在返回启动页' : splashDone ? 'AI Canvas 正在打开项目' : 'AI Canvas 正在启动'}
             onComplete={completeProjectSplash}
           />
         )}

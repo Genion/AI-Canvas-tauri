@@ -354,6 +354,7 @@ export interface ProjectSlice {
   projectName: string;
   projectLoadStatus: ProjectLoadStatus;
   isCreatingProject: boolean;
+  isReturningToStartPage: boolean;
   /** 正在切换到的画布名；非 null 时显示切换遮罩 */
   switchingProjectName: string | null;
   /** 自动保存持续失败时的诊断状态；成功保存后清空 */
@@ -387,6 +388,8 @@ export interface ProjectSlice {
   deleteProject: (id: string) => Promise<void>;
   /** captureSnapshot：切走前给当前画布重拍缩略图，只有项目库弹窗需要（拍一张要跑一轮位图合成） */
   switchProject: (id: string, options?: { captureSnapshot?: boolean }) => void;
+  /** 保存当前画布后返回启动页；保存失败不卸载当前画布。 */
+  returnToStartPage: () => Promise<boolean>;
   saveCurrentProject: () => Promise<string | undefined>;
   saveCurrentProjectSilent: () => Promise<string | undefined>;
   loadProject: () => Promise<void>;
@@ -568,6 +571,7 @@ export const createProjectSlice: StateCreator<AppState, [], [], ProjectSlice> = 
   projectName: '新项目',
   projectLoadStatus: 'loading',
   isCreatingProject: false,
+  isReturningToStartPage: false,
   switchingProjectName: null,
   autoSaveFailure: null,
 
@@ -803,7 +807,7 @@ export const createProjectSlice: StateCreator<AppState, [], [], ProjectSlice> = 
   },
 
   createProject: async (name) => {
-    if (get().isCreatingProject) return undefined;
+    if (get().isCreatingProject || get().isReturningToStartPage) return undefined;
     set({ isCreatingProject: true });
     try {
       const createSequence = ++projectSwitchSequence;
@@ -1255,6 +1259,7 @@ export const createProjectSlice: StateCreator<AppState, [], [], ProjectSlice> = 
   },
 
   switchProject: async (requestedId, options) => {
+    if (get().isReturningToStartPage) return;
     if (!get().projects.some((project) => project.id === requestedId)) return;
     // 剧集项目自身没有画布，点它等于打开它的分集。
     // ponytail: 固定开第一集；要「回到上次打开的那集」再往剧集记录里存一个 lastEpisodeId。
@@ -1337,6 +1342,45 @@ export const createProjectSlice: StateCreator<AppState, [], [], ProjectSlice> = 
       setTimeout(() => window.dispatchEvent(new CustomEvent('canvas-fit-view')), 0);
     } finally {
       if (isLatestSwitch()) set({ switchingProjectName: null });
+    }
+  },
+
+  returnToStartPage: async () => {
+    const state = get();
+    if (!state.currentProjectId) return true;
+    if (state.isReturningToStartPage || state.isCreatingProject || state.switchingProjectName !== null) return false;
+    if (state.projectLoadStatus !== 'ready') {
+      state.showToast('项目尚未成功加载，暂时无法返回启动页', 'error');
+      return false;
+    }
+    const projectId = state.currentProjectId;
+    const sequence = projectSwitchSequence;
+    set({ isReturningToStartPage: true });
+    try {
+      // 列表即将出现，复用缩略图捕获；截图失败不妨碍正常保存。
+      await get().captureCurrentProjectSnapshot().catch(() => undefined);
+      if (get().currentProjectId !== projectId || projectSwitchSequence !== sequence) return false;
+      const savedId = await get().saveCurrentProjectSilent();
+      if (savedId !== projectId || get().currentProjectId !== projectId || projectSwitchSequence !== sequence) return false;
+      cancelProjectCanvasDerivations(projectId);
+      set({
+        currentProjectId: null,
+        projectName: '',
+        projectLoadStatus: 'ready',
+        nodes: [], edges: [], groups: [],
+        history: [], historyIndex: -1, selectedNodeIds: [],
+        activeNodeId: null, dialogPosition: null, pendingPresetAction: null,
+        nodeMenuVisible: false, nodePickerOpen: false, projectLibraryOpen: false,
+        assetsPanelOpen: false, characterLibraryOpen: false, characterActionLibraryOpen: false,
+        historyPanelOpen: false, dramaAssetsPanelOpen: false, workflowPanelOpen: false,
+        chatOpen: false, reversePromptRequest: null,
+      });
+      return true;
+    } catch {
+      get().showToast('返回启动页失败，已保留当前画布，请重试', 'error');
+      return false;
+    } finally {
+      set({ isReturningToStartPage: false });
     }
   },
 
