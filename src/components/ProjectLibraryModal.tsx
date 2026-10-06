@@ -1,7 +1,7 @@
 /**
  * 项目库弹窗，提供项目搜索、排序、创建、重命名、打开和删除等管理操作。
  */
-import { lazy, Suspense, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '@iconify/react';
 import { motion } from 'framer-motion';
@@ -140,6 +140,8 @@ export default function ProjectLibraryModal({ isOpen, onClose, presentation = 'm
   const listUnavailable = projectLoadStatus === 'error' && projects.length === 0;
   const searchInputRef = useRef<HTMLInputElement>(null);
   const createInputRef = useRef<HTMLInputElement>(null);
+  const projectGridRef = useRef<HTMLDivElement>(null);
+  const [projectGridMaxHeight, setProjectGridMaxHeight] = useState<number>();
 
   // 项目库只列顶层项目；分集在画布右侧的分集栏里管理。
   const topLevelProjects = useMemo(() => listTopLevelProjects(projects), [projects]);
@@ -162,6 +164,22 @@ export default function ProjectLibraryModal({ isOpen, onClose, presentation = 'm
         return right.updatedAt - left.updatedAt;
       });
   }, [activeProjectId, topLevelProjects, query, sort]);
+
+  useLayoutEffect(() => {
+    const grid = projectGridRef.current;
+    if (!isOpen || !isStartPage || resourcePageOpen || !grid) return;
+    // 按实际响应式行高限制两行，窗口缩放和新建卡片展开时同步更新。
+    const measure = () => {
+      const style = getComputedStyle(grid);
+      const rows = style.gridTemplateRows.split(/\s+/).slice(0, 2).map((row) => parseFloat(row)).filter(Number.isFinite);
+      const gap = parseFloat(style.rowGap) || 0;
+      setProjectGridMaxHeight(rows.length ? rows.reduce((sum, height) => sum + height, 0) + gap * (rows.length - 1) : undefined);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(grid);
+    return () => observer.disconnect();
+  }, [isOpen, isStartPage, resourcePageOpen, visibleProjects, isCreating]);
 
   useEffect(() => {
     if (!isOpen || resourcePageOpen) return;
@@ -354,14 +372,14 @@ export default function ProjectLibraryModal({ isOpen, onClose, presentation = 'm
 
           <div className={`flex flex-wrap items-center gap-2 ${isStartPage ? '' : 'mt-3'}`}>
             {isStartPage && projectHeading}
-            <label className="relative w-56 max-w-full ml-auto">
+            <label className="ui-input-group w-48 max-w-full ml-auto">
               <span className="sr-only">{t('搜索项目')}</span>
               <Icon
                 icon="mdi:magnify"
-                width="17"
-                height="17"
+                width="14"
+                height="14"
                 aria-hidden="true"
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-canvas-text-muted"
+                className="pointer-events-none ml-2 shrink-0 self-center text-canvas-text-muted"
               />
               <input
                 ref={searchInputRef}
@@ -370,7 +388,7 @@ export default function ProjectLibraryModal({ isOpen, onClose, presentation = 'm
                 onChange={(event) => setQuery(event.target.value)}
                 onKeyDown={focusFirstProject}
                 placeholder={t('搜索项目')}
-                className="h-9 w-full rounded-lg border border-canvas-border bg-canvas-card pl-9 pr-3 text-xs text-canvas-text outline-none transition-colors placeholder:text-canvas-text-muted hover:border-border-secondary focus:border-indigo-400/70 focus:ring-2 focus:ring-indigo-500/15"
+                className="ui-input ui-input--sm"
               />
             </label>
 
@@ -378,16 +396,17 @@ export default function ProjectLibraryModal({ isOpen, onClose, presentation = 'm
               <span className="sr-only">{t('项目排序')}</span>
               <Icon
                 icon="mdi:sort-variant"
-                width="16"
-                height="16"
+                width="14"
+                height="14"
                 aria-hidden="true"
-                className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-canvas-text-muted"
+                className="pointer-events-none absolute left-2 top-1/2 z-10 -translate-y-1/2 text-canvas-text-muted"
               />
               <Select
                 value={sort}
                 onChange={(value) => setSort(value as ProjectSort)}
-                className="w-32"
-                triggerStyle={{ height: 36, paddingLeft: 36 }}
+                size="sm"
+                className="w-28"
+                triggerStyle={{ paddingLeft: 28 }}
                 fixedMenu
                 options={[
                   { value: 'updated', label: t('最近更新') },
@@ -402,12 +421,12 @@ export default function ProjectLibraryModal({ isOpen, onClose, presentation = 'm
               onClick={() => void runImportProject()}
               disabled={projectBusy || listUnavailable || exportingId !== null}
               data-tooltip={t('从 .aicanvas 项目包导入')}
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-canvas-border bg-canvas-card px-3 text-xs text-canvas-text-secondary transition-colors hover:bg-canvas-hover hover:text-canvas-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-canvas-border disabled:cursor-not-allowed disabled:opacity-50"
+              className="ui-btn ui-btn--secondary ui-btn--sm"
             >
               <Icon
                 icon={isImporting ? 'mdi:loading' : 'mdi:tray-arrow-down'}
-                width="17"
-                height="17"
+                width="14"
+                height="14"
                 aria-hidden="true"
                 className={isImporting ? 'animate-spin' : undefined}
               />
@@ -417,10 +436,10 @@ export default function ProjectLibraryModal({ isOpen, onClose, presentation = 'm
             <button
               type="button"
               onClick={() => setIsCreating(true)}
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-indigo-500 px-3 text-xs font-medium text-white transition-colors hover:bg-indigo-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/60 disabled:cursor-not-allowed disabled:opacity-50"
+              className="ui-btn ui-btn--primary ui-btn--sm"
               disabled={isCreating || projectBusy || listUnavailable}
             >
-              <Icon icon="mdi:plus" width="17" height="17" aria-hidden="true" />
+              <Icon icon="mdi:plus" width="14" height="14" aria-hidden="true" />
               {t('新建')}
             </button>
           </div>
@@ -441,8 +460,9 @@ export default function ProjectLibraryModal({ isOpen, onClose, presentation = 'm
           aria-hidden={deleteTarget ? true : undefined}
           className="min-h-0 flex-1 overflow-y-auto bg-canvas-bg/60 p-3"
         >
-          <div className={`grid gap-3 ${isStartPage
-            ? 'grid-cols-[repeat(auto-fill,minmax(min(100%,240px),1fr))]'
+          <div ref={projectGridRef} style={isStartPage ? { maxHeight: projectGridMaxHeight } : undefined}
+            className={`grid gap-3 ${isStartPage
+            ? 'content-start overflow-y-auto [scrollbar-gutter:stable] grid-cols-[repeat(auto-fill,minmax(min(100%,240px),1fr))]'
             : 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3'}`}>
             {isCreating ? (
               <form
@@ -816,7 +836,7 @@ export default function ProjectLibraryModal({ isOpen, onClose, presentation = 'm
           data-tauri-drag-region
           inert={deleteTarget ? true : undefined}
           aria-hidden={deleteTarget ? true : undefined}
-          className={`relative z-20 mb-2 flex h-9 shrink-0 items-center justify-between gap-3 ${
+          className={`relative z-20 flex h-9 shrink-0 items-center justify-between gap-3 ${
             isTauri ? isMacOS ? 'pl-24' : 'pr-[120px]' : ''
           }`}
         >

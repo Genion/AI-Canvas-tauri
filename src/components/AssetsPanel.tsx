@@ -26,6 +26,7 @@ import { motion, AnimatePresence, MotionConfig, useReducedMotion } from 'framer-
 import { useShallow } from 'zustand/react/shallow';
 import { cursorPosition, getCurrentWindow } from '@tauri-apps/api/window';
 import { useAppStore } from '../store/useAppStore';
+import { listTopLevelProjects, listEpisodes, seriesOwnerId } from '../store/store.utils';
 import {
   listProjectFiles,
   listGlobalFolderContents,
@@ -165,6 +166,14 @@ export default function AssetsPanel() {
   const canvasNodeData = useAppStore(useShallow((s) => assetsPanelOpen && isNodeList ? s.nodes.map((node) => node.data) : []));
   // 项目文件 Tab 查看的项目；null 表示「跟随当前项目」（关闭时复位，故每次打开默认当前项目）
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const selectedOwnerId = selectedProjectId ?? currentProjectId;
+  const viewProjectId = selectedOwnerId ? seriesOwnerId(projects, selectedOwnerId) : null;
+  const viewProjectIds = useMemo(() => viewProjectId
+    ? [viewProjectId, ...listEpisodes(projects, viewProjectId).map((project) => project.id)] : [], [projects, viewProjectId]);
+  const [projectFileOwners, setProjectFileOwners] = useState(new Map<string, string>());
+  const projectIdForFile = useCallback((file: AssetFileEntry) => activeTab === 'project'
+    ? projectFileOwners.get(file.path) ?? selectedProjectId ?? currentProjectId ?? undefined
+    : undefined, [activeTab, projectFileOwners, selectedProjectId, currentProjectId]);
   const [activeCategory, setActiveCategory] = useState<FileCategory | null>(null);
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -303,21 +312,29 @@ export default function AssetsPanel() {
     setLoading(true);
     try {
       if (activeTab === 'project') {
-        const viewProjectId = selectedProjectId ?? currentProjectId;
-        if (!viewProjectId) { setProjectFiles([]); return; }
-        const diskFiles = await listProjectFiles(viewProjectId);
+        if (!viewProjectIds.length) { setProjectFiles([]); setProjectFileOwners(new Map()); return; }
+        const owners = new Map<string, string>();
+        const diskEntries = new Map<string, AssetFileEntry>();
+        // 父项目后读取分集，重叠目录中的文件沿用具体分集的身份和历史归属。
+        for (const projectId of viewProjectIds) {
+          const entries = await listProjectFiles(projectId);
+          if (!isCurrentRequest()) return;
+          for (const file of entries) { diskEntries.set(file.path, file); owners.set(file.path, projectId); }
+        }
+        const diskFiles = Array.from(diskEntries.values());
         if (!isCurrentRequest()) return;
         const known = new Set(diskFiles.map((f) => f.path));
         for (const file of diskFiles) deletedFilePathsRef.current.delete(file.path);
         const nodeEntries: AssetFileEntry[] = [];
         // 仅当查看的是「当前项目」时，才并入画布上尚未落盘的节点文件
         // （store.nodes 始终是当前项目的画布，其他项目无法从内存取节点）
-        if (viewProjectId === currentProjectId) {
+        if (currentProjectId && viewProjectIds.includes(currentProjectId)) {
           for (const node of useAppStore.getState().nodes) {
             const entry = extractFilesFromNodeData(node.data as Record<string, unknown>);
-            if (entry && !known.has(entry.path) && !deletedFilePathsRef.current.has(entry.path)) { nodeEntries.push(entry); known.add(entry.path); }
+            if (entry && !known.has(entry.path) && !deletedFilePathsRef.current.has(entry.path)) { nodeEntries.push(entry); known.add(entry.path); owners.set(entry.path, currentProjectId); }
           }
         }
+        setProjectFileOwners(owners);
         setProjectFiles([...diskFiles, ...nodeEntries]);
       } else {
         // 永久 = 全局 file 目录 + 登记的外部文件夹（递归）
@@ -346,7 +363,7 @@ export default function AssetsPanel() {
     } catch { /* ignore */ } finally {
       if (isCurrentRequest()) setLoading(false);
     }
-  }, [activeTab, currentProjectId, selectedProjectId, folders]);
+  }, [activeTab, currentProjectId, viewProjectIds, folders]);
 
   useEffect(() => {
     if (assetsPanelOpen) {
@@ -869,7 +886,7 @@ export default function AssetsPanel() {
     }
     setHoverDetails({ key, scope: hoverScope, text: '正在读取…' });
     const controller = new AbortController();
-    const projectId = activeTab === 'project' ? selectedProjectId ?? currentProjectId ?? undefined : undefined;
+    const projectId = projectIdForFile(file);
     // 仅为实际停留的卡片读取，快速扫过不查询历史或磁盘；移开和切换上下文时撤销。
     const timer = setTimeout(() => {
       void (async () => {
@@ -910,7 +927,7 @@ export default function AssetsPanel() {
     dismissHover();
     fileOperationRef.current?.abort();
     setFileMenu({ file, scope: previewScope, x, y, confirmDelete,
-      projectId: activeTab === 'project' ? selectedProjectId ?? currentProjectId ?? undefined : undefined });
+      projectId: projectIdForFile(file) });
   };
   const handleFileContextMenu = (file: AssetFileEntry, event: ReactMouseEvent<HTMLDivElement>) => {
     if ((event.target as HTMLElement).closest?.('input, textarea, [contenteditable="true"]')) return;
@@ -1169,11 +1186,11 @@ export default function AssetsPanel() {
                   <Select
                     className="assets-project-select-wrap"
                     triggerClassName="assets-project-select"
-                    value={selectedProjectId ?? currentProjectId ?? ''}
+                    value={viewProjectId ?? ''}
                     onChange={(value) => setSelectedProjectId(value || null)}
-                    options={projects.map((p) => ({
+                    options={listTopLevelProjects(projects).map((p) => ({
                       value: p.id,
-                      label: p.id === currentProjectId ? `${p.name}（当前）` : p.name,
+                      label: currentProjectId && p.id === seriesOwnerId(projects, currentProjectId) ? `${p.name}（当前）` : p.name,
                     }))}
                   />
                 )}
@@ -1445,7 +1462,7 @@ export default function AssetsPanel() {
                                   onMenuKeyDown={(event) => handleFileMenuKey(file, event)}
                                   videoExpanded={videoPreview.expandedId === assetKey(file)}
                                   videoPresentation={isDrawer ? 'inline' : 'fullscreen'}
-                                  videoProjectId={activeTab === 'project' ? selectedProjectId ?? currentProjectId ?? undefined : undefined}
+                                  videoProjectId={projectIdForFile(file)}
                                   onVideoExpandedChange={(expanded) => {
                                     dismissHover();
                                     videoPreview.setExpanded(expanded ? assetKey(file) : null);
@@ -1505,7 +1522,7 @@ export default function AssetsPanel() {
         onReveal={() => performFileAction('reveal')} onDelete={() => performFileAction('delete')} onClose={closeFileMenu} />}
     {assetsPanelOpen && imagePreview?.scope === previewScope &&
       <AssetImagePreview key={`${imagePreview.scope}:${imagePreview.path}`} files={imageFiles} initialPath={imagePreview.path}
-        projectId={activeTab === 'project' ? selectedProjectId ?? currentProjectId ?? undefined : undefined} onClose={closeImagePreview} />}
+        projectIdForFile={projectIdForFile} onClose={closeImagePreview} />}
   </>;
 }
 

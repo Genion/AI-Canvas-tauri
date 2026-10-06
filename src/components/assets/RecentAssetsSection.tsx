@@ -119,9 +119,9 @@ export default function RecentAssetsSection() {
       {entries.length > 0 ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
           {entries.map((entry) => {
-            const { file, projectId, usedAt } = entry;
+            const { file, projectId } = entry;
             return (
-            <article key={file.assetId} className="ui-card ui-card--interactive min-w-0" data-recent-asset={file.assetId}
+            <article key={file.assetId} className="group ui-card ui-card--interactive min-w-0" data-recent-asset={file.assetId}
               tabIndex={0} aria-label={file.name} aria-haspopup="menu"
               onContextMenu={(event) => {
                 event.preventDefault(); event.stopPropagation(); event.currentTarget.focus();
@@ -151,12 +151,10 @@ export default function RecentAssetsSection() {
                       ? { tab: 'project', projectId } : { tab: 'permanent', folder: file.source === 'folder' && file.folderRoot
                         ? { kind: 'folder', rootPath: file.folderRoot, relativePath: file.relativePath?.split('/').slice(0, -1).join('/') ?? '' } : { kind: 'all' } })} />
                 )}
-              </div>
-              <div className="min-w-0 p-2">
-                <p className="truncate text-[10px] text-canvas-text-muted" title={new Date(usedAt).toLocaleString()}>
+                <span className="assets-card-badge pointer-events-none max-w-[calc(100%-5rem)] truncate opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
                   {projectId ? projects.find((project) => project.id === projectId)?.name ?? '项目素材'
                     : file.folderRoot ? shortFolderName(file.folderRoot) : '全局资产'}
-                </p>
+                </span>
               </div>
             </article>
             );
