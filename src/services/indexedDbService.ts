@@ -32,6 +32,7 @@ import {
 } from './indexedDb/projectSummary';
 
 import { withRelocatedMedia } from './indexedDb/mediaRelocations';
+import { localMediaUrlToPath } from '../utils/mediaUrl';
 
 const LAST_ACTIVE_PROJECT_KEY = 'last-active-project';
 
@@ -293,6 +294,61 @@ export interface HistoryPage {
   records: HistoryRecord[];
   nextCursor: HistoryPageCursor | null;
   hasMore: boolean;
+}
+
+/** 图片身份比较仅使用完整路径/地址；不按文件名猜测来源。 */
+export function imageHistoryReferenceKey(reference: string | undefined): string | undefined {
+  if (!reference || reference.startsWith('data:') || reference.startsWith('blob:')) return undefined;
+  const path = localMediaUrlToPath(reference) ?? reference;
+  if (/^[a-z]:[/\\]/i.test(path) || path.startsWith('/') || path.startsWith('\\\\')) {
+    const normalized = path.replace(/\\/g, '/').replace(/\/+$/, '');
+    return /^[a-z]:\//i.test(normalized) || normalized.startsWith('//') ? normalized.toLowerCase() : normalized;
+  }
+  // 普通网络地址保持查询参数与大小写，签名不同的地址不能推断为同一图片。
+  return reference;
+}
+
+/** 预览时只读查询匹配的最新成功图片记录；不加载或切换 Store 历史面板。 */
+export async function findImageHistoryByReferences(references: string[], projectId?: string, signal?: AbortSignal): Promise<HistoryRecord | null> {
+  const keys = new Set(references.map(imageHistoryReferenceKey).filter((key): key is string => !!key));
+  if (!keys.size) return null;
+  if (signal?.aborted) throw new DOMException('Preview closed', 'AbortError');
+  const db = await openDB();
+  if (signal?.aborted) throw new DOMException('Preview closed', 'AbortError');
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_HISTORY, 'readonly');
+    const store = tx.objectStore(STORE_HISTORY);
+    const request = projectId
+      ? store.index('projectId_timestamp_id').openCursor(projectHistoryRange(projectId), 'prev')
+      : store.openCursor();
+    let latest: HistoryRecord | null = null;
+    let scanned = 0;
+    const abort = () => { try { tx.abort(); } catch { /* 事务已结束 */ } };
+    signal?.addEventListener('abort', abort, { once: true });
+    tx.oncomplete = () => { signal?.removeEventListener('abort', abort); resolve(latest); };
+    tx.onabort = () => {
+      signal?.removeEventListener('abort', abort);
+      reject(signal?.aborted ? new DOMException('Preview closed', 'AbortError') : tx.error ?? new Error('图片生成记录读取失败'));
+    };
+    request.onerror = () => { /* 由事务统一报告读取失败 */ };
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (!cursor) return;
+      if (++scanned > 100_000) {
+        reject(new Error('生成记录过多，无法完成图片来源查询'));
+        abort(); return;
+      }
+      const record = cursor.value as HistoryRecord;
+      if (record.nodeType === 'ai-image' && record.status === 'success'
+        && [record.filePath, record.mediaUrl, record.output].some((reference) => {
+          const key = imageHistoryReferenceKey(reference); return !!key && keys.has(key);
+        }) && (!latest || record.timestamp > latest.timestamp || record.timestamp === latest.timestamp && record.id > latest.id)) {
+        latest = record;
+      }
+      cursor.continue();
+    };
+    if (signal?.aborted) abort();
+  });
 }
 
 const HISTORY_MIGRATION_PREFIX = 'output-history-v1:';
@@ -613,6 +669,53 @@ export interface AssetMetaRecord {
   tags: string[];        // 标签
   taggedBy?: 'manual' | 'comfyui' | 'vision'; // 标签来源
   updatedAt: number;
+}
+
+// 图片编辑信息按资产身份及内容摘要独立存放，避免标签更新或历史裁剪覆盖它。
+const ASSET_IMAGE_PREFIX = 'asset-image:';
+
+export async function getAssetImageRecords(signal?: AbortSignal): Promise<import('../types/assetImage').AssetImageRecord[]> {
+  if (signal?.aborted) throw new DOMException('Cancelled', 'AbortError');
+  const db = await openDB();
+  if (signal?.aborted) throw new DOMException('Cancelled', 'AbortError');
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_METADATA, 'readonly');
+    const records: import('../types/assetImage').AssetImageRecord[] = [];
+    const abort = () => { try { tx.abort(); } catch { /* 已结束 */ } };
+    signal?.addEventListener('abort', abort, { once: true });
+    const request = tx.objectStore(STORE_METADATA).openCursor(IDBKeyRange.bound(ASSET_IMAGE_PREFIX, `${ASSET_IMAGE_PREFIX}\uffff`));
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (!cursor) return;
+      if (records.length >= 10_000) { reject(new Error('图片信息过多，请先整理')); abort(); return; }
+      records.push(cursor.value); cursor.continue();
+    };
+    tx.oncomplete = () => { signal?.removeEventListener('abort', abort); resolve(records); };
+    tx.onabort = () => { signal?.removeEventListener('abort', abort); reject(signal?.aborted ? new DOMException('Cancelled', 'AbortError') : tx.error ?? new Error('图片信息读取失败')); };
+    if (signal?.aborted) abort();
+  });
+}
+
+/** 事务内比较 revision，失败时保留原记录；不向历史或标签写入。 */
+export async function putAssetImageRecord(record: import('../types/assetImage').AssetImageRecord, expectedRevision: number): Promise<void> {
+  if (!record.id.startsWith(ASSET_IMAGE_PREFIX) || !/^[a-f0-9]{64}$/.test(record.contentDigest)
+    || record.revision !== expectedRevision + 1) throw new Error('图片信息无效');
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_METADATA, 'readwrite');
+    const store = tx.objectStore(STORE_METADATA);
+    let conflict = false;
+    const request = store.get(record.id);
+    request.onsuccess = () => {
+      const current = request.result as import('../types/assetImage').AssetImageRecord | undefined;
+      if ((current?.revision ?? 0) !== expectedRevision || current && current.contentDigest !== record.contentDigest) {
+        conflict = true; tx.abort(); return;
+      }
+      store.put(record);
+    };
+    tx.oncomplete = () => resolve();
+    tx.onabort = tx.onerror = () => reject(new Error(conflict ? '图片信息已被其他操作修改，请重新读取后保存' : '图片信息保存失败'));
+  });
 }
 
 /** 获取全部资产元数据（一次性读入，组件侧建 Map 合并） */

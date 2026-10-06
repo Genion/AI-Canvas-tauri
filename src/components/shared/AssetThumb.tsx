@@ -20,9 +20,10 @@ interface AssetThumbProps {
   badge?: string;
   /** 悬停操作按钮区 */
   children?: ReactNode;
+  onImagePreview?: () => void;
 }
 
-export default function AssetThumb({ assetUrl, filePath, videoExpanded = false, onVideoExpandedChange, name, category, size, badge, children }: AssetThumbProps) {
+export default function AssetThumb({ assetUrl, filePath, videoExpanded = false, onVideoExpandedChange, name, category, size, badge, children, onImagePreview }: AssetThumbProps) {
   return category === 'video' ? (
     <div className="assets-card-img-wrap assets-card-video-wrap">
       <ResourceVideoPreview src={assetUrl} filePath={filePath} name={name} expanded={videoExpanded}
@@ -34,6 +35,8 @@ export default function AssetThumb({ assetUrl, filePath, videoExpanded = false, 
   ) : assetUrl ? (
     <div className="assets-card-img-wrap">
       <ViewportImage src={assetUrl} alt={name} className="assets-card-img" draggable={false} />
+      {category === 'image' && onImagePreview && <button type="button" className="asset-image-preview-trigger"
+        aria-label={`查看图片 ${name}`} title="查看大图和生成信息" onClick={(event) => { event.stopPropagation(); onImagePreview(); }} />}
       <span className="assets-card-size">{formatSize(size)}</span>
       {badge && <span className="assets-card-badge">{badge}</span>}
       {children}

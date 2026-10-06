@@ -4,6 +4,8 @@
 import type { StateCreator } from 'zustand';
 import type { AppState } from './useAppStore';
 import type { ReversePromptRequest } from '../types';
+import type { AssetFileEntry, FileTransferOptions } from '../services/fileService';
+import type { AssetImageRecord, AssetImageSaveInput } from '../types/assetImage';
 
 export type SettingsTab = 'general' | 'appearance' | 'files' | 'api' | 'shortcuts' | 'comfyui' | 'storage' | 'plugins' | 'mcp';
 export const NEW_API_KEY_CONNECTION_ID = '__new__';
@@ -25,6 +27,7 @@ export interface ComfyNodeProgress {
 }
 
 export interface UISlice {
+  saveAssetImageDetails: (file: AssetFileEntry, input: AssetImageSaveInput, options?: FileTransferOptions) => Promise<AssetImageRecord>;
   settingsOpen: boolean;
   /** 打开设置时要激活的标签页；SettingsPanel 消费后清空 */
   settingsInitialTab: SettingsTab | null;
@@ -106,6 +109,10 @@ export interface UISlice {
 }
 
 export const createUISlice: StateCreator<AppState, [], [], UISlice> = (set) => ({
+  saveAssetImageDetails: async (file, input, options) => {
+    const { saveAssetImageMetadata } = await import('../services/fs/assetImageMetadata');
+    return saveAssetImageMetadata(file, input, options);
+  },
   settingsOpen: false,
   settingsInitialTab: null,
   pendingApiKeyConnectionId: null,
