@@ -423,6 +423,11 @@ export default function ProviderConnectionDialog({
     setSelectedIds((current) => new Set(current).add(id));
     setManualModelId('');
     setManualModelName('');
+    if (definition.id === 'custom-openai' && model.category === 'video') {
+      setProtocolModelId(id);
+      setVideoCapabilityModelId(null);
+      setProtocolValid(true);
+    }
   };
 
   const updateModelCategory = (modelId: string, nextCategory: GeneralModelCategory) => {
