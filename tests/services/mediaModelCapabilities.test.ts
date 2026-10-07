@@ -1,8 +1,63 @@
 import { describe, expect, it } from 'vitest';
 import { normalizeSeedreamSize } from '../../src/services/ai/helpers';
-import { buildImageCapabilityRequest, getImageCapability } from '../../src/services/ai/mediaModelCapabilities';
+import { buildImageCapabilityRequest, getImageCapability, resolveImageParameterCapability } from '../../src/services/ai/mediaModelCapabilities';
+import { resolveBuiltInImageRequestContract } from '../../src/services/ai/imageRequestContracts';
+import { getProviderDefinition } from '../../src/services/ai/providerCatalogService';
+import type { AppConfig } from '../../src/types';
 
 describe('image model capability resolution', () => {
+  const grsaiConfig: Pick<AppConfig, 'providers' | 'generalModels'> = {
+    providers: {
+      grsai: { name: 'GRSAI', apiKey: '' },
+      'saved-grsai': { name: '旧 GRSAI 连接', apiKey: '', catalogId: 'grsai' },
+      custom: { name: '自定义接口', apiKey: '', catalogId: 'custom-openai' },
+    },
+    generalModels: [{ id: 'saved-pro', name: 'Nano Banana Pro', modelId: 'nano-banana-pro', category: 'image', providerConfigId: 'saved-grsai' }],
+  };
+
+  it.each([
+    ['grsai/nano-banana-pro', 'grsai'],
+    ['nano-banana-pro', 'grsai'],
+    ['saved-grsai/nano-banana-pro', 'saved-grsai'],
+    ['general/saved-pro', 'general'],
+    ['saved-pro', 'general'],
+  ])('shows all GRSAI Pro tiers for model reference %s', (model, provider) => {
+    const capability = resolveImageParameterCapability(model, provider, grsaiConfig);
+    expect(capability?.resolutions).toEqual(['1K', '2K', '4K']);
+    expect(capability?.modelId).toBe('nano-banana-pro');
+    for (const imageSize of ['2K', '4K']) {
+      const contract = resolveBuiltInImageRequestContract(getProviderDefinition('grsai'), capability!.modelId, imageSize, '16:9');
+      expect(contract?.kind).toBe('protocol');
+      if (contract?.kind === 'protocol') expect(contract.protocol.submit.body).toMatchObject({ imageSize, aspectRatio: '16:9' });
+    }
+  });
+
+  it.each([
+    ['nano-banana-2', ['1K', '2K', '4K']],
+    ['nano-banana-2.1', ['1K', '2K', '4K']],
+    ['nano-banana-pro-cl', ['1K']],
+    ['nano-banana-pro-vip', ['1K', '2K']],
+    ['nano-banana-pro-4k-vip', ['4K']],
+  ])('keeps GRSAI channel-specific tiers for %s', (model, resolutions) => {
+    expect(resolveImageParameterCapability(model, 'grsai', grsaiConfig)?.resolutions).toEqual(resolutions);
+  });
+
+  it('does not apply GRSAI tiers based only on a Nano Banana Pro model name', () => {
+    expect(resolveImageParameterCapability('custom/nano-banana-pro', 'custom', grsaiConfig)?.resolutions).toEqual(['1K']);
+    expect(resolveImageParameterCapability('google/gemini-3-pro-image-preview', 'google', grsaiConfig)?.resolutions).toEqual(['1K']);
+    expect(resolveImageParameterCapability(undefined, 'grsai', grsaiConfig)).toBeUndefined();
+  });
+
+  it('keeps GRSAI image tiers separate from APIMart and other same-name models', () => {
+    expect(getImageCapability('grsai/nano-banana-2.1')?.resolutions).toEqual(['1K', '2K', '4K']);
+    expect(getImageCapability('grsai/nano-banana-2.1')?.ratios).toContain('1:8');
+    expect(getImageCapability('grsai/nano-banana-2-lite')?.resolutions).toEqual(['1K']);
+    expect(getImageCapability('grsai/nano-banana-2-lite')?.ratios).not.toContain('1:8');
+    expect(getImageCapability('grsai/gpt-image-2.5')?.resolutions).toEqual(['1K']);
+    expect(getImageCapability('grsai/nano-banana-2-4k-cl')?.resolutions).toEqual(['4K']);
+    expect(getImageCapability('grsai/gpt-image-2.5-flare')?.resolutions).toEqual(['1K', '2K', '4K']);
+    expect(getImageCapability('apimart/gpt-image-2.5-flare')?.resolutions).toEqual(['1k', '2k', '4k']);
+  });
   it('resolves the versioned Volcengine Seedream 5.0 Pro model', () => {
     const capability = getImageCapability('volcengine/doubao-seedream-5-0-pro-260628');
 

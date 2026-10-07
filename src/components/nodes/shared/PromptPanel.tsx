@@ -54,7 +54,7 @@ import type { AudioGenerationPurpose } from '../../../types/media';
 import { useT } from '../../../i18n';
 import WorkflowApiParameterFields from './WorkflowApiParameterFields';
 import { DREAMINA_IMAGE_RATIOS, getDreaminaImageModel } from '../../../services/ai/dreaminaModels';
-import { getImageCapability } from '../../../services/ai/mediaModelCapabilities';
+import { resolveImageParameterCapability } from '../../../services/ai/mediaModelCapabilities';
 
 const IMAGE_RATIO_CLASS_NAMES: Record<string, string> = {
   '1:1': 'img-rp-sq',
@@ -520,11 +520,12 @@ export default function PromptPanel({
   const batchLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suppressSubmitClickRef = useRef(false);
   const [batchMenuOpen, setBatchMenuOpen] = useState(false);
+  const imageModelConfig = useAppStore((state) => state.config);
   const dreaminaImageModel = nodeType === 'ai-image' && selectedProvider === 'dreamina'
     ? getDreaminaImageModel(selectedModel)
     : undefined;
   const imageCapability = nodeType === 'ai-image' && !dreaminaImageModel
-    ? getImageCapability(selectedModel)
+    ? resolveImageParameterCapability(selectedModel, selectedProvider, imageModelConfig)
     : undefined;
   const imageResolutions = dreaminaImageModel?.resolutions ?? imageCapability?.resolutions;
   const imageRatioValues = useMemo<readonly string[] | undefined>(() => (

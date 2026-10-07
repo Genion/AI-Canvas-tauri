@@ -17,6 +17,7 @@ import { RUNNINGHUB_MODEL_MANIFEST, isLegacyRunningHubModel, getRunningHubModel,
 import { isRunningHubWorkflow, workflowExecution } from '../../../services/workflowExecutionService';
 import { DREAMINA_IMAGE_MODELS, DREAMINA_VIDEO_MODELS } from '../../../services/ai/dreaminaModels';
 import { APIMART_OMNI_MODELS, APIMART_UPDATED_VIDEO_MODELS, isLegacyApimartOmni, replaceLegacyApimartOmni } from '../../../services/ai/apimartVideoModels';
+import { GRSAI_ADDED_MODELS } from '../../../services/ai/grsaiModels';
 
 export type MediaModelKind = 'image' | 'video' | 'audio';
 
@@ -665,10 +666,14 @@ export const defaultModelGroups: ModelGroup[] = [
   {
     id: 'grsai',
     name: 'GRSAI',
-    description: '图像生成与多模态文本模型服务',
+    description: '图像、视频与多模态文本模型服务',
     iconType: 'badge',
     badgeText: 'GR',
     models: [
+      ...GRSAI_ADDED_MODELS.map((model): ModelOption => ({
+        value: `grsai/${model.id}`, provider: 'grsai', label: model.name, description: model.description,
+        iconType: 'badge', badgeText: 'GR', nodeTypes: CATEGORY_TO_NODE_TYPES[model.category],
+      })),
       // --- 图片模型 ---
       {
         value: 'grsai/gpt-image-2',
@@ -788,15 +793,6 @@ export const defaultModelGroups: ModelGroup[] = [
         nodeTypes: ['ai-image'],
       },
       // --- 文本模型 ---
-      {
-        value: 'grsai/gpt-5.4',
-        provider: 'grsai',
-        label: 'GPT-5.4',
-        description: 'OpenAI 文本生成与推理模型',
-        iconType: 'badge',
-        badgeText: 'GR',
-        nodeTypes: ['ai-text'],
-      },
       {
         value: 'grsai/gpt-5.5',
         provider: 'grsai',

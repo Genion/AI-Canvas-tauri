@@ -29,6 +29,7 @@ import { baseUrlCandidates } from './providerBaseUrl';
 import { APIMART_OMNI_MODELS, APIMART_UPDATED_VIDEO_MODELS, isLegacyApimartOmni } from './apimartVideoModels';
 import { getChatApiHeaders, normalizeGeminiModelId, resolveChatApiProtocol } from './chatApiProtocol';
 import { XAI_BASE_URL, XAI_MODEL_MANIFEST } from './providers/xaiModelManifest';
+import { GRSAI_ADDED_MODELS } from './grsaiModels';
 import {
   GOOGLE_GEMINI_BASE_URL,
   GOOGLE_MODEL_MANIFEST,
@@ -354,12 +355,13 @@ const BUILT_IN_PROVIDER_DEFINITIONS: ProviderDefinition[] = [
   {
     id: 'grsai',
     name: 'GRSAI',
-    description: '图像生成与多模态文本模型服务',
+    description: '图像、视频与多模态文本模型服务',
     badgeText: 'GR',
     authType: 'api-key',
     catalogAdapter: 'local-manifest',
     defaultBaseUrl: GRSAI_BASE_URL,
     allowCustomBaseUrl: false,
+    models: GRSAI_ADDED_MODELS,
     credentials: [
       API_KEY_FIELD,
       { key: 'baseUrl', label: '接口地址', required: false, placeholder: GRSAI_BASE_URL },
@@ -792,7 +794,9 @@ export async function fetchProviderModelCatalog(
     return { models: [...models.values()], source: 'local-manifest' };
   }
   if (definition.catalogAdapter === 'local-manifest') {
-    return { models: normalizedFallback, source: 'local-manifest' };
+    return { models: definition.id === 'grsai'
+      ? mergeRemoteCatalogMetadata(normalizedFallback, [...GRSAI_ADDED_MODELS])
+      : normalizedFallback, source: 'local-manifest' };
   }
 
   try {

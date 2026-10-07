@@ -14,6 +14,21 @@ function jsonResponse(body: unknown): Response {
 }
 
 describe('providerCatalogService 模型分类推断', () => {
+  it('GRSAI 的本地目录保留新文本协议及独立 H3 能力，不请求 Key 页面', async () => {
+    const fetchMock = vi.fn(); vi.stubGlobal('fetch', fetchMock);
+    const fallbackModels = defaultModelGroups.find((group) => group.id === 'grsai')!.models
+      .map((model) => ({ id: model.value.slice('grsai/'.length), name: model.label,
+        category: model.nodeTypes.includes('ai-video') ? 'video' as const : model.nodeTypes.includes('ai-image') ? 'image' as const : 'text' as const,
+        provider: 'grsai' }));
+    const result = await fetchProviderModelCatalog({ providerId: 'grsai',
+      config: { name: 'GRSAI', apiKey: 'test-key' }, fallbackModels });
+    expect(result.source).toBe('local-manifest');
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(result.models.find((model) => model.id === 'gpt-6-astra')?.executionProfile).toEqual({ preset: 'openai-chat' });
+    expect(result.models.find((model) => model.id === 'minimax-h3')?.videoCapability).toMatchObject({ resolutions: ['480p', '768p', '1080p'], maxVideoReferences: 0 });
+    expect(result.models.find((model) => model.id === 'gpt-image-2.5-flare')?.description).toContain('维护中');
+    expect(result.models.some((model) => model.id === 'gpt-5.4')).toBe(false);
+  });
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();

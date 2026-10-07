@@ -7,7 +7,10 @@
  * 供参数面板与生成入口消费。
  */
 import type { AudioModelCapability, ImageModelCapability } from '../../types/aiTypes';
+import type { AppConfig } from '../../types';
 import { getRunningHubModel } from './providers/runninghubModelManifest';
+import { getGrsaiImageCapability } from './grsaiModels';
+import { getProviderDefinition } from './providerCatalogService';
 
 /* ── 生图能力表 ── */
 
@@ -505,6 +508,10 @@ function normalizeImageModelId(model: string): string {
 }
 
 export function getImageCapability(model?: string): ImageCapability | undefined {
+  if (model?.startsWith('grsai/')) {
+    const capability = getGrsaiImageCapability(model);
+    if (capability) return { ...capability, modelId: model.slice('grsai/'.length), resolutionStyle: 'none' };
+  }
   if (model && (!model.includes('/') || model.startsWith('apimart/'))) {
     const key = model.replace(/^apimart\//, '').toLowerCase();
     const override = APIMART_IMAGE_CAPABILITIES[key];
@@ -530,6 +537,25 @@ export function getImageCapability(model?: string): ImageCapability | undefined 
     .sort((left, right) => right.length - left.length)
     .find((key) => normalizedModelId.startsWith(`${key}-`));
   return versionedKey ? IMAGE_CAPABILITIES[versionedKey] : undefined;
+}
+
+/** 参数面板按生成入口相同的连接身份解析，兼容旧节点的原始 ID 和通用模型引用。 */
+export function resolveImageParameterCapability(
+  model: string | undefined,
+  provider: string | undefined,
+  config: Pick<AppConfig, 'providers' | 'generalModels'>,
+): ImageCapability | undefined {
+  if (!model) return undefined;
+  const generalModel = provider === 'general'
+    ? config.generalModels?.find((item) => item.id === model.replace(/^general\//, ''))
+    : undefined;
+  const connectionId = generalModel?.providerConfigId ?? provider;
+  if (connectionId && getProviderDefinition(connectionId, config.providers[connectionId])?.id === 'grsai') {
+    const modelId = generalModel?.modelId
+      ?? (model.startsWith(`${connectionId}/`) ? model.slice(connectionId.length + 1) : model);
+    return getImageCapability(modelId.startsWith('grsai/') ? modelId : `grsai/${modelId}`);
+  }
+  return getImageCapability(model);
 }
 
 /** 将分辨率档位换算为像素短边，用于结果回填的尺寸。 */

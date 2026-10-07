@@ -25,6 +25,16 @@ function createConfig(selectedModels: ProviderModelSelection[]): AppConfig {
 }
 
 describe('内置厂商动态模型目录', () => {
+  it('GRSAI 新模型分类正确，默认目录不再列出已下架 GPT-5.4，已有选择保持可读', () => {
+    const models = defaultModelGroups.find((group) => group.id === 'grsai')!.models;
+    for (const [id, kind] of [['nano-banana-2.1', 'image'], ['gpt-image-2.5', 'image'], ['gpt-image-2.5-flare', 'image'], ['gpt-image-2.5-sunburst', 'image'], ['minimax-h3', 'video'], ['gpt-6-astra', 'text'], ['gpt-5.6-sol', 'text'], ['gpt-5.6-terra', 'text'], ['gemini-3.5-flash-lite', 'text'], ['gemini-3.7-flash', 'text'], ['gemini-3.8-flash', 'text']]) {
+      expect(models.find((model) => model.value === `grsai/${id}`)?.nodeTypes).toContain(`ai-${kind}`);
+    }
+    expect(models.some((model) => model.value === 'grsai/gpt-5.4')).toBe(false);
+    const config: AppConfig = { theme: 'dark', providers: { grsai: { name: 'GRSAI', apiKey: 'configured', selectedModels: [{ id: 'gpt-5.4', name: 'GPT-5.4', category: 'text', provider: 'grsai' }] } } };
+    expect(getConfiguredModelGroups(config, 'ai-text').flatMap((group) => group.models).map((model) => model.value)).toEqual(['grsai/gpt-5.4']);
+    expect(getConfiguredModelGroups(config, 'ai-video')).toEqual([]);
+  });
   it('新模型按媒体分类展示且不自动启用', () => {
     const models = defaultModelGroups.find((group) => group.id === 'apimart')!.models;
     for (const [id, kind] of [['claude-opus-4-8', 'text'], ['qwen3.8-max', 'text'], ['grok-imagine-image-2.0', 'image'], ['seedream-5-0-flash', 'image'], ['wan3.0-video', 'video'], ['seedance-2.5', 'video'], ['suno-v6-mini', 'audio'], ['flowmusic-lyria-3.5', 'audio']]) {
@@ -89,10 +99,21 @@ describe('内置厂商动态模型目录', () => {
     expect(models.filter((model) => model.nodeTypes.includes('ai-video'))).toHaveLength(6);
   });
 
-  it('内置 GRSAI 官网当前完整模型目录', () => {
+  it('内置 GRSAI 当前目录与兼容型号', () => {
     const models = defaultModelGroups.find((group) => group.id === 'grsai')?.models ?? [];
 
     expect(models.map((model) => model.value)).toEqual([
+      'grsai/gpt-6-astra',
+      'grsai/gpt-5.6-sol',
+      'grsai/gpt-5.6-terra',
+      'grsai/gemini-3.5-flash-lite',
+      'grsai/gemini-3.7-flash',
+      'grsai/gemini-3.8-flash',
+      'grsai/nano-banana-2.1',
+      'grsai/gpt-image-2.5',
+      'grsai/gpt-image-2.5-flare',
+      'grsai/gpt-image-2.5-sunburst',
+      'grsai/minimax-h3',
       'grsai/gpt-image-2',
       'grsai/gpt-image-2-vip',
       'grsai/nano-banana-pro',
@@ -106,7 +127,6 @@ describe('内置厂商动态模型目录', () => {
       'grsai/nano-banana-pro-4k-vip',
       'grsai/nano-banana-pro-vip',
       'grsai/nano-banana-2-4k-cl',
-      'grsai/gpt-5.4',
       'grsai/gpt-5.5',
       'grsai/gemini-3.1-flash-lite',
       'grsai/gemini-3.1-pro',
@@ -116,8 +136,9 @@ describe('内置厂商动态模型目录', () => {
       'grsai/gemini-2.5-flash',
       'grsai/gemini-2.5-pro',
     ]);
-    expect(models.filter((model) => model.nodeTypes.includes('ai-image'))).toHaveLength(13);
-    expect(models.filter((model) => model.nodeTypes.includes('ai-text'))).toHaveLength(9);
+    expect(models.filter((model) => model.nodeTypes.includes('ai-image'))).toHaveLength(17);
+    expect(models.filter((model) => model.nodeTypes.includes('ai-text'))).toHaveLength(14);
+    expect(models.filter((model) => model.nodeTypes.includes('ai-video'))).toHaveLength(1);
   });
 
   it('把已选的 GRSAI 旧版模型 ID 映射到当前官网模型', () => {
