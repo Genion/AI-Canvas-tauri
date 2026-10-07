@@ -114,8 +114,9 @@ async function executeOneNode(node: Node<BaseNodeData>, ctx: BatchContext): Prom
       const aspectRatio = isAnimation
         ? resolveAnimationSheetAspectRatio(animationFrames, d.provider!)
         : (d.aspectRatio as string) || '1:1';
+      const spriteProcessing = isAnimation ? animationProcessing({ ...d, animationSheet: undefined }) : undefined;
       const requestPrompt = isAnimation
-        ? buildAnimationSpritePrompt(prompt, animationAction, animationFrames, aspectRatio, animationProcessing({ ...d, animationSheet: undefined }))
+        ? buildAnimationSpritePrompt(prompt, animationAction, animationFrames, aspectRatio, spriteProcessing)
         : prompt;
       const result = await generateImage({
         prompt: requestPrompt,
@@ -152,7 +153,7 @@ async function executeOneNode(node: Node<BaseNodeData>, ctx: BatchContext): Prom
         nodeId: node.id,
         nodeLabel: d.label,
         timestamp: Date.now(),
-        prompt,
+        prompt: requestPrompt,
         output: persisted.sourceUrl,
         nodeType: nt,
         model: d.model!,
@@ -167,6 +168,8 @@ async function executeOneNode(node: Node<BaseNodeData>, ctx: BatchContext): Prom
               animationAction,
               animationFrames,
               grid: ANIMATION_FRAME_GRIDS[animationFrames],
+              animationProcessing: spriteProcessing,
+              animationPromptVersion: 1,
             }
           : { imageSize, aspectRatio },
       });

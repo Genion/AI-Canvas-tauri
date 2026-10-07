@@ -461,8 +461,9 @@ function AINodeDialog() {
         const aspectRatio = isAnimation
           ? resolveAnimationSheetAspectRatio(animationFrames, nodeProvider)
           : (latestData.aspectRatio as string) || '1:1';
+        const spriteProcessing = isAnimation ? animationProcessing({ ...latestData, animationSheet: undefined }) : undefined;
         const requestPrompt = isAnimation
-          ? buildAnimationSpritePrompt(effectivePrompt, animationAction, animationFrames, aspectRatio, animationProcessing({ ...latestData, animationSheet: undefined }))
+          ? buildAnimationSpritePrompt(effectivePrompt, animationAction, animationFrames, aspectRatio, spriteProcessing)
           : effectivePrompt;
         const result = await generateImage({
           prompt: requestPrompt,
@@ -499,7 +500,7 @@ function AINodeDialog() {
           nodeId: activeNodeId!,
           nodeLabel: nodeLabel,
           timestamp: Date.now(),
-          prompt: effectivePrompt,
+          prompt: requestPrompt,
           output: persisted.sourceUrl,
           nodeType: isAnimation ? 'ai-animation' : 'ai-image',
           model: nodeModel,
@@ -508,7 +509,7 @@ function AINodeDialog() {
           mediaUrl,
           filePath: persisted.filePath,
           params: isAnimation
-            ? { imageSize, aspectRatio, animationAction, animationFrames, grid: ANIMATION_FRAME_GRIDS[animationFrames] }
+            ? { imageSize, aspectRatio, animationAction, animationFrames, grid: ANIMATION_FRAME_GRIDS[animationFrames], animationProcessing: spriteProcessing, animationPromptVersion: 1 }
             : { imageSize, aspectRatio, cameraSettings: latestData.cameraSettings },
         });
         if (postProcess === 'character-8-direction-grid') {

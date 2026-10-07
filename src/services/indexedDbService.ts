@@ -397,7 +397,7 @@ async function findMediaHistoryByReferences(references: string[], nodeType: 'ai-
         abort(); return;
       }
       const record = cursor.value as HistoryRecord;
-      if (record.nodeType === nodeType && record.status === 'success'
+      if ((record.nodeType === nodeType || nodeType === 'ai-image' && record.nodeType === 'ai-animation') && record.status === 'success'
         && [record.filePath, record.mediaUrl, record.output].some((reference) => {
           const key = imageHistoryReferenceKey(reference); return !!key && keys.has(key);
         }) && (!latest || record.timestamp > latest.timestamp || record.timestamp === latest.timestamp && record.id > latest.id)) {
