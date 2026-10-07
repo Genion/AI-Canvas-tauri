@@ -25,6 +25,15 @@ function createConfig(selectedModels: ProviderModelSelection[]): AppConfig {
 }
 
 describe('内置厂商动态模型目录', () => {
+  it('新模型按媒体分类展示且不自动启用', () => {
+    const models = defaultModelGroups.find((group) => group.id === 'apimart')!.models;
+    for (const [id, kind] of [['claude-opus-4-8', 'text'], ['qwen3.8-max', 'text'], ['grok-imagine-image-2.0', 'image'], ['seedream-5-0-flash', 'image'], ['wan3.0-video', 'video'], ['seedance-2.5', 'video'], ['suno-v6-mini', 'audio'], ['flowmusic-lyria-3.5', 'audio']]) {
+      expect(models.find((model) => model.value === `apimart/${id}`)?.nodeTypes).toContain(`ai-${kind}`);
+    }
+    const configured = createConfig([{ id: 'gpt-5.4', name: 'GPT', category: 'text', provider: 'apimart' }]);
+    expect(getConfiguredModelGroups(configured, 'ai-image')).toEqual([]);
+    expect(getConfiguredModelGroups(configured, 'ai-audio')).toEqual([]);
+  });
   it('云工作流进入媒体目录并保留指定连接，旧无参数合同的云 ID 不再作为可运行选项', () => {
     const config: AppConfig = { theme: 'dark', providers: { runninghub: { name: 'RH 工作流', apiKey: 'configured' } } };
     const workflows = [{ id: 'cloud-video', name: '云视频', category: 'ai-video' as const, adapterType: 'runninghub' as const, runninghub: { version: 1 as const, kind: 'workflow' as const, remoteId: '1904152026220003329', connectionId: 'runninghub-model' as const, parameters: [] }, fileName: 'RH', fileContent: '', createdAt: 1 }];

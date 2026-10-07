@@ -4,6 +4,7 @@ import {
   getProviderDefinition,
 } from '../../src/services/ai/providerCatalogService';
 import { SORA2U_MODEL_MANIFEST } from '../../src/services/ai/providers/sora2uModelManifest';
+import { defaultModelGroups } from '../../src/components/nodes/shared/defaultModels';
 
 function jsonResponse(body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -77,6 +78,54 @@ describe('providerCatalogService 模型分类推断', () => {
     });
 
     expect(result.models.map((model) => model.id)).toEqual(['MiniMax-H3']);
+  });
+
+  it.each([
+    [['flowmusic', 'suno'], ['flowmusic-lyria-3.5', 'suno-v6', 'suno-v6-wild', 'suno-v6-mini']],
+    [['flowmusic'], ['flowmusic-lyria-3.5']],
+    [['suno'], ['suno-v6', 'suno-v6-wild', 'suno-v6-mini']],
+    [['gpt-4o'], []],
+  ])('音乐版本只随当前 Key 可用的主模型 %j 展开', async (availableIds, versionIds) => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(jsonResponse({
+      data: availableIds.map((id) => ({ id, object: 'model' })),
+    })));
+    const fallbackModels = defaultModelGroups.find((group) => group.id === 'apimart')!.models
+      .filter((model) => model.nodeTypes?.includes('ai-audio'))
+      .map((model) => ({ id: model.value.slice('apimart/'.length), name: model.label, category: 'audio' as const, provider: 'apimart' }));
+    const result = await fetchProviderModelCatalog({
+      providerId: 'apimart',
+      config: { name: 'APIMart', apiKey: 'test-key', baseUrl: 'https://api.apimart.ai', catalogId: 'apimart' },
+      fallbackModels,
+    });
+    expect(result.source).toBe('remote');
+    const musicIds = new Set(['flowmusic-lyria-3.5', 'suno-v6', 'suno-v6-wild', 'suno-v6-mini']);
+    expect(result.models.filter((model) => musicIds.has(model.id)).map((model) => model.id).sort())
+      .toEqual([...versionIds].sort());
+    expect(result.models.filter((model) => musicIds.has(model.id) || model.id === 'suno')
+      .every((model) => model.category === 'audio')).toBe(true);
+    expect(result.models.every((model) => availableIds.includes(model.id) || musicIds.has(model.id))).toBe(true);
+  });
+
+  it('新视频型号在远端目录中保持视频分类，不补入 Key 未开放的型号', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(jsonResponse({
+      data: ['happyhorse-1.0', 'happyhorse-1.1', 'wan3.0-video', 'flux-3-video'].map((id) => ({ id })),
+    })));
+    const result = await fetchProviderModelCatalog({
+      providerId: 'apimart',
+      config: { name: 'APIMart', apiKey: 'test-key', baseUrl: 'https://api.apimart.ai' },
+    });
+    expect(result.models).toHaveLength(4);
+    expect(result.models.every((model) => model.category === 'video')).toBe(true);
+  });
+
+  it('自定义连接不展开 APIMart 专用音乐版本', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(jsonResponse({ data: [{ id: 'flowmusic' }] })));
+    const result = await fetchProviderModelCatalog({
+      providerId: 'custom-openai',
+      config: { name: '自定义', apiKey: 'test-key', baseUrl: 'https://relay.example.com/v1' },
+      fallbackModels: [{ id: 'flowmusic-lyria-3.5', name: 'Lyria 3.5', category: 'audio', provider: 'custom-openai' }],
+    });
+    expect(result.models.map((model) => model.id)).toEqual(['flowmusic']);
   });
 
   it('自定义接口拉取 minimax-h3 同样归类为视频模型', async () => {

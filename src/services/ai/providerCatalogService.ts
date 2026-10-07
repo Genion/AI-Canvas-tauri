@@ -26,7 +26,7 @@ import type {
 import type { NormalizedModelExecutionProtocol } from '../../types/aiTypes';
 import { corsSafeFetch } from './httpTransport';
 import { baseUrlCandidates } from './providerBaseUrl';
-import { APIMART_OMNI_MODELS, isLegacyApimartOmni } from './apimartVideoModels';
+import { APIMART_OMNI_MODELS, APIMART_UPDATED_VIDEO_MODELS, isLegacyApimartOmni } from './apimartVideoModels';
 import { getChatApiHeaders, normalizeGeminiModelId, resolveChatApiProtocol } from './chatApiProtocol';
 import { XAI_BASE_URL, XAI_MODEL_MANIFEST } from './providers/xaiModelManifest';
 import {
@@ -660,6 +660,36 @@ function mergeRemoteCatalogMetadata(
   });
 }
 
+// 这些是界面版本选择 ID；执行时仍提交主模型 + version，不能绕过当前 Key 的目录。
+const APIMART_MUSIC_VERSION_PARENTS: Readonly<Record<string, string>> = {
+  'flowmusic-lyria-3.5': 'flowmusic',
+  'suno-v6': 'suno',
+  'suno-v6-wild': 'suno',
+  'suno-v6-mini': 'suno',
+};
+
+function expandApimartCatalog(
+  models: ProviderModelSelection[],
+  fallbackModels: ProviderModelSelection[],
+  providerId: string,
+): ProviderModelSelection[] {
+  const availableIds = new Set(models.map((model) => model.id));
+  return [
+    ...models.map((remote) => {
+      const known = [...APIMART_OMNI_MODELS, ...APIMART_UPDATED_VIDEO_MODELS]
+        .find((model) => model.id === remote.id);
+      if (known) return { ...remote, ...known, provider: providerId };
+      return remote.id === 'suno' ? { ...remote, category: 'audio' as const } : remote;
+    }),
+    ...APIMART_OMNI_MODELS.filter((model) => fallbackModels.some((item) => item.id === model.id)
+      && !availableIds.has(model.id)).map((model) => ({ ...model, provider: providerId })),
+    ...fallbackModels.filter((model) => {
+      const parent = APIMART_MUSIC_VERSION_PARENTS[model.id];
+      return parent && availableIds.has(parent) && !availableIds.has(model.id);
+    }),
+  ];
+}
+
 function safeCatalogError(error: unknown): string {
   if (error instanceof DOMException && error.name === 'AbortError') return '模型列表拉取已取消';
   if (error instanceof Error && /^模型列表拉取失败 \(HTTP \d{3}\)$/.test(error.message)) {
@@ -775,15 +805,7 @@ export async function fetchProviderModelCatalog(
     return {
       models: mergeRemoteCatalogMetadata(
         definition.id === 'apimart'
-          ? [
-              ...models.map((remote) => {
-                const omni = APIMART_OMNI_MODELS.find((model) => model.id === remote.id);
-                return omni ? { ...remote, ...omni, provider: providerId } : remote;
-              }),
-              ...APIMART_OMNI_MODELS.filter((model) => normalizedFallback.some((item) => item.id === model.id)
-                && !models.some((remote) => remote.id === model.id))
-                .map((model) => ({ ...model, provider: providerId })),
-            ]
+          ? expandApimartCatalog(models, normalizedFallback, providerId)
           : models,
         normalizedFallback,
       ),
