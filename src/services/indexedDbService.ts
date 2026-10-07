@@ -34,6 +34,7 @@ import {
 
 import { withRelocatedMedia } from './indexedDb/mediaRelocations';
 import { localMediaUrlToPath } from '../utils/mediaUrl';
+import { stripVerbatimPrefix } from './fs/core';
 
 const LAST_ACTIVE_PROJECT_KEY = 'last-active-project';
 const RECENT_ASSET_USAGE_KEY = 'recent-asset-usage';
@@ -349,7 +350,7 @@ export interface HistoryPage {
 /** 图片身份比较仅使用完整路径/地址；不按文件名猜测来源。 */
 export function imageHistoryReferenceKey(reference: string | undefined): string | undefined {
   if (!reference || reference.startsWith('data:') || reference.startsWith('blob:')) return undefined;
-  const path = localMediaUrlToPath(reference) ?? reference;
+  const path = stripVerbatimPrefix(localMediaUrlToPath(reference) ?? reference);
   if (/^[a-z]:[/\\]/i.test(path) || path.startsWith('/') || path.startsWith('\\\\')) {
     const normalized = path.replace(/\\/g, '/').replace(/\/+$/, '');
     return /^[a-z]:\//i.test(normalized) || normalized.startsWith('//') ? normalized.toLowerCase() : normalized;

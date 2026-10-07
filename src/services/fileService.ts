@@ -464,6 +464,7 @@ export {
   type CustomStyleRecord,
 } from './storageService';
 export * from './fs/core';
+export * from './fs/assetTextFiles';
 export * from './fs/assetIndex';
 export * from './fs/trash';
 export * from './fs/assetLibrary';

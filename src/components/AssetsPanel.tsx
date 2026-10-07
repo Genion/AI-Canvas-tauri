@@ -52,7 +52,7 @@ import {
 import { copyFile, copyText, readClipboardFolders } from '../services/clipboardService';
 import { loadAssetImageDetails } from '../services/assetImageDetails';
 import { loadAssetVideoHistory } from '../services/assetVideoDetails';
-import { getAllAssetMeta, putAssetMeta, deleteAssetMeta } from '../services/indexedDbService';
+import { getAllAssetMeta, putAssetMeta, deleteAssetMeta, imageHistoryReferenceKey } from '../services/indexedDbService';
 import { startAssetDrag, prepareDragIcon } from '../utils/assetDrag';
 import { isExternalDropCaptured, setExternalDropCaptured } from '../utils/dropCapture';
 import { ALL_CATEGORIES, CATEGORY_ICONS, shortFolderName } from '../utils/assetFormat';
@@ -71,6 +71,7 @@ import AssetFileContextMenu from './assets/AssetFileContextMenu';
 import { useResourceVideoPreview } from '../hooks/useResourceVideoPreview';
 import type { AssetImageBatchEntry } from '../types/assetImage';
 
+const AssetTextPreview = lazy(() => import('./assets/AssetTextPreview'));
 const DramaAssetsPanel = lazy(() => import('./DramaAssetsPanel'));
 const VolcengineAssetLibraryPanel = lazy(() => import('./volcengine/VolcengineAssetLibraryPanel'));
 const AssetImageBatchReverseDialog = lazy(() => import('./assets/AssetImageBatchReverseDialog'));
@@ -196,6 +197,7 @@ export default function AssetsPanel() {
   const internalFolderDragRef = useRef<AssetFileEntry | null>(null);
   const dragEndTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [folderSelection, setFolderSelection] = useState<AssetFolderSelection>({ kind: 'all' });
+  const [textPreview, setTextPreview] = useState<{ file: AssetFileEntry; scope: string } | null>(null);
   const [imagePreview, setImagePreview] = useState<{ path: string; scope: string } | null>(null);
   const [batchReverse, setBatchReverse] = useState<{ scope: string; entries: AssetImageBatchEntry[] } | null>(null);
   const closeBatchReverse = useCallback(() => setBatchReverse(null), []);
@@ -323,11 +325,16 @@ export default function AssetsPanel() {
         for (const projectId of viewProjectIds) {
           const entries = await listProjectFiles(projectId);
           if (!isCurrentRequest()) return;
-          for (const file of entries) { diskEntries.set(file.path, file); owners.set(file.path, projectId); }
+          for (const file of entries) {
+            diskEntries.set(imageHistoryReferenceKey(file.path) ?? file.path, file);
+            owners.set(file.path, projectId);
+          }
         }
         const diskFiles = Array.from(diskEntries.values());
         if (!isCurrentRequest()) return;
-        const known = new Set(diskFiles.map((f) => f.path));
+        // 原生返回反斜杠路径，目录扫描使用正斜杠；旧节点还可能带 Windows 长路径前缀。
+        // 与提示词关联复用同一比较键，已有磁盘条目优先，不追加大小为 0 的节点副本。
+        const known = new Set(diskFiles.map((f) => imageHistoryReferenceKey(f.path) ?? f.path));
         for (const file of diskFiles) deletedFilePathsRef.current.delete(file.path);
         const nodeEntries: AssetFileEntry[] = [];
         // 仅当查看的是「当前项目」时，才并入画布上尚未落盘的节点文件
@@ -335,7 +342,13 @@ export default function AssetsPanel() {
         if (currentProjectId && viewProjectIds.includes(currentProjectId)) {
           for (const node of useAppStore.getState().nodes) {
             const entry = extractFilesFromNodeData(node.data as Record<string, unknown>);
-            if (entry && !known.has(entry.path) && !deletedFilePathsRef.current.has(entry.path)) { nodeEntries.push(entry); known.add(entry.path); owners.set(entry.path, currentProjectId); }
+            if (!entry) continue;
+            const key = imageHistoryReferenceKey(entry.path) ?? entry.path;
+            if (!known.has(key) && !deletedFilePathsRef.current.has(entry.path)) {
+              nodeEntries.push(entry);
+              known.add(key);
+              owners.set(entry.path, currentProjectId);
+            }
           }
         }
         setProjectFileOwners(owners);
@@ -1002,6 +1015,7 @@ export default function AssetsPanel() {
   };
   const imageFiles = useMemo(() => filteredFiles.filter((file) => file.category === 'image' && !!file.assetUrl), [filteredFiles]);
   const openImagePreview = (file: AssetFileEntry) => {
+    setTextPreview(null);
     dismissHover();
     videoPreview.setExpanded(null);
     setImagePreview({ path: file.path, scope: previewScope });
@@ -1490,6 +1504,10 @@ export default function AssetsPanel() {
                                     if (expanded) void markAssetUsed(file);
                                   }}
                                   onImagePreview={file.category === 'image' ? () => openImagePreview(file) : undefined}
+                                  onTextPreview={file.category === 'text' ? () => {
+                                    dismissHover(); videoPreview.setExpanded(null); setImagePreview(null);
+                                    setTextPreview({ file: { ...file }, scope: previewScope }); void markAssetUsed(file);
+                                  } : undefined}
                                 />
                               ))}
                             </div>
@@ -1549,6 +1567,13 @@ export default function AssetsPanel() {
         canCopyPrompt={fileMenu.file.category === 'image' || fileMenu.file.category === 'video'}
         onCopy={() => performFileAction('copy')} onCopyPrompt={() => performFileAction('prompt')}
         onReveal={() => performFileAction('reveal')} onDelete={() => performFileAction('delete')} onClose={closeFileMenu} />}
+    {assetsPanelOpen && textPreview?.scope === previewScope && <Suspense fallback={<p role="status">正在打开文档…</p>}>
+      <AssetTextPreview key={`${textPreview.scope}:${textPreview.file.path}`} file={textPreview.file} projectId={projectIdForFile(textPreview.file)}
+        onClose={() => setTextPreview(null)} onSaved={(next) => {
+          const replace = (entries: AssetFileEntry[]) => entries.map((entry) => entry.path === next.path ? { ...entry, size: next.size } : entry);
+          setProjectFiles(replace); setPermanentFiles(replace);
+        }} />
+    </Suspense>}
     {assetsPanelOpen && imagePreview?.scope === previewScope &&
       <AssetImagePreview key={`${imagePreview.scope}:${imagePreview.path}`} files={imageFiles} initialPath={imagePreview.path}
         projectIdForFile={projectIdForFile} onTagsSaved={(file, tags) => setTagMap((current) => ({ ...current, [assetKey(file)]: tags }))}
@@ -1599,12 +1624,13 @@ interface AssetCardProps {
   videoProjectId?: string;
   onVideoExpandedChange?: (expanded: boolean) => void;
   onImagePreview?: () => void;
+  onTextPreview?: () => void;
 }
 
 function AssetCard({
   file, isProject, draggable, tooltip, tooltipHint, onHover, onHoverEnd, onDragStart, onPointerDown, onClickCapture, editing, tagDraft,
   onToggleEdit, onTagDraftChange, onAddTag, onRemoveTag, onSave, onDelete, onContextMenu, onMenuKeyDown,
-  videoExpanded = false, videoPresentation, videoProjectId, onVideoExpandedChange, onImagePreview,
+  videoExpanded = false, videoPresentation, videoProjectId, onVideoExpandedChange, onImagePreview, onTextPreview,
 }: AssetCardProps) {
   const tags = file.tags ?? [];
   return (
@@ -1639,6 +1665,7 @@ function AssetCard({
         category={file.category}
         size={file.size}
         onImagePreview={onImagePreview}
+        onTextPreview={onTextPreview}
         showNativeTooltip={false}
         badge={file.source === 'folder' ? '外部' : undefined}
       >
