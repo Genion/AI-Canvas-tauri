@@ -14,6 +14,7 @@ import type {
 import type { ShotlistColumnKey, ShotRow, ShotlistScriptSource, ShotlistProductionSource } from './shotlist';
 import type { Locale } from '../i18n';
 import type { McpToolExposure } from './mcp';
+import type { AnimationFrameEdit, AnimationProcessing, AnimationSheet } from './animation';
 
 export type {
   CanvasDrawingTool,
@@ -275,6 +276,9 @@ export interface BaseNodeData {
   animationPreviewMode?: AnimationPreviewMode; // 动图预览 / 静态排布
   animationFps?: number;      // 预览播放帧率（1-24），默认 8
   animationLoop?: boolean;    // 预览循环播放，false 时播到末帧停住，默认 true
+  animationSheet?: AnimationSheet; // 当前原图的格数快照，独立于下次生成的帧数
+  animationProcessing?: AnimationProcessing;
+  animationEdits?: AnimationFrameEdit[]; // 按播放顺序排列，保留禁用项以便恢复
   seedanceResolution?: string;// Seedance 分辨率：'480p' | '720p' | '1080p' | '4k'
   seedanceRatio?: string;     // Seedance 宽高比：'16:9' | '4:3' | '1:1' | '3:4' | '9:16' | '21:9' | 'adaptive'
   seedanceDuration?: number;  // Seedance 时长（整数秒）：2-15
@@ -921,7 +925,7 @@ export const NODE_TYPE_CONFIG: Record<string, NodeTypeVisualConfig> = {
   'ai-image':    { icon: 'mdi:image-outline',             color: 'text-green-400',   bg: 'bg-green-500/15',   label: '生成图像' },
   'ai-video':    { icon: 'mdi:video-outline',             color: 'text-blue-400',    bg: 'bg-blue-500/15',    label: '生成视频' },
   'ai-audio':    { icon: 'mdi:volume-high',               color: 'text-orange-400',  bg: 'bg-orange-500/15',  label: '生成音频' },
-  'ai-animation': { icon: 'mdi:animation-play-outline',    color: 'text-fuchsia-400', bg: 'bg-fuchsia-500/15', label: '生成动画' },
+  'ai-animation': { icon: 'mdi:animation-play-outline',    color: 'text-fuchsia-400', bg: 'bg-fuchsia-500/15', label: '帧动画' },
   'ai-panorama': { icon: 'mdi:panorama',                  color: 'text-cyan-400',    bg: 'bg-cyan-500/15',    label: '生成360全景' },
   'ai-markdown': { icon: 'mdi:language-markdown-outline', color: 'text-purple-400',  bg: 'bg-purple-500/15',  label: 'Markdown' },
   'ai-storyboard': { icon: 'mdi:grid',                    color: 'text-pink-400',    bg: 'bg-pink-500/15',    label: '宫格分镜' },

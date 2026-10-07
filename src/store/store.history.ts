@@ -15,6 +15,7 @@ export interface HistoryEntry {
 }
 
 const MAX_HISTORY = 50;
+const ANIMATION_MEDIA_KEYS = ['imageUrl', 'thumbnailUrl', 'sourceUrl', 'filePath', 'fileName', 'imageWidth', 'imageHeight'] as const satisfies readonly (keyof BaseNodeData)[];
 const STRUCTURAL_NODE_DATA_KEYS = [
   'groupId',
   'storyboardCols',
@@ -33,6 +34,11 @@ const STRUCTURAL_NODE_DATA_KEYS = [
   'hiddenByCharacterLibrary',
   'groupCollapsed',
   'note',
+  'animationSheet',
+  'animationProcessing',
+  'animationEdits',
+  'animationFps',
+  'animationLoop',
   'directorRuntimeKind',
   'directorPrevisScene',
   'directorPrevisPrompt',
@@ -97,6 +103,9 @@ function isDeepEqual(
 
 function getStructuralNodeData(data: BaseNodeData): Partial<BaseNodeData> {
   const structuralData: Partial<BaseNodeData> = {};
+  if (data.type === 'ai-animation') {
+    for (const key of ANIMATION_MEDIA_KEYS) structuralData[key] = data[key] as never;
+  }
   if (data.type === 'ai-video' && data.shotlistProductionSource?.kind === 'video') {
     structuralData.seedanceDuration = data.seedanceDuration;
   }
@@ -207,6 +216,12 @@ function restoreStructuralNode(
   }
 
   const data = { ...current.data };
+  if (target.data.type === 'ai-animation') {
+    for (const key of ANIMATION_MEDIA_KEYS) {
+      if (Object.prototype.hasOwnProperty.call(target.data, key)) data[key] = target.data[key] as never;
+      else delete data[key];
+    }
+  }
   if (target.data.type === 'ai-video' && target.data.shotlistProductionSource?.kind === 'video') {
     if (Object.prototype.hasOwnProperty.call(target.data, 'seedanceDuration')) {
       data.seedanceDuration = target.data.seedanceDuration;

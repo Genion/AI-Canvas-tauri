@@ -79,7 +79,7 @@ const generationItems: {
   },
   {
     type: 'ai-animation',
-    label: '生成动画',
+    label: '帧动画',
     sub: '2D 角色逐帧动画',
     icon: <Icon icon={NODE_TYPE_CONFIG['ai-animation'].icon} width="18" height="18" />,
   },
