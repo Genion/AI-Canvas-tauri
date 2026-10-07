@@ -2062,6 +2062,14 @@ button.wf-ionode-badge.is-default {
   gap: 4px;
   padding: 6px 7px;
 }
+.assets-card-tags--collapsed {
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+.assets-card-tags--collapsed .assets-card-tag {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
 .assets-card-tag {
   display: inline-flex;
   align-items: center;

@@ -919,12 +919,15 @@ export default function AssetsPanel() {
   const cardTooltip = (file: AssetFileEntry): string | undefined => {
     const current = hoverDetails?.key === assetKey(file) && hoverDetails.scope === hoverScope ? hoverDetails : null;
     if (current?.text === '') return undefined;
+    return `${cardDragHint(file)}\n提示词：${current?.text ?? '正在读取…'}\n标签：\n${file.tags?.length ? file.tags.join('、') : '暂无标签'}`;
+  };
+  const cardDragHint = (file: AssetFileEntry): string => {
     const dragHint = !isDraggableEntry(file) || file.availability === 'offline' ? '此素材暂不支持拖拽'
-      : isPage || !currentProjectId ? '可拖拽到其他窗口或应用'
-        : isDrawer ? '拖拽到画布可添加节点' : '拖出弹窗到画布可添加节点';
+      : isPage || !currentProjectId ? '可拖拽到其他窗口或应用；'
+        : isDrawer ? '拖拽到画布可添加节点；' : '拖出弹窗到画布可添加节点；';
     const folderHint = activeTab === 'permanent' && file.category === 'image' && isLocalAssetFile(file)
       && (file.source === 'global' || file.source === 'folder') ? '拖到左侧文件夹可移动。' : '';
-    return `提示词：${current?.text ?? '正在读取…'}。${folderHint}${dragHint}`;
+    return [folderHint, dragHint].filter(Boolean).join('\n');
   };
   useEffect(() => {
     fileScopeRef.current = assetsPanelOpen ? previewScope : null;
@@ -1457,6 +1460,7 @@ export default function AssetsPanel() {
                                   isProject={activeTab === 'project'}
                                   draggable={isDraggableEntry(file)}
                                   tooltip={cardTooltip(file)}
+                                  tooltipHint={cardDragHint(file)}
                                   onHover={() => startHover(file)}
                                   onHoverEnd={clearHover}
                                   onDragStart={(e) => handleCardDragStart(file, e)}
@@ -1574,6 +1578,7 @@ interface AssetCardProps {
   isProject: boolean;
   draggable?: boolean;
   tooltip?: string;
+  tooltipHint?: string;
   onHover: () => void;
   onHoverEnd: () => void;
   onDragStart?: (e: DragEvent) => void;
@@ -1597,7 +1602,7 @@ interface AssetCardProps {
 }
 
 function AssetCard({
-  file, isProject, draggable, tooltip, onHover, onHoverEnd, onDragStart, onPointerDown, onClickCapture, editing, tagDraft,
+  file, isProject, draggable, tooltip, tooltipHint, onHover, onHoverEnd, onDragStart, onPointerDown, onClickCapture, editing, tagDraft,
   onToggleEdit, onTagDraftChange, onAddTag, onRemoveTag, onSave, onDelete, onContextMenu, onMenuKeyDown,
   videoExpanded = false, videoPresentation, videoProjectId, onVideoExpandedChange, onImagePreview,
 }: AssetCardProps) {
@@ -1610,6 +1615,7 @@ function AssetCard({
       onPointerDown={editing ? undefined : onPointerDown}
       onClickCapture={onClickCapture}
       data-tooltip={videoExpanded || editing ? undefined : tooltip}
+      data-tooltip-hint={videoExpanded || editing ? undefined : tooltipHint}
       data-tooltip-pos="bottom"
       data-tooltip-anchor="pointer"
       onMouseEnter={videoExpanded || editing ? undefined : () => { void prepareDragIcon(file); onHover(); }}
@@ -1640,7 +1646,7 @@ function AssetCard({
       </AssetThumb>
 
       {(tags.length > 0 || editing) && (
-        <div className="assets-card-tags">
+        <div className={`assets-card-tags${editing ? '' : ' assets-card-tags--collapsed'}`}>
           {tags.map((t) => (
             <span key={t} className="assets-card-tag">
               {t}
