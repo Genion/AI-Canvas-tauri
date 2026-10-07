@@ -41,6 +41,7 @@ import { queryBillingRuns } from '../../services/billing/volcengineBillingServic
 import { saveAutodlWorkflowTemplate, saveWorkflowApiDrafts } from '../../services/workflowApi/workflowApiConfig';
 import { invoke } from '@tauri-apps/api/core';
 import { useT } from '../../i18n';
+import { cccConnectionName } from '../../services/ai/cccProviderGroups';
 
 interface ProviderListItem {
   id: string;
@@ -611,7 +612,8 @@ export default function ApiKeySettings({ onClose }: { onClose: () => void }) {
                 ? t('联网搜索')
                 : definition.id === 'custom-openai'
                   ? item.config.name.trim() || definition.name
-                  : isWorkflowApi ? item.config.name.trim() || t(definition.name) : definition.name;
+                  : definition.id === 'cccapi' ? cccConnectionName(item.config)
+                    : isWorkflowApi ? item.config.name.trim() || t(definition.name) : definition.name;
               const statusLabel = isDreamina
                 ? t('OAuth 已连接')
                 : isRunningHub

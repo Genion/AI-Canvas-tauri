@@ -18,6 +18,7 @@ import { isRunningHubWorkflow, workflowExecution } from '../../../services/workf
 import { DREAMINA_IMAGE_MODELS, DREAMINA_VIDEO_MODELS } from '../../../services/ai/dreaminaModels';
 import { APIMART_OMNI_MODELS, APIMART_UPDATED_VIDEO_MODELS, isLegacyApimartOmni, replaceLegacyApimartOmni } from '../../../services/ai/apimartVideoModels';
 import { GRSAI_ADDED_MODELS } from '../../../services/ai/grsaiModels';
+import { cccConnectionName } from '../../../services/ai/cccProviderGroups';
 
 export type MediaModelKind = 'image' | 'video' | 'audio';
 
@@ -1189,20 +1190,26 @@ function dedicatedGeneralModelGroup(
   if (catalogId === 'cccapi') {
     return {
       id: `general-provider-${model.providerConfigId}`,
-      name: 'CCC API',
-      description: 'OpenAI 兼容文本与图片模型',
+      name: cccConnectionName(provider),
+      description: provider?.cccGroup ? '使用此分组连接的 API Key' : 'OpenAI 兼容文本与图片模型',
       badgeText: 'CCC',
     };
   }
   return null;
 }
 
-function createGeneralModelOption(model: GeneralModelConfig): ModelOption {
+function generalModelLabel(model: GeneralModelConfig, config?: ProviderModelVisibilityConfig): string {
+  const provider = config?.providers[model.providerConfigId];
+  return provider?.catalogId === 'cccapi' && provider.cccGroup?.trim()
+    ? `${model.name} · ${provider.cccGroup.trim()}` : model.name;
+}
+
+function createGeneralModelOption(model: GeneralModelConfig, config?: ProviderModelVisibilityConfig): ModelOption {
   return {
     value: `general/${model.id}`,
     provider: 'general',
-    label: model.name,
-    description: `ID: ${model.modelId}`,
+    label: generalModelLabel(model, config),
+    description: describeGeneralModel(model, config),
     inputModalities: model.inputModalities,
     iconType: 'badge',
     badgeText: GENERAL_MODEL_CATEGORY_LABELS[model.category].slice(0, 2),
@@ -1223,7 +1230,7 @@ export function getGeneralModelGroups(
       !CATEGORY_TO_NODE_TYPES[model.category].includes(nodeType)
       || !isProviderCategoryVisible(config, model.providerConfigId, model.category)
     ) continue;
-    const option = createGeneralModelOption(model);
+    const option = createGeneralModelOption(model, config);
     const presentation = dedicatedGeneralModelGroup(model, config);
     if (!presentation) {
       genericModels.push(option);
@@ -1299,7 +1306,7 @@ export function getMediaModelOptions(
       return {
         value: `general/${model.id}`,
         provider: 'general',
-        label: model.name,
+        label: generalModelLabel(model, config),
         description: describeGeneralModel(model, config),
         inputModalities: model.inputModalities,
         iconType: 'badge',

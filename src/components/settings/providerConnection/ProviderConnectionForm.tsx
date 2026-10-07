@@ -9,6 +9,7 @@ import { useT } from '../../../i18n';
 import type { ChatApiProtocol } from '../../../types';
 import { CHAT_API_PROTOCOL_LABELS } from '../../../services/ai/chatApiProtocol';
 import { normalizeBaseUrl } from '../../../services/ai/providerBaseUrl';
+import { CCC_PROVIDER_GROUPS } from '../../../services/ai/cccProviderGroups';
 import type { ProviderDefinition } from '../../../services/ai/providerCatalogService';
 import AnimatedButton from '../../shared/AnimatedButton';
 import { PROVIDER_LINKS, openExternal, type CatalogStatus } from './providerConnectionShared';
@@ -23,6 +24,8 @@ interface ProviderConnectionFormProps {
   setChatApiProtocol: Dispatch<SetStateAction<ChatApiProtocol>>;
   apiKey: string;
   setApiKey: Dispatch<SetStateAction<string>>;
+  cccGroup?: string;
+  onCccGroupChange?: (group: string) => void;
   baseUrl: string;
   setBaseUrl: Dispatch<SetStateAction<string>>;
   workflowApiKey: string;
@@ -48,6 +51,8 @@ export default function ProviderConnectionForm({
   setChatApiProtocol,
   apiKey,
   setApiKey,
+  cccGroup = '',
+  onCccGroupChange,
   baseUrl,
   setBaseUrl,
   workflowApiKey,
@@ -123,6 +128,22 @@ export default function ProviderConnectionForm({
                 ? t('使用原生 generateContent、x-goog-api-key 和 Gemini 内容结构')
                 : t('使用 Chat Completions、Bearer Key 和 OpenAI SSE')}
           </small>
+        </label>
+      )}
+
+      {definition.id === 'cccapi' && (
+        <label className="provider-field">
+          <span>{t('CCC 分组')}</span>
+          <Select fixedMenu value={cccGroup} onChange={(value) => onCccGroupChange?.(value)}>
+            <option value="">{editing ? t('旧连接（未指定分组）') : t('请选择 Key 对应的分组')}</option>
+            {cccGroup && !CCC_PROVIDER_GROUPS.some((group) => group.name === cccGroup) && (
+              <option value={cccGroup}>{cccGroup}</option>
+            )}
+            {CCC_PROVIDER_GROUPS.map((group) => <option key={group.name} value={group.name}>{group.name}</option>)}
+          </Select>
+          <small className="ui-hint">{t('每个分组单独添加连接，选择分组即可查看预置模型，填写对应 Key 后可拉取实际目录。选择模型后自动使用此分组的 Key。')}</small>
+          <small className="ui-hint">{t('切换分组需重新填写 Key；不会修改控制台的 Key 分组。')}</small>
+          {cccGroup && <small className="ui-hint">{CCC_PROVIDER_GROUPS.find((group) => group.name === cccGroup)?.description}</small>}
         </label>
       )}
 

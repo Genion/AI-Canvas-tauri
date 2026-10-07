@@ -166,11 +166,14 @@ function collectRemovedModelReferences(
     providerIds.add('runninghub');
     providerPrefixes.add('runninghub/');
   }
-  if (!isWorkflowOnlyProvider && provider?.catalogId && provider.catalogId !== 'custom-openai') {
+  if (!isWorkflowOnlyProvider && provider?.catalogId
+    && provider.catalogId !== 'custom-openai' && provider.catalogId !== 'cccapi') {
     providerIds.add(provider.catalogId);
     providerPrefixes.add(`${provider.catalogId}/`);
   }
   for (const model of isWorkflowOnlyProvider ? [] : (provider?.selectedModels ?? [])) {
+    // CCC 目录中的 provider 可能来自旧缓存；删除只影响当前连接的模型身份。
+    if (provider?.catalogId === 'cccapi') continue;
     providerIds.add(model.provider);
     providerPrefixes.add(`${model.provider}/`);
   }

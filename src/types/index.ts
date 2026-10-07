@@ -522,6 +522,8 @@ export interface ApiProviderConfig {
   imageReferenceRequestModeDefault?: ImageReferenceRequestMode;
   /** 内置目录定义 ID；自定义连接的配置 key 与目录定义 ID 不同。 */
   catalogId?: string;
+  /** CCC 控制台中该 Key 对应的分组名称；仅作连接标识，不随请求发送。 */
+  cccGroup?: string;
   /** undefined 表示旧配置尚未选择；空数组表示用户明确未启用任何模型。 */
   selectedModels?: ProviderModelSelection[];
   /** 最近一次拉取并保存在本地的完整模型目录，不包含凭据。 */

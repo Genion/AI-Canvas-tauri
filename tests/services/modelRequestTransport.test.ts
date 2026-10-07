@@ -37,6 +37,38 @@ afterEach(() => {
 });
 
 describe('model request transport boundary', () => {
+  it.each(['text', 'image'] as const)('routes identical CCC %s model IDs through the selected group Key', async (category) => {
+    const modelId = category === 'text' ? 'gpt-5' : 'gpt-image-2';
+    for (const group of ['free', 'stable']) {
+      useAppStore.getState().saveProviderConfig(`cccapi-${group}`, {
+        name: 'CCC', catalogId: 'cccapi', cccGroup: group, apiKey: `${group}-fixture`, baseUrl: 'https://cccapi.cn/v1',
+        selectedModels: [{ id: modelId, name: modelId, category, provider: `cccapi-${group}`,
+          executionProfile: { preset: category === 'text' ? 'openai-chat' : 'openai-image' } }],
+      });
+    }
+    transportMocks.corsSafeFetch.mockImplementation(async () => jsonResponse(category === 'text'
+      ? { choices: [{ message: { content: '回复' }, finish_reason: 'stop' }] }
+      : { data: [{ url: 'https://cdn.example/image.png' }] }));
+    const models = useAppStore.getState().config.generalModels!;
+    expect(new Set(models.map((model) => model.id)).size).toBe(2);
+    for (const model of models) {
+      const params = { provider: 'general', model: `general/${model.id}`, prompt: '测试' };
+      if (category === 'text') await expect(generateText(params)).resolves.toBe('回复');
+      else expect((await generateImagesBatch(params, 1)).results).toHaveLength(1);
+      const [url, init] = transportMocks.corsSafeFetch.mock.calls.at(-1)!;
+      const key = useAppStore.getState().config.providers[model.providerConfigId].apiKey;
+      expect(init.headers).toMatchObject({ Authorization: `Bearer ${key}` });
+      expect(url).toBe(`https://cccapi.cn/v1/${category === 'text' ? 'chat/completions' : 'images/generations'}`);
+      expect(JSON.parse(init.body).model).toBe(modelId);
+    }
+    useAppStore.getState().setProviderKey('cccapi-stable', '');
+    transportMocks.corsSafeFetch.mockClear();
+    const model = models.find((item) => item.providerConfigId === 'cccapi-stable')!;
+    const params = { provider: 'general', model: `general/${model.id}`, prompt: '测试' };
+    if (category === 'text') await expect(generateText(params)).rejects.toThrow();
+    else await expect(generateImagesBatch({ ...params, image_urls: ['https://cdn.example/reference.png'] }, 1)).rejects.toThrow('CCC API');
+    expect(transportMocks.corsSafeFetch).not.toHaveBeenCalled();
+  });
   it('routes a GRSAI H3 selection from the video entry into its native asynchronous adapter', async () => {
     useAppStore.setState((state) => ({ config: { ...state.config, providers: { grsai: { name: 'GRSAI', apiKey: 'fixture-key' } } } }));
     transportMocks.corsSafeFetch.mockResolvedValueOnce(jsonResponse({ id: 'h3-task', status: 'running' }))

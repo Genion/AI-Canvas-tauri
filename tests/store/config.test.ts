@@ -47,6 +47,34 @@ beforeEach(() => {
 });
 
 describe('config hydration guard', () => {
+  it('keeps CCC group model identities stable and removes only the selected connection references', async () => {
+    useAppStore.setState((state) => ({ config: { ...state.config, providers: {} } }));
+    for (const id of ['cccapi', 'cccapi-free', 'cccapi-stable']) {
+      useAppStore.getState().saveProviderConfig(id, { name: 'CCC', catalogId: 'cccapi', apiKey: `${id}-fixture`,
+        ...(id !== 'cccapi' ? { cccGroup: id } : {}),
+        // 模拟旧目录中仍使用根 provider 的缓存，删除分组不能伤及根连接。
+        selectedModels: [{ id: 'gpt-image-2', name: 'Image', category: 'image', provider: 'cccapi' }],
+      });
+    }
+    const before = useAppStore.getState().config.generalModels!;
+    expect(new Set(before.map((model) => model.id)).size).toBe(3);
+    const stable = before.find((model) => model.providerConfigId === 'cccapi-stable')!;
+    const free = before.find((model) => model.providerConfigId === 'cccapi-free')!;
+    useAppStore.getState().saveProviderConfig('cccapi-stable', useAppStore.getState().config.providers['cccapi-stable']);
+    expect(useAppStore.getState().config.generalModels!.find((model) => model.providerConfigId === 'cccapi-stable')!.id).toBe(stable.id);
+    useAppStore.getState().updateConfig({ assistantImageModelId: `general/${stable.id}` });
+    useAppStore.setState({ nodes: [
+      { id: 'legacy', type: 'ai-image', position: { x: 0, y: 0 }, data: { label: 'Image', type: 'ai-image', provider: 'cccapi', model: 'cccapi/gpt-image-2' } },
+      { id: 'stable', type: 'ai-image', position: { x: 0, y: 0 }, data: { label: 'Image', type: 'ai-image', provider: 'general', model: `general/${stable.id}` } },
+      { id: 'free', type: 'ai-image', position: { x: 0, y: 0 }, data: { label: 'Image', type: 'ai-image', provider: 'general', model: `general/${free.id}` } },
+    ] });
+    await useAppStore.getState().removeProviderConfig('cccapi-free');
+    const state = useAppStore.getState();
+    expect(state.config.generalModels!.map((model) => model.providerConfigId)).toEqual(['cccapi', 'cccapi-stable']);
+    expect(state.config.providers['cccapi-stable'].apiKey).toBe('cccapi-stable-fixture');
+    expect(state.config.assistantImageModelId).toBe(`general/${stable.id}`);
+    expect(state.nodes.map((node) => node.data.model)).toEqual(['cccapi/gpt-image-2', `general/${stable.id}`, undefined]);
+  });
   it('persists an activated appearance before reporting the save as complete', async () => {
     fileMocks.loadConfig.mockResolvedValue({ providers: {} });
     await useAppStore.getState().loadConfig();

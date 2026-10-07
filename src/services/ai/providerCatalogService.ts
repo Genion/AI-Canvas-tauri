@@ -30,6 +30,7 @@ import { APIMART_OMNI_MODELS, APIMART_UPDATED_VIDEO_MODELS, isLegacyApimartOmni 
 import { getChatApiHeaders, normalizeGeminiModelId, resolveChatApiProtocol } from './chatApiProtocol';
 import { XAI_BASE_URL, XAI_MODEL_MANIFEST } from './providers/xaiModelManifest';
 import { GRSAI_ADDED_MODELS } from './grsaiModels';
+import { filterCccGroupModels } from './cccProviderGroups';
 import {
   GOOGLE_GEMINI_BASE_URL,
   GOOGLE_MODEL_MANIFEST,
@@ -272,7 +273,7 @@ const BUILT_IN_PROVIDER_DEFINITIONS: ProviderDefinition[] = [
     defaultBaseUrl: CCCAPI_BASE_URL,
     modelsPath: '/models',
     allowCustomBaseUrl: false,
-    externalUrl: 'https://cccapi.cn',
+    externalUrl: 'https://cccapi.cn/keys',
     credentials: [
       { ...API_KEY_FIELD, placeholder: 'sk-...' },
     ],
@@ -496,14 +497,13 @@ export function resolveWebSearchProviderId(
 }
 
 /**
- * 连接 ID：内置厂商每种只允许一条连接，直接用目录 ID；
- * 自定义接口可以有多条，加随机后缀区分。
+ * CCC 分组、自定义接口与工作流允许多条连接，各自使用独立的凭据身份。
  */
 export function createConnectionId(providerId: string): string {
-  if (providerId !== 'custom-openai' && providerId !== 'workflow-api') return providerId;
+  if (!['custom-openai', 'workflow-api', 'cccapi'].includes(providerId)) return providerId;
   const suffix = globalThis.crypto?.randomUUID?.().slice(0, 8)
     ?? `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
-  return `${providerId === 'workflow-api' ? 'workflow-api' : 'custom'}-${suffix}`;
+  return `${providerId === 'custom-openai' ? 'custom' : providerId}-${suffix}`;
 }
 
 export function getProviderDefinition(
@@ -806,20 +806,22 @@ export async function fetchProviderModelCatalog(
       config,
       signal,
     );
+    const catalogModels = mergeRemoteCatalogMetadata(
+      definition.id === 'apimart'
+        ? expandApimartCatalog(models, normalizedFallback, providerId)
+        : models,
+      normalizedFallback,
+    );
     return {
-      models: mergeRemoteCatalogMetadata(
-        definition.id === 'apimart'
-          ? expandApimartCatalog(models, normalizedFallback, providerId)
-          : models,
-        normalizedFallback,
-      ),
+      models: definition.id === 'cccapi' ? filterCccGroupModels(catalogModels, config.cccGroup) : catalogModels,
       source: 'remote',
       resolvedBaseUrl: baseUrl,
     };
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') throw error;
     const warning = safeCatalogError(error);
-    if (normalizedFallback.length > 0) {
+    // CCC 分组权限由 Key 决定，不能用全站目录伪装成该 Key 的可用模型。
+    if (!(definition.id === 'cccapi' && config.cccGroup) && normalizedFallback.length > 0) {
       return { models: normalizedFallback, source: 'local-fallback', warning };
     }
     throw new Error(warning, { cause: error });
