@@ -69,9 +69,11 @@ import AssetFolderNavigation from './assets/AssetFolderNavigation';
 import AssetImagePreview from './assets/AssetImagePreview';
 import AssetFileContextMenu from './assets/AssetFileContextMenu';
 import { useResourceVideoPreview } from '../hooks/useResourceVideoPreview';
+import type { AssetImageBatchEntry } from '../types/assetImage';
 
 const DramaAssetsPanel = lazy(() => import('./DramaAssetsPanel'));
 const VolcengineAssetLibraryPanel = lazy(() => import('./volcengine/VolcengineAssetLibraryPanel'));
+const AssetImageBatchReverseDialog = lazy(() => import('./assets/AssetImageBatchReverseDialog'));
 
 /** 仅磁盘真实文件可拖拽（排除节点引用的 node:// / virtual:// 虚拟路径）*/
 function isDraggableEntry(file: AssetFileEntry): boolean {
@@ -195,6 +197,8 @@ export default function AssetsPanel() {
   const dragEndTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [folderSelection, setFolderSelection] = useState<AssetFolderSelection>({ kind: 'all' });
   const [imagePreview, setImagePreview] = useState<{ path: string; scope: string } | null>(null);
+  const [batchReverse, setBatchReverse] = useState<{ scope: string; entries: AssetImageBatchEntry[] } | null>(null);
+  const closeBatchReverse = useCallback(() => setBatchReverse(null), []);
   const [fileMenu, setFileMenu] = useState<{ file: AssetFileEntry; scope: string; projectId?: string; x: number; y: number; confirmDelete?: boolean } | null>(null);
   const fileOperationRef = useRef<AbortController | null>(null);
   const fileScopeRef = useRef<string | null>(null);
@@ -302,7 +306,7 @@ export default function AssetsPanel() {
       for (const m of metas) if (m.tags?.length) map[m.assetId] = m.tags;
       setTagMap(map);
     } catch { /* ignore */ }
-  }, []);
+  }, [setTagMap]);
 
   // 载入文件列表（按 Tab 聚合）
   const loadFiles = useCallback(async () => {
@@ -430,6 +434,7 @@ export default function AssetsPanel() {
 
   const handleClose = useCallback(() => {
     setImagePreview(null);
+    setBatchReverse(null);
     setSelectedProjectId(null); // 复位项目选择，下次打开默认当前项目
     setFilterRowExpanded(false);
     setAssetsPanelOpen(false);
@@ -733,7 +738,7 @@ export default function AssetsPanel() {
   useEffect(() => {
     if (!assetsPanelOpen) return;
     const handler = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape' || e.defaultPrevented) return;
+      if (e.key !== 'Escape' || e.defaultPrevented || batchReverse) return;
       if (pointerDragStopRef.current) {
         e.preventDefault(); pointerDragStopRef.current(); return;
       }
@@ -743,7 +748,7 @@ export default function AssetsPanel() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [assetsPanelOpen, handleClose, isDrawer, isPage]);
+  }, [assetsPanelOpen, handleClose, isDrawer, isPage, batchReverse]);
 
   // 点击外部关闭「添加」菜单
   const addWrapRef = useRef<HTMLDivElement | null>(null);
@@ -874,6 +879,9 @@ export default function AssetsPanel() {
 
   const visibleFiles = useMemo(() => filteredFiles.slice(0, visibleCount), [filteredFiles, visibleCount]);
   const previewScope = JSON.stringify([currentProjectId, selectedProjectId, activeTab, folderSelection, assetsPanelMode, visibleTab]);
+  const batchImages = useMemo(() => [...new Map(filteredFiles.filter((file) => file.category === 'image'
+    && !!file.assetUrl && isLocalAssetFile(file)).map((file) => [assetKey(file), file])).values()], [filteredFiles]);
+  if (batchReverse && (!assetsPanelOpen || batchReverse.scope !== previewScope)) setBatchReverse(null);
   const hoverScope = JSON.stringify([assetsPanelOpen, previewScope, search, activeCategory, activeTag]);
   useEffect(() => cancelHoverRead, [hoverScope, cancelHoverRead]);
   const startHover = (file: AssetFileEntry) => {
@@ -1075,7 +1083,7 @@ export default function AssetsPanel() {
       if (tags.length) await putAssetMeta({ assetId, path, tags, taggedBy: 'manual', updatedAt: Date.now() });
       else await deleteAssetMeta(assetId);
     } catch { /* ignore */ }
-  }, []);
+  }, [setTagMap]);
 
   const addTag = useCallback((file: AssetFileEntry, raw: string) => {
     const tag = raw.trim();
@@ -1130,7 +1138,7 @@ export default function AssetsPanel() {
           <div className={isPage ? 'absolute inset-0 z-40' : `assets-panel-wrapper${isDrawer ? ' assets-panel-wrapper--drawer' : ''}`}>
             <motion.div
               data-resource-video-boundary
-              className={isPage ? 'flex h-full min-h-0 w-full flex-col overflow-hidden bg-canvas-bg pb-3' : `assets-panel${isDrawer ? ' assets-panel--drawer' : ''}`}
+              className={isPage ? 'assets-library-page flex h-full min-h-0 w-full flex-col overflow-hidden bg-canvas-bg pb-3' : `assets-panel${isDrawer ? ' assets-panel--drawer' : ''}`}
               role={isPage ? 'main' : isDrawer ? 'region' : 'dialog'}
               aria-label={isPage ? '资源库' : isDrawer ? '资产库快捷面板' : '资产管理'}
               aria-modal={isDrawer || isPage ? undefined : true}
@@ -1194,11 +1202,12 @@ export default function AssetsPanel() {
                     }))}
                   />
                 )}
-                <div className="assets-search">
+                <div className="assets-search ui-input-group">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
                   </svg>
                   <input
+                    className="ui-input ui-input--sm"
                     type="text" placeholder={isNodeList ? '搜索节点名称、类型或编号…' : '搜索名称或标签…'}
                     value={isNodeList ? nodeSearch : search}
                     onChange={(e) => { (isNodeList ? setNodeSearch : setSearch)(e.target.value); setVisibleCount(PAGE_SIZE); }}
@@ -1215,6 +1224,7 @@ export default function AssetsPanel() {
                   <Icon icon="lucide:columns-3" className="assets-column-stepper-icon" aria-hidden="true" />
                   <button
                     type="button"
+                    className="ui-icon-btn ui-icon-btn--sm"
                     aria-label="减少瀑布流列数"
                     disabled={waterfallColumns <= MIN_WATERFALL_COLUMNS}
                     onClick={() => adjustWaterfallColumns(-1)}
@@ -1224,6 +1234,7 @@ export default function AssetsPanel() {
                   <output aria-label={`当前 ${waterfallColumns} 列`}>{waterfallColumns}</output>
                   <button
                     type="button"
+                    className="ui-icon-btn ui-icon-btn--sm"
                     aria-label="增加瀑布流列数"
                     disabled={waterfallColumns >= MAX_WATERFALL_COLUMNS}
                     onClick={() => adjustWaterfallColumns(1)}
@@ -1231,10 +1242,16 @@ export default function AssetsPanel() {
                     <Icon icon="lucide:plus" aria-hidden="true" />
                   </button>
                 </div>}
+                {(visibleTab === 'project' || visibleTab === 'permanent') && <button type="button" className="ui-btn ui-btn--sm shrink-0"
+                  disabled={!isTauriEnv() || !batchImages.length || busy || loading} title="批量反推当前筛选图片的提示词和标签"
+                  onClick={() => {
+                    dismissHover(); setAddMenuOpen(false); setFileMenu(null);
+                    setBatchReverse({ scope: previewScope, entries: batchImages.map((file) => ({ file: { ...file }, projectId: projectIdForFile(file) })) });
+                  }}><Icon icon="lucide:sparkles" aria-hidden="true" />批量反推</button>}
                 {visibleTab === 'permanent' && (
                   <div className="assets-add-wrap" ref={addWrapRef}>
                     <motion.button
-                      type="button" className="assets-add-btn" disabled={busy}
+                      type="button" className="ui-btn ui-btn--primary ui-btn--sm" disabled={busy}
                       onClick={() => setAddMenuOpen((v) => !v)}
                       whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
                     >
@@ -1513,6 +1530,14 @@ export default function AssetsPanel() {
     ? <MotionConfig reducedMotion="user" transition={drawerTransition}>{panel}</MotionConfig>
     : createPortal(panel, document.body);
   return <>{presentationPanel}
+    {assetsPanelOpen && batchReverse?.scope === previewScope && <Suspense fallback={null}>
+      <AssetImageBatchReverseDialog entries={batchReverse.entries} onClose={closeBatchReverse}
+        onSaved={(file, tags) => {
+          setTagMap((current) => ({ ...current, [assetKey(file)]: tags }));
+          const update = (entries: AssetFileEntry[]) => entries.map((entry) => entry.path === file.path ? { ...entry, assetId: file.assetId, tags } : entry);
+          setProjectFiles(update); setPermanentFiles(update);
+        }} />
+    </Suspense>}
     {assetsPanelOpen && fileMenu?.scope === previewScope &&
       <AssetFileContextMenu key={`${fileMenu.scope}:${fileMenu.file.path}:${fileMenu.confirmDelete}`} name={fileMenu.file.name}
         x={fileMenu.x} y={fileMenu.y} confirmDelete={fileMenu.confirmDelete}
@@ -1522,7 +1547,22 @@ export default function AssetsPanel() {
         onReveal={() => performFileAction('reveal')} onDelete={() => performFileAction('delete')} onClose={closeFileMenu} />}
     {assetsPanelOpen && imagePreview?.scope === previewScope &&
       <AssetImagePreview key={`${imagePreview.scope}:${imagePreview.path}`} files={imageFiles} initialPath={imagePreview.path}
-        projectIdForFile={projectIdForFile} onClose={closeImagePreview} />}
+        projectIdForFile={projectIdForFile} onTagsSaved={(file, tags) => setTagMap((current) => ({ ...current, [assetKey(file)]: tags }))}
+        onRenamed={(previous, next) => {
+          const replace = (entries: AssetFileEntry[]) => entries.map((entry) => entry.path === previous.path ? next : entry);
+          setProjectFiles(replace); setPermanentFiles(replace);
+          setProjectFileOwners((current) => {
+            const owner = current.get(previous.path);
+            if (!owner) return current;
+            const updated = new Map(current); updated.delete(previous.path); updated.set(next.path, owner); return updated;
+          });
+          setTagMap((current) => {
+            const tags = current[assetKey(previous)];
+            if (!tags || assetKey(previous) === assetKey(next)) return current;
+            const updated = { ...current }; delete updated[assetKey(previous)]; updated[assetKey(next)] = tags; return updated;
+          });
+        }}
+        onClose={closeImagePreview} />}
   </>;
 }
 
