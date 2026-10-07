@@ -1,4 +1,4 @@
-import { findImageHistoryByReferences, getNodeHistoryEntries, type HistoryRecord } from './indexedDbService';
+import { findImageHistoryByReferences, getNodeHistoryEntries, getProjectById, imageHistoryReferenceKey, type HistoryRecord } from './indexedDbService';
 import { getFileCategory, type AssetFileEntry } from './fileService';
 import type { AssetImageLoadedDetails, AssetImageReferenceView } from '../types/assetImage';
 import { findSavedAssetImage, identifyAssetImage, resolveAssetImageReferences } from './fs/assetImageMetadata';
@@ -20,9 +20,47 @@ function safeLocalAssetUrl(filePath?: string): string | undefined {
   }
 }
 
-/** 仅在打开预览后读取，精确匹配图片身份；查询不产生任何持久化写入。 */
-export function loadAssetImageHistory(file: AssetFileEntry, projectId?: string, signal?: AbortSignal): Promise<HistoryRecord | null> {
-  return findImageHistoryByReferences([file.path, ...(file.assetUrl ? [file.assetUrl] : [])], projectId, signal);
+/** 精确匹配图片与所属项目；历史缺失时只读找回生成节点，不按文件名猜测。 */
+export async function loadAssetImageHistory(file: AssetFileEntry, projectId?: string, signal?: AbortSignal): Promise<HistoryRecord | null> {
+  const references = [file.path, ...(file.assetUrl ? [file.assetUrl] : [])];
+  const history = await findImageHistoryByReferences(references, projectId, signal);
+  if (history || !projectId) return history;
+  const checkAbort = () => { if (signal?.aborted) throw new DOMException('Preview closed', 'AbortError'); };
+  checkAbort();
+  const { useAppStore } = await import('../store/useAppStore');
+  checkAbort();
+  const state = useAppStore.getState();
+  // 当前项目用实时节点；未打开的项目只读持久化画布，不切换项目或写回。
+  const projectNodes = state.currentProjectId === projectId ? state.nodes : (await getProjectById(projectId))?.nodes;
+  const nodes: unknown[] = Array.isArray(projectNodes) ? projectNodes : [];
+  checkAbort();
+  const keys = new Set(references.map(imageHistoryReferenceKey).filter(Boolean));
+  const matches = nodes.filter((node): node is { id: string; data: Record<string, unknown> } => {
+    if (!node || typeof node !== 'object' || !('id' in node) || typeof node.id !== 'string'
+      || !('data' in node) || !node.data || typeof node.data !== 'object') return false;
+    const data = node.data as Record<string, unknown>;
+    if (data.type !== 'ai-image' || data.role === 'source' || data.status !== 'success') return false;
+    // filePath 是磁盘图片的权威引用；不以缩略图、输入参考图或同名文件关联。
+    const reference = typeof data.filePath === 'string' && data.filePath ? data.filePath : data.imageUrl;
+    const key = typeof reference === 'string' ? imageHistoryReferenceKey(reference) : undefined;
+    return !!key && keys.has(key);
+  });
+  if (matches.length !== 1) return null;
+  const { id, data } = matches[0];
+  const originalReferences = [data.sourceUrl, data.output].filter((value): value is string => typeof value === 'string' && !!value);
+  // 节点改名后仍保留原输出地址，可以用它找回原始提示词与参数。
+  const original = originalReferences.length ? await findImageHistoryByReferences(originalReferences, projectId, signal) : null;
+  checkAbort();
+  if (original?.nodeId === id) return original;
+  if (typeof data.prompt !== 'string' || !data.prompt.trim()) return null;
+  // 这只是节点现有内容的只读投影，不伪造生成时间，也不冒充原始生成记录。
+  return {
+    id: `canvas-node:${projectId}:${id}`, projectId, nodeId: id,
+    nodeLabel: typeof data.label === 'string' ? data.label : file.name,
+    timestamp: 0, prompt: data.prompt, output: typeof data.output === 'string' ? data.output : '',
+    nodeType: 'ai-image', model: '', provider: '', status: 'success',
+    filePath: file.path, mediaUrl: file.assetUrl, params: { assetPromptSource: 'canvas-node' },
+  };
 }
 
 export async function loadAssetImageDetails(file: AssetFileEntry, projectId?: string, signal?: AbortSignal): Promise<AssetImageLoadedDetails & { history: HistoryRecord | null }> {
@@ -46,6 +84,7 @@ const IMAGE_PARAMETERS: ReadonlyArray<readonly [string, string]> = [
 /** 只展示已保存的参数白名单，不显示凭据、路径或任意嵌套对象。 */
 export function describeAssetImageHistory(history: HistoryRecord): Array<{ label: string; value: string }> {
   const details: Array<{ label: string; value: string }> = [];
+  if (history.params?.assetPromptSource === 'canvas-node') details.push({ label: '提示词来源', value: '画布节点当前内容' });
   if (history.model) details.push({ label: '模型', value: history.model });
   if (history.provider) details.push({ label: '供应商', value: history.provider });
   for (const [key, label] of IMAGE_PARAMETERS) {
