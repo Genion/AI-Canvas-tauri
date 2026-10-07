@@ -9,6 +9,7 @@ vi.mock('../../src/services/ai/httpTransport', () => transportMocks);
 import { streamAssistantReply } from '../../src/services/ai/assistantStream';
 import { generateImagesBatch } from '../../src/services/ai/generateImage';
 import { generateText } from '../../src/services/ai/generateText';
+import { reversePromptAndTags } from '../../src/services/ai/reversePrompt';
 import { generateVideo } from '../../src/services/ai/generateVideo';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -37,6 +38,45 @@ afterEach(() => {
 });
 
 describe('model request transport boundary', () => {
+  it.each([undefined, '   ', 'https://custom.example/v1/'])('reverses images and chats with the selected CCC group when its address is %s', async (baseUrl) => {
+    for (const group of ['pro', 'discount']) useAppStore.getState().saveProviderConfig(`cccapi-${group}`, {
+      name: 'CCC', catalogId: 'cccapi', cccGroup: group, apiKey: `${group}-fixture`, baseUrl,
+      selectedModels: [{ id: 'gpt-5.6-sol', name: 'GPT-5.6 Sol', category: 'text', provider: `cccapi-${group}`,
+        inputModalities: ['text', 'image'], executionProfile: { preset: 'openai-chat' } }],
+    });
+    const result = { prompt: '窗台上的橘猫', tags: ['橘猫', '窗台'] };
+    transportMocks.corsSafeFetch.mockImplementation(async () => jsonResponse({ choices: [{ message: { content: JSON.stringify(result) }, finish_reason: 'stop' }] }));
+    const expectedUrl = `${baseUrl?.trim().replace(/\/+$/, '') || 'https://cccapi.cn/v1'}/chat/completions`;
+    for (const model of useAppStore.getState().config.generalModels!) {
+      await expect(reversePromptAndTags({ provider: 'general', model: `general/${model.id}`, imageUrls: ['data:image/png;base64,Y2F0'] })).resolves.toEqual(result);
+      const [url, init] = transportMocks.corsSafeFetch.mock.calls.at(-1)!;
+      expect(url).toBe(expectedUrl);
+      expect(init.headers).toMatchObject({ Authorization: `Bearer ${useAppStore.getState().config.providers[model.providerConfigId].apiKey}` });
+      expect(JSON.parse(init.body)).toMatchObject({ model: 'gpt-5.6-sol', messages: [{ role: 'user', content: expect.arrayContaining([
+        { type: 'image_url', image_url: { url: 'data:image/png;base64,Y2F0' } },
+      ]) }] });
+      useAppStore.getState().updateConfig({ assistantModelId: model.id });
+      await expect(streamAssistantReply({ systemPrompt: '', userMessage: '你好', nonStream: true, onEvent: vi.fn() })).resolves.toBe(JSON.stringify(result));
+      const [chatUrl, chatInit] = transportMocks.corsSafeFetch.mock.calls.at(-1)!;
+      expect(chatUrl).toBe(expectedUrl);
+      expect(chatInit.headers).toMatchObject({ Authorization: `Bearer ${useAppStore.getState().config.providers[model.providerConfigId].apiKey}` });
+    }
+    useAppStore.getState().setProviderKey('cccapi-discount', '');
+    transportMocks.corsSafeFetch.mockClear();
+    const model = useAppStore.getState().config.generalModels!.find((item) => item.providerConfigId === 'cccapi-discount')!;
+    await expect(reversePromptAndTags({ provider: 'general', model: `general/${model.id}`, imageUrls: ['data:image/png;base64,Y2F0'] })).rejects.toThrow();
+    expect(transportMocks.corsSafeFetch).not.toHaveBeenCalled();
+  });
+
+  it('still rejects an unconfigured custom connection address instead of borrowing a built-in URL', async () => {
+    useAppStore.getState().saveProviderConfig('custom-cccapi', { name: '自定义', catalogId: 'custom-openai', apiKey: 'fixture',
+      selectedModels: [{ id: 'gpt-5.6-sol', name: 'GPT', category: 'text', provider: 'custom-cccapi' }],
+    });
+    const model = useAppStore.getState().config.generalModels![0];
+    await expect(generateText({ provider: 'general', model: `general/${model.id}`, prompt: '你好' })).rejects.toThrow('未配置接口地址');
+    expect(transportMocks.corsSafeFetch).not.toHaveBeenCalled();
+  });
+
   it.each(['text', 'image'] as const)('routes identical CCC %s model IDs through the selected group Key', async (category) => {
     const modelId = category === 'text' ? 'gpt-5' : 'gpt-image-2';
     for (const group of ['free', 'stable']) {

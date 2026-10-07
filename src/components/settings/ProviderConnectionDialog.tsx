@@ -8,6 +8,7 @@ import { Icon } from '@iconify/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type {
+  ApiProviderConfig,
   ChatApiProtocol,
   GeneralModelCategory,
   ImageReferenceRequestMode,
@@ -34,7 +35,6 @@ import {
   type ProviderDefinition,
 } from '../../services/ai/providerCatalogService';
 import { normalizeBaseUrl } from '../../services/ai/providerBaseUrl';
-import { cccConnectionName, filterCccGroupModels, getCccGroupPresetModels } from '../../services/ai/cccProviderGroups';
 import type { ModelProtocolImportResult } from '../../services/ai/modelProtocolImport';
 import { emitCloseChatWindow } from '../../services/chat/chatWindowService';
 import { testProviderConnection } from '../../services/testConnection';
@@ -43,7 +43,7 @@ import { useT } from '../../i18n';
 import AnimatedButton from '../shared/AnimatedButton';
 import ModalOverlay from '../shared/ModalOverlay';
 import PopupCloseButton from '../shared/PopupCloseButton';
-import ProviderConnectionForm from './providerConnection/ProviderConnectionForm';
+import ProviderConnectionForm, { CccGroupConnectionsForm } from './providerConnection/ProviderConnectionForm';
 import ProviderModelSection from './providerConnection/ProviderModelSection';
 import ProviderWorkflowSection from './providerConnection/ProviderWorkflowSection';
 import type { WorkflowApiDraft } from '../../types/workflowApi';
@@ -84,7 +84,8 @@ export default function ProviderConnectionDialog({
   onDreaminaLogin,
   onClose,
   onSave,
-}: ProviderConnectionDialogProps) {
+  onSaveCccGroups,
+}: ProviderConnectionDialogProps & { onSaveCccGroups: (connections: Record<string, ApiProviderConfig>) => Promise<void> }) {
   const t = useT();
   const editing = !!connectionId && !!initialConfig;
   const initialDefinitionId = initialConfig?.catalogId || connectionId || '';
@@ -95,13 +96,7 @@ export default function ProviderConnectionDialog({
     initialConfig?.selectedModels || [], initialConfig,
   );
   const initialCatalogModels = initialConfig?.catalogModels || [];
-  const initialIsCcc = initialDefinition?.id === 'cccapi';
-  const initialLocalModels = initialIsCcc
-    ? (initialCatalogModels.length ? [] : getCccGroupPresetModels(fallbackModels.cccapi || [], initialConfig?.cccGroup))
-    : initialDefinition ? (fallbackModels[initialDefinition.id] || []) : [];
-  const initialModels = mergeModels(mergeModels(initialLocalModels, initialCatalogModels), initialSelectedModels);
-  const scopedInitialModels = initialIsCcc ? filterCccGroupModels(initialModels, initialConfig?.cccGroup) : initialModels;
-  const presetCatalogMessage = t('分组预置模型，尚未验证 Key 权限；拉取后以该 Key 返回为准。');
+  const initialLocalModels = initialDefinition ? (fallbackModels[initialDefinition.id] || []) : [];
   const initialBaseUrl = initialConfig?.baseUrl || initialDefinition?.defaultBaseUrl || '';
   const [definitionId, setDefinitionId] = useState(initialDefinitionId);
   const [connectionName, setConnectionName] = useState(initialConfig?.name || initialDefinition?.name || '');
@@ -109,7 +104,6 @@ export default function ProviderConnectionDialog({
     () => resolveChatApiProtocol(initialConfig?.chatApiProtocol),
   );
   const [apiKey, setApiKey] = useState(initialConfig?.apiKey || '');
-  const [cccGroup, setCccGroup] = useState(initialConfig?.cccGroup || '');
   const [baseUrl, setBaseUrl] = useState(initialBaseUrl);
   const [assetLibraryConfig, setAssetLibraryConfig] = useState<VolcengineAssetLibraryConfig | undefined>(initialConfig?.assetLibrary);
   const [workflowApiKey, setWorkflowApiKey] = useState(runninghubWorkflowApiKey);
@@ -118,19 +112,17 @@ export default function ProviderConnectionDialog({
       .map((workflow) => ({ id: workflow.id, name: workflow.name, manifest: editableWorkflowApiManifest(workflow.workflowApi!) })));
   const [workflowValid, setWorkflowValid] = useState(false);
   const [models, setModels] = useState<ProviderModelSelection[]>(
-    () => scopedInitialModels
+    () => mergeModels(mergeModels(initialLocalModels, initialCatalogModels), initialSelectedModels)
       .map((model) => applyKnownVideoTemplateDefaults(model, initialBaseUrl)),
   );
   const [selectedIds, setSelectedIds] = useState(() =>
-    new Set(initialSelectedModels.filter((model) => scopedInitialModels.some((item) => item.id === model.id)).map((model) => model.id)),
+    new Set(initialSelectedModels.map((model) => model.id)),
   );
   const [catalogStatus, setCatalogStatus] = useState<CatalogStatus>(
-    initialIsCcc && initialLocalModels.length ? 'warning'
-      : scopedInitialModels.length > 0 ? 'ready' : 'idle',
+    initialSelectedModels.length > 0 || initialLocalModels.length > 0 ? 'ready' : 'idle',
   );
   const [catalogMessage, setCatalogMessage] = useState(
-    initialCatalogModels.length > 0 ? t('已加载本地缓存 {count} 个模型', { count: scopedInitialModels.length })
-      : initialIsCcc && initialLocalModels.length ? presetCatalogMessage : '',
+    initialCatalogModels.length > 0 ? t('已加载本地缓存 {count} 个模型', { count: initialCatalogModels.length }) : '',
   );
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<GeneralModelCategory | 'all'>('all');
@@ -217,11 +209,10 @@ export default function ProviderConnectionDialog({
     if (definition.authType === 'oauth') return !dreaminaLoggedIn;
     if (definition.id === 'runninghub-model') return !apiKey.trim() && !workflowApiKey.trim();
     if (!apiKey.trim()) return true;
-    if (definition.id === 'cccapi' && !editing && !cccGroup.trim()) return true;
     return definition.credentials.some(
       (field) => field.required && field.key === 'baseUrl' && !baseUrl.trim(),
     );
-  }, [apiKey, baseUrl, cccGroup, definition, dreaminaLoggedIn, editing, workflowApiKey]);
+  }, [apiKey, baseUrl, definition, dreaminaLoggedIn, workflowApiKey]);
   const workflowOnlyConnection = definition?.id === 'runninghub-model' && !!workflowApiKey.trim() && !apiKey.trim();
 
   const chooseDefinition = (nextDefinition: ProviderDefinition) => {
@@ -233,7 +224,6 @@ export default function ProviderConnectionDialog({
     setConnectionName(savedConfig?.name || nextDefinition.name);
     setChatApiProtocol(resolveChatApiProtocol(savedConfig?.chatApiProtocol));
     setApiKey(savedConfig?.apiKey || '');
-    setCccGroup('');
     setBaseUrl(savedConfig?.baseUrl || nextDefinition.defaultBaseUrl || '');
     setAssetLibraryConfig(savedConfig?.assetLibrary);
     setWorkflowApiKey('');
@@ -254,37 +244,6 @@ export default function ProviderConnectionDialog({
     setProtocolImportOpen(false);
     setProtocolImportSnapshot(null);
     setCategoryEditModelId(null);
-  };
-
-  const resetCccCatalog = (group: string, preserveSelection = false) => {
-    abortRef.current?.abort();
-    const presetModels = getCccGroupPresetModels(fallbackModels.cccapi || [], group);
-    const presetIds = new Set(presetModels.map((model) => model.id));
-    setModels(mergeModels(presetModels, models.filter((model) => preserveSelection && presetIds.has(model.id))));
-    setSelectedIds(preserveSelection ? new Set([...selectedIds].filter((id) => presetIds.has(id))) : new Set());
-    setCatalogStatus(presetModels.length ? 'warning' : 'idle');
-    setCatalogMessage(presetModels.length ? presetCatalogMessage : '');
-    setQuery('');
-    setCategory('all');
-    setProtocolModelId(null);
-    setVideoCapabilityModelId(null);
-    setProtocolValid(true);
-    setProtocolImportOpen(false);
-    setProtocolImportSnapshot(null);
-    setCategoryEditModelId(null);
-  };
-
-  const changeApiKey: typeof setApiKey = (value) => {
-    const next = typeof value === 'function' ? value(apiKey) : value;
-    if (definition?.id === 'cccapi' && next.trim() !== apiKey.trim()) resetCccCatalog(cccGroup, true);
-    setApiKey(next);
-  };
-
-  const changeCccGroup = (group: string) => {
-    if (group === cccGroup) return;
-    resetCccCatalog(group);
-    setCccGroup(group);
-    setApiKey('');
   };
 
   /**
@@ -318,7 +277,6 @@ export default function ProviderConnectionDialog({
           apiKey: apiKey.trim(),
           baseUrl: baseUrl.trim() || undefined,
           catalogId: definition.id,
-          ...(definition.id === 'cccapi' ? { cccGroup: cccGroup || undefined } : {}),
           chatApiProtocol,
         },
         fallbackModels: fallbackModels[definition.id] || [],
@@ -677,11 +635,10 @@ export default function ProviderConnectionDialog({
     try { await onSave(
       nextConnectionId,
       {
-        name: definition.id === 'cccapi' ? cccConnectionName({ cccGroup }) : connectionName.trim() || definition.name,
+        name: connectionName.trim() || definition.name,
         apiKey: definition.authType === 'oauth' ? '' : apiKey.trim(),
         baseUrl: isWorkflowApi ? normalizeWorkflowApiBaseUrl(baseUrl, true) : normalizeBaseUrl(baseUrl, chatApiProtocol) || undefined,
         catalogId: definition.id,
-        ...(definition.id === 'cccapi' ? { cccGroup: cccGroup || undefined } : {}),
         ...(definition.id === 'custom-openai' ? { chatApiProtocol } : {}),
         ...modelConfig,
         ...(definition.id === 'volcengine' && assetLibraryConfig ? { assetLibrary: { ...assetLibraryConfig, projectName: assetLibraryConfig.projectName || 'default' } } : {}),
@@ -742,6 +699,9 @@ export default function ProviderConnectionDialog({
             ))}
           </div>
         </div>
+      ) : definition.id === 'cccapi' ? (
+        <CccGroupConnectionsForm providerConfigs={providerConfigs} presetModels={fallbackModels.cccapi || []}
+          onSave={onSaveCccGroups} onClose={closeDialog} onReturnToPicker={editing ? undefined : returnToDefinitionPicker} />
       ) : (
         <>
           <div className="provider-dialog-body">
@@ -754,9 +714,7 @@ export default function ProviderConnectionDialog({
               chatApiProtocol={chatApiProtocol}
               setChatApiProtocol={setChatApiProtocol}
               apiKey={apiKey}
-              setApiKey={changeApiKey}
-              cccGroup={cccGroup}
-              onCccGroupChange={changeCccGroup}
+              setApiKey={setApiKey}
               baseUrl={baseUrl}
               setBaseUrl={setBaseUrl}
               workflowApiKey={workflowApiKey}

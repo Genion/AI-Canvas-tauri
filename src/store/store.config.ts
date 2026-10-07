@@ -11,6 +11,7 @@ import type {
   ProjectSettings,
 } from '../types';
 import {
+  CCCAPI_BASE_URL,
   GRSAI_BASE_URL,
   GRSAI_GLOBAL_BASE_URL,
   GRSAI_LEGACY_BASE_URL,
@@ -290,6 +291,11 @@ function migrateLegacyGeneralModels(config: AppConfig): AppConfig {
   const normalizedProviders = Object.fromEntries(
     Object.entries(config.providers).map(([providerId, provider]) => {
       const normalizedBaseUrl = provider.baseUrl?.trim().replace(/\/+$/, '');
+      const isCcc = provider.catalogId === 'cccapi' || (!provider.catalogId && providerId === 'cccapi');
+      if (isCcc && !normalizedBaseUrl) {
+        providerUrlsChanged = true;
+        return [providerId, { ...provider, baseUrl: CCCAPI_BASE_URL }];
+      }
       const isGrsai = providerId === 'grsai' || provider.catalogId === 'grsai';
       const isLegacyGrsaiUrl = normalizedBaseUrl === GRSAI_LEGACY_BASE_URL
         || normalizedBaseUrl === `${GRSAI_LEGACY_BASE_URL}/v1`

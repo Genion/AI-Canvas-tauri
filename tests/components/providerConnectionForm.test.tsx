@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import ProviderConnectionForm from '../../src/components/settings/providerConnection/ProviderConnectionForm';
+import ProviderConnectionForm, { CccGroupConnectionsForm } from '../../src/components/settings/providerConnection/ProviderConnectionForm';
 import { getProviderDefinition } from '../../src/services/ai/providerCatalogService';
 import { CCC_PROVIDER_GROUPS } from '../../src/services/ai/cccProviderGroups';
 
@@ -51,11 +51,11 @@ describe('ProviderConnectionForm chat protocol selector', () => {
   });
 
   it('shows the verified CCC groups and explains independent Key routing', () => {
-    const html = render('cccapi');
-    expect(html).toContain('CCC 分组');
+    const html = renderToStaticMarkup(<CccGroupConnectionsForm providerConfigs={{}} presetModels={[...getProviderDefinition('cccapi')!.models!]} onSave={vi.fn()} onClose={vi.fn()} />);
+    expect(html).toContain('所有已填写分组一起保存');
     for (const group of CCC_PROVIDER_GROUPS) expect(html).toContain(group.name);
-    expect(html).toContain('每个分组单独添加连接');
-    expect(html).toContain('不会修改控制台');
+    expect(html).toContain('无需切换分组');
+    expect(html).toContain('保存全部分组');
     expect(render('grsai')).not.toContain('CCC 分组');
   });
 });
