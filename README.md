@@ -31,6 +31,24 @@ AI Canvas Tauri 将文本、图像、视频、音频、逐帧动画、Markdown�
 
 ![AI Canvas Tauri Screenshot](public/screenshot.png)
 
+### 资源库
+
+统一浏览项目文件与全局资产，按类型、文件夹和标签筛选素材。
+
+![资源库：全局资产、文件夹与标签筛选](doc/images/asset-library.jpg)
+
+### 资产详情与提示词
+
+全屏预览图片，查看与编辑提示词、参考图和标签，并查看图片尺寸、文件大小与来源。
+
+![资产详情：图片预览、提示词、标签与文件信息](doc/images/asset-preview.jpg)
+
+### 帧动画编辑
+
+逐帧预览与编辑动画，调整帧顺序、偏移、播放帧率和角色对齐。
+
+![帧动画编辑：逐帧预览、偏移调整与角色对齐](doc/images/animation-editor.jpg)
+
 ## 核心能力
 
 | 能力 | 说明 |
