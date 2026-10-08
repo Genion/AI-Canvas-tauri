@@ -115,6 +115,8 @@ const panelVariants = {
 
 export default function AssetsPanel() {
   const reduceMotion = useReducedMotion();
+  const macWindowControls = isTauriEnv() && typeof navigator !== 'undefined'
+    && /Macintosh|Mac OS X/.test(navigator.userAgent);
   const {
     assetsPanelOpen,
     assetsPanelMode,
@@ -1172,7 +1174,7 @@ export default function AssetsPanel() {
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
-              <div data-tauri-drag-region={isPage ? true : undefined} className={isPage ? 'relative flex h-11 shrink-0 items-center gap-3 px-3' : 'assets-panel-header px-2.5 py-2'}>
+              <div data-tauri-drag-region={isPage ? true : undefined} className={isPage ? `relative flex h-11 shrink-0 items-center gap-3 pr-3 ${macWindowControls ? 'pl-28' : 'pl-3'}` : 'assets-panel-header px-2.5 py-2'}>
                 {isPage && <button type="button" autoFocus className="ui-btn ui-btn--ghost ui-btn--sm" onClick={handleClose}>
                   <Icon icon="mdi:arrow-left" width="16" aria-hidden="true" /> 返回启动页
                 </button>}
@@ -1551,6 +1553,20 @@ export default function AssetsPanel() {
   const presentationPanel = motionMode === 'page' ? panel : motionMode === 'drawer'
     ? <MotionConfig reducedMotion="user" transition={drawerTransition}>{panel}</MotionConfig>
     : createPortal(panel, document.body);
+  const handleAssetRenamed = (previous: AssetFileEntry, next: AssetFileEntry) => {
+    const replace = (entries: AssetFileEntry[]) => entries.map((entry) => entry.path === previous.path ? next : entry);
+    setProjectFiles(replace); setPermanentFiles(replace);
+    setProjectFileOwners((current) => {
+      const owner = current.get(previous.path);
+      if (!owner) return current;
+      const updated = new Map(current); updated.delete(previous.path); updated.set(next.path, owner); return updated;
+    });
+    setTagMap((current) => {
+      const tags = current[assetKey(previous)];
+      if (!tags || assetKey(previous) === assetKey(next)) return current;
+      const updated = { ...current }; delete updated[assetKey(previous)]; updated[assetKey(next)] = tags; return updated;
+    });
+  };
   return <>{presentationPanel}
     {assetsPanelOpen && batchReverse?.scope === previewScope && <Suspense fallback={null}>
       <AssetImageBatchReverseDialog entries={batchReverse.entries} onClose={closeBatchReverse}
@@ -1568,29 +1584,19 @@ export default function AssetsPanel() {
         onCopy={() => performFileAction('copy')} onCopyPrompt={() => performFileAction('prompt')}
         onReveal={() => performFileAction('reveal')} onDelete={() => performFileAction('delete')} onClose={closeFileMenu} />}
     {assetsPanelOpen && textPreview?.scope === previewScope && <Suspense fallback={<p role="status">正在打开文档…</p>}>
-      <AssetTextPreview key={`${textPreview.scope}:${textPreview.file.path}`} file={textPreview.file} projectId={projectIdForFile(textPreview.file)}
+      <AssetTextPreview key={textPreview.scope} file={textPreview.file} projectId={projectIdForFile(textPreview.file)}
         onClose={() => setTextPreview(null)} onSaved={(next) => {
           const replace = (entries: AssetFileEntry[]) => entries.map((entry) => entry.path === next.path ? { ...entry, size: next.size } : entry);
           setProjectFiles(replace); setPermanentFiles(replace);
+        }} onRenamed={(previous, next) => {
+          handleAssetRenamed(previous, next);
+          setTextPreview((current) => current?.file.path === previous.path ? { ...current, file: next } : current);
         }} />
     </Suspense>}
     {assetsPanelOpen && imagePreview?.scope === previewScope &&
       <AssetImagePreview key={`${imagePreview.scope}:${imagePreview.path}`} files={imageFiles} initialPath={imagePreview.path}
         projectIdForFile={projectIdForFile} onTagsSaved={(file, tags) => setTagMap((current) => ({ ...current, [assetKey(file)]: tags }))}
-        onRenamed={(previous, next) => {
-          const replace = (entries: AssetFileEntry[]) => entries.map((entry) => entry.path === previous.path ? next : entry);
-          setProjectFiles(replace); setPermanentFiles(replace);
-          setProjectFileOwners((current) => {
-            const owner = current.get(previous.path);
-            if (!owner) return current;
-            const updated = new Map(current); updated.delete(previous.path); updated.set(next.path, owner); return updated;
-          });
-          setTagMap((current) => {
-            const tags = current[assetKey(previous)];
-            if (!tags || assetKey(previous) === assetKey(next)) return current;
-            const updated = { ...current }; delete updated[assetKey(previous)]; updated[assetKey(next)] = tags; return updated;
-          });
-        }}
+        onRenamed={handleAssetRenamed}
         onClose={closeImagePreview} />}
   </>;
 }

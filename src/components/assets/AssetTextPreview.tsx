@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from '@iconify/react';
-import { readAssetTextFile, saveAssetTextFile, type AssetTextSnapshot, type AssetFileEntry } from '../../services/fileService';
+import { isTauriEnv, readAssetTextFile, saveAssetTextFile, type AssetTextSnapshot, type AssetFileEntry } from '../../services/fileService';
 import { getNodeHistoryEntries, getProjectById, imageHistoryReferenceKey } from '../../services/indexedDbService';
 import { completeCanvasDerivation, isCanvasDerivationFresh, registerCanvasDerivation } from '../../services/canvasDerivationGuard';
 import { useAppStore } from '../../store/useAppStore';
@@ -10,9 +10,17 @@ import MarkdownEditor from '../shared/MarkdownEditor';
 import ModalOverlay from '../shared/ModalOverlay';
 
 /** 与媒体预览共用大屏布局；磁盘读写、草稿与生成信息由宿主管理。 */
-export default function AssetTextPreview({ file, projectId, onClose, onSaved }: {
+export default function AssetTextPreview({ file: sourceFile, projectId, onClose, onSaved, onRenamed }: {
   file: AssetFileEntry; projectId?: string; onClose: () => void; onSaved?: (file: AssetFileEntry) => void;
+  onRenamed?: (previous: AssetFileEntry, next: AssetFileEntry) => void;
 }) {
+  const [renamedFile, setRenamedFile] = useState<{ originalPath: string; file: AssetFileEntry } | null>(null);
+  const file = renamedFile?.originalPath === sourceFile.path ? renamedFile.file : sourceFile;
+  const renameAction = useAppStore((state) => state.renameAssetFile);
+  const [renameDraft, setRenameDraft] = useState<string | null>(null);
+  const [renameBusy, setRenameBusy] = useState(false);
+  const [renameMessage, setRenameMessage] = useState('');
+  const renameInFlight = useRef(false);
   const [snapshot, setSnapshot] = useState<AssetTextSnapshot | null>(null);
   const [draft, setDraft] = useState('');
   const [loading, setLoading] = useState(true);
@@ -29,6 +37,7 @@ export default function AssetTextPreview({ file, projectId, onClose, onSaved }: 
   const dirty = !!snapshot && draft !== snapshot.content;
   const markdown = /\.(md|markdown)$/i.test(file.name);
   const fileKey = imageHistoryReferenceKey(file.path);
+  const extension = file.name.lastIndexOf('.') > 0 ? file.name.slice(file.name.lastIndexOf('.')) : '';
 
   useEffect(() => {
     mounted.current = true;
@@ -81,13 +90,14 @@ export default function AssetTextPreview({ file, projectId, onClose, onSaved }: 
   }, [dirty]);
 
   const requestClose = () => {
-    if (saveInFlight.current) return;
+    if (saveInFlight.current || renameInFlight.current) return;
+    if (renameDraft !== null) { setRenameDraft(null); setRenameMessage(''); return; }
     if (confirm) { setConfirm(null); return; }
     if (dirty) setConfirm('close'); else onClose();
   };
   const reloadFile = () => { setLoading(true); setError(''); setConfirm(null); setReload((value) => value + 1); };
   const save = async () => {
-    if (!snapshot || !dirty || saveInFlight.current) return;
+    if (!snapshot || !dirty || loading || saveInFlight.current || renameInFlight.current || renameDraft !== null) return;
     const controller = new AbortController();
     operation.current = controller;
     const state = useAppStore.getState();
@@ -119,6 +129,24 @@ export default function AssetTextPreview({ file, projectId, onClose, onSaved }: 
       if (mounted.current) setSaving(false);
     }
   };
+  const saveFileName = async () => {
+    if (renameDraft === null || dirty || loading || !snapshot || saveInFlight.current || renameInFlight.current) return;
+    renameInFlight.current = true;
+    setRenameBusy(true); setRenameMessage('');
+    try {
+      const result = await renameAction(file, renameDraft, projectId);
+      if (!mounted.current) return;
+      if (result.file.path !== file.path) setLoading(true);
+      setRenamedFile({ originalPath: sourceFile.path, file: result.file });
+      setRenameDraft(null); setRenameMessage(result.warning ?? '文件名已修改');
+      onRenamed?.(file, result.file);
+    } catch (reason) {
+      if (mounted.current) setRenameMessage(reason instanceof Error ? reason.message : '修改文件名失败，请检查文件是否被占用或目录权限');
+    } finally {
+      renameInFlight.current = false;
+      if (mounted.current) setRenameBusy(false);
+    }
+  };
   const info = [
     ['文件类型', markdown ? 'Markdown' : '文本'], ['文件大小', formatSize(snapshot?.size ?? file.size)],
     ['编码', snapshot ? `UTF-8${snapshot.bom ? ' · BOM' : ''}` : '待读取'],
@@ -131,13 +159,23 @@ export default function AssetTextPreview({ file, projectId, onClose, onSaved }: 
     <div className="asset-image-preview-layout">
       <div className="asset-image-preview-stage flex flex-col rounded-xl border border-canvas-border bg-canvas-bg">
         {loading ? <p role="status" className="p-3 text-sm text-canvas-text-secondary">正在读取文档…</p> : snapshot ?
-          <MarkdownEditor key={reload} value={draft} onChange={(value) => { setDraft(value); setStatus(''); }} markdown={markdown} initialMode={markdown ? 'split' : 'source'}
-            label={file.name} onSave={() => { void save(); }} readOnly={saving} status={saving ? '正在保存…' : dirty ? '未保存' : status || '已加载'} /> : null}
+          <MarkdownEditor key={reload} value={draft} onChange={(value) => { if (!renameInFlight.current) { setDraft(value); setStatus(''); } }} markdown={markdown} initialMode={markdown ? 'split' : 'source'}
+            label={file.name} onSave={() => { void save(); }} readOnly={saving || renameBusy || renameDraft !== null} status={saving ? '正在保存…' : dirty ? '未保存' : status || '已加载'} /> : null}
       </div>
       <aside className="asset-image-preview-info" aria-label="文本文件信息">
         <header className="flex shrink-0 items-center gap-2"><Icon icon={markdown ? 'lucide:file-code' : 'lucide:file-text'} className="h-5 w-5 text-canvas-text-secondary" aria-hidden="true" />
-          <h1 className="min-w-0 flex-1 break-words text-sm font-semibold text-canvas-text">{file.name}</h1>
-          <button type="button" className="ui-close-btn" aria-label="关闭文档预览" disabled={saving} onClick={requestClose}><Icon icon="lucide:x" /></button></header>
+          <div className="min-w-0 flex-1">{renameDraft !== null ? <form className="flex items-center gap-1" onSubmit={(event) => { event.preventDefault(); void saveFileName(); }}>
+            <input autoFocus className="ui-input ui-input--sm min-w-0 flex-1" aria-label="新文件名" value={renameDraft} disabled={renameBusy}
+              onChange={(event) => setRenameDraft(event.target.value)} />
+            <span className="shrink-0 text-xs text-canvas-text-muted">{extension}</span>
+            <button type="submit" className="ui-icon-btn ui-icon-btn--sm" aria-label="保存文件名" title="保存文件名" disabled={renameBusy || !renameDraft.trim()}><Icon icon="lucide:check" aria-hidden="true" /></button>
+            <button type="button" className="ui-icon-btn ui-icon-btn--sm" aria-label="取消修改文件名" disabled={renameBusy} onClick={() => { setRenameDraft(null); setRenameMessage(''); }}><Icon icon="lucide:x" aria-hidden="true" /></button>
+          </form> : <h1 className="break-words text-sm font-semibold text-canvas-text">{file.name}</h1>}
+          {renameMessage && <p role="status" className="pt-1 text-xs text-canvas-text-secondary">{renameMessage}</p>}</div>
+          {renameDraft === null && <button type="button" className="ui-icon-btn ui-icon-btn--sm" aria-label="修改文件名" title={dirty ? '请先保存或重新载入文档，再修改文件名' : '修改磁盘文件名'}
+            disabled={!isTauriEnv() || loading || !snapshot || dirty || saving || renameBusy || file.availability === 'offline'}
+            onClick={() => { setRenameMessage(''); setRenameDraft(extension ? file.name.slice(0, -extension.length) : file.name); }}><Icon icon="lucide:pencil" aria-hidden="true" /></button>}
+          <button type="button" className="ui-close-btn" aria-label="关闭文档预览" disabled={saving || renameBusy} onClick={requestClose}><Icon icon="lucide:x" /></button></header>
         <div className="asset-image-preview-info-content space-y-3">
           {error && <p role="alert" className="ui-card p-3 text-sm text-canvas-text-secondary">{error}</p>}
           <section className="ui-card p-3 space-y-2"><div className="flex items-center justify-between gap-2"><h2 className="text-xs text-canvas-text-secondary">提示词</h2>
@@ -152,8 +190,8 @@ export default function AssetTextPreview({ file, projectId, onClose, onSaved }: 
         <footer className="asset-image-preview-footer space-y-2">
           <p className="text-xs text-canvas-text-muted">Ctrl+S 保存至原文件 · Ctrl+F 查找替换 · Esc 关闭</p>
           <div className="flex flex-wrap justify-end gap-2">
-            <button type="button" className="ui-btn ui-btn--sm" disabled={loading || saving} onClick={() => dirty ? setConfirm('reload') : reloadFile()}>重新载入</button>
-            <button type="button" className="ui-btn ui-btn--sm ui-btn--primary" disabled={!dirty || saving || loading} onClick={() => { void save(); }}>{saving ? '正在保存…' : '保存文件'}</button>
+            <button type="button" className="ui-btn ui-btn--sm" disabled={loading || saving || renameBusy || renameDraft !== null} onClick={() => dirty ? setConfirm('reload') : reloadFile()}>重新载入</button>
+            <button type="button" className="ui-btn ui-btn--sm ui-btn--primary" disabled={!dirty || saving || loading || renameBusy || renameDraft !== null} onClick={() => { void save(); }}>{saving ? '正在保存…' : '保存文件'}</button>
           </div>
           {confirm && <div className="ui-card p-3 space-y-2" role="alert"><p className="text-sm text-canvas-text">{confirm === 'close' ? '文档尚未保存，是否放弃修改并关闭？' : '重新载入会放弃当前草稿，是否继续？'}</p>
             <div className="flex justify-end gap-2"><button type="button" className="ui-btn ui-btn--sm" onClick={() => setConfirm(null)}>继续编辑</button>

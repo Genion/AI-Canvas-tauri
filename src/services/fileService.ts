@@ -9,6 +9,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { isLocalMediaUrl, isRemoteMediaUrl, localMediaUrlToPath } from '../utils/mediaUrl';
 import { identifyAsset, getRelativeAssetPath } from './fs/assetIndex';
+import { readAssetTextFile } from './fs/assetTextFiles';
 import { walkDirectoryFiles } from './fs/assetLibrary';
 import { completeMediaRelocation, persistMediaRelocation, type MediaRelocation } from './indexedDb/mediaRelocations';
 import {
@@ -1094,12 +1095,12 @@ export interface AssetFileRenameResult {
 
 const assetRenameLocks = new Set<string>();
 
-/** 就地重命名普通图片；保留身份并迁移已有引用，引用提交失败时恢复磁盘原名。 */
+/** 就地改名图片或文档；保留资产身份，引用同步失败时恢复磁盘原名。 */
 export async function renameAssetFile(
   file: AssetFileEntry, label: string, projectId: string | undefined, roots: readonly string[],
   onRelocated: (move: MediaRelocation) => void,
 ): Promise<AssetFileRenameResult> {
-  if (!isTauriEnv() || file.category !== 'image' || file.availability === 'offline') throw new Error('仅支持重命名可访问的本地图片');
+  if (!isTauriEnv() || !['image', 'text'].includes(file.category) || file.availability === 'offline') throw new Error('仅支持重命名可访问的本地图片或文本文件');
   const path = stripVerbatimPrefix(file.path).replace(/\\/g, '/');
   if (path.split('/').some((part) => part === '.' || part === '..' || part === '.trash')) throw new Error('文件位置无效');
   const oldName = path.split('/').pop() ?? '';
@@ -1130,17 +1131,22 @@ export async function renameAssetFile(
       : source === 'folder' ? roots.find((candidate) => getRelativeAssetPath(path, candidate) !== undefined) : undefined;
     const relativePath = root ? getRelativeAssetPath(newPath, root) : undefined;
     if (!root || !relativePath || getRelativeAssetPath(path, root) === undefined) throw new Error('文件不在已登记的资产目录内');
+    // 内部 JSON 按固定路径和摘要引用，不能按普通素材的方式改名。
+    if (file.category === 'text' && source === 'project'
+      && /^(?:(?:director\/previs|ai-apps)\/[a-f0-9]{64}|director\/scenes\/[^/]+\/(?:scene-r\d+|results\/manifest-r\d+)-[a-f0-9]{64})\.json$/i.test(getRelativeAssetPath(path, root)!)) {
+      throw new Error('此文件由应用内部管理，需要保留原名；请先复制为普通文本文件再改名');
+    }
     const info = await lstat(path);
-    if (!info.isFile || info.isSymlink) throw new Error('仅支持普通图片文件');
+    if (!info.isFile || info.isSymlink) throw new Error('仅支持普通图片或文本文件');
     if (await exists(newPath)) throw new Error('已有同名文件，请换一个名称');
     const identity = await identifyAsset(path, { assetId: file.assetId, source: source!, rootPath: root, projectId: ownerId });
-    const content = await fingerprintAssetImage(path);
+    const content = file.category === 'text' ? await readAssetTextFile(path) : await fingerprintAssetImage(path);
     const assetUrl = await getAssetUrlFromPath(newPath);
-    if (!assetUrl) throw new Error('无法解析改名后的图片位置');
+    if (!assetUrl) throw new Error('无法解析改名后的文件位置');
     const move: MediaRelocation = { oldPath: path, newPath, oldAssetUrl: file.assetUrl, assetUrl, relativePath,
       projectId: ownerId ?? 'asset-rename', renamedFileName: name,
       ...(source !== 'project' ? { assetMove: { assetId: identity.assetId, rootPath: root, source: source as 'global' | 'folder',
-        digest: content.digest, totalBytes: content.bytes, mtimeMs: info.mtime?.getTime() ?? 0 } } : {}) };
+        digest: content.digest, totalBytes: 'bytes' in content ? content.bytes : content.size, mtimeMs: info.mtime?.getTime() ?? 0 } } : {}) };
     const next: AssetFileEntry = { ...file, assetId: identity.assetId, name, path: newPath, assetUrl, relativePath };
     // 再次检查目标，名称冲突时不使用自动加序号或覆盖路径。
     if (await exists(newPath)) throw new Error('已有同名文件，请换一个名称');
