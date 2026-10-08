@@ -192,7 +192,12 @@ describe('equal-spacing candidate query equivalence', () => {
           bounds.push(createBounds(origin + cross, origin + 100 + gap, 75, 50));
         }
       }
-      expectLegacyGeometry(bounds, 1.9999);
+      for (const extraCount of [0, 40]) {
+        const unrelated = Array.from({ length: extraCount }, (_, index) => createBounds(
+          origin + 1e6 + index * 1000, origin + 1e6 + index * 1000, 100, 100,
+        ));
+        expectLegacyGeometry([...bounds, ...unrelated], 1.9999);
+      }
     }
   });
 
