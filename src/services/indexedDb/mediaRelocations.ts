@@ -89,11 +89,64 @@ export function relocateMediaReferences<T>(value: T, moves: readonly MediaReloca
   return visit(value) as T;
 }
 
+function collectRelocationReferences(value: unknown): Set<string> | null {
+  const references = new Set<string>();
+  const seen = new WeakSet<object>();
+  const active = new WeakSet<object>();
+  let indexable = true;
+  const visit = (item: unknown): void => {
+    if (typeof item === 'string') {
+      references.add(item);
+      references.add(pathKey(item));
+      const local = localMediaUrlToPath(item);
+      if (local) references.add(pathKey(local));
+      return;
+    }
+    if (!item || typeof item !== 'object'
+      || (Object.getPrototypeOf(item) !== Object.prototype && !Array.isArray(item))) return;
+    if (active.has(item)) { indexable = false; return; }
+    if (seen.has(item)) return;
+    seen.add(item);
+    active.add(item);
+    for (const descriptor of Object.values(Object.getOwnPropertyDescriptors(item))) {
+      // 有访问器或循环引用就沿用原执行顺序，索引本身不额外触发 getter。
+      if (!('value' in descriptor)) { indexable = false; break; }
+      visit(descriptor.value);
+      if (!indexable) break;
+    }
+    active.delete(item);
+  };
+  visit(value);
+  return indexable ? references : null;
+}
+
+function relocateJournalReferences<T>(value: T, moves: readonly MediaRelocation[]): T {
+  if (!moves.length) return value;
+  // 只有一条日志时直接执行，省掉额外建立索引的开销。
+  let references = moves.length > 1 ? collectRelocationReferences(value) : null;
+  let current = value;
+  for (const move of moves) {
+    if (references && !references.has(pathKey(move.oldPath))
+      && (move.oldAssetUrl === undefined || !references.has(move.oldAssetUrl))) continue;
+    const next = move.ownerId
+      ? relocateOwnedMediaReferences(current, move, move.ownerId)
+      : relocateMediaReferences(current, [move]);
+    if (references && next !== current) {
+      // 旧索引项最多让无效规则多跑一遍；补上可能新写入的字符串，就不用再扫整条记录。
+      const added = collectRelocationReferences([move, move.newPath.replace(/\\/g, '/').split('/').pop(),
+        move.assetMove ? `${move.assetMove.totalBytes}:${move.assetMove.mtimeMs}` : undefined, 'online']);
+      if (added) for (const reference of added) references.add(reference);
+      else references = null;
+    }
+    current = next;
+  }
+  return current;
+}
+
 /** Read the relocation journal inside the writer's transaction so stale saves cannot resurrect old paths. */
 export function withRelocatedMedia<T>(tx: IDBTransaction, value: T, write: (next: T) => void): void {
   const request = tx.objectStore(STORE_METADATA).get(JOURNAL_ID);
-  request.onsuccess = () => write((request.result?.moves ?? []).reduce((current: T, move: MediaRelocation) =>
-    move.ownerId ? relocateOwnedMediaReferences(current, move, move.ownerId) : relocateMediaReferences(current, [move]), value));
+  request.onsuccess = () => write(relocateJournalReferences(value, request.result?.moves ?? []));
 }
 
 export function relocateOwnedMediaReferences<T>(value: T, move: MediaRelocation, nodeId: string): T {
