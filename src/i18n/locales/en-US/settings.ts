@@ -183,6 +183,10 @@ const settings = {
   '保存画布': 'Save canvas',
   '复制节点': 'Copy node',
   '粘贴节点': 'Paste node',
+  '拖拽复制空白节点': 'Drag to duplicate an empty node',
+  '拖拽': 'Drag',
+  '保留提示词、配置和上游连线，不复制已有内容。画布笔记完整复制；分组和 AI 应用不支持此操作。':
+    'Keeps prompts, settings and incoming connections without copying existing content. Canvas notes are copied in full; groups and AI apps do not support this action.',
   '删除节点': 'Delete node',
   '分组 / 取消分组': 'Group / ungroup',
   '创建生成节点（文本 / 图像 / 视频 / 音频 / 全景 / 动画）': 'Create generation node (text / image / video / audio / panorama / animation)',

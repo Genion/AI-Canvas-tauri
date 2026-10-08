@@ -320,8 +320,29 @@ function prepareDuplicateNodeData(
   data: BaseNodeData,
   nodeType: string | undefined,
   cloneId: string,
+  includeContent: boolean,
 ): BaseNodeData {
   const duplicate = structuredClone(data);
+
+  if (!includeContent) {
+    // 拖拽复用生成配置，不带走上一份结果、文件身份或运行记录。
+    for (const key of [
+      'output', 'imageUrl', 'videoUrl', 'audioUrl', 'sourceUrl', 'thumbnailUrl',
+      'fileName', 'filePath', 'assetId', 'relativePath', 'artifactId', 'mediaVersion',
+      'imageWidth', 'imageHeight', 'videoWidth', 'videoHeight', 'videoDuration', 'videoBatchFingerprint',
+      'mattingMask', 'annotation', 'annotationLayer', 'batchGroupId',
+      'runninghubOutputs', 'runninghubStage', 'workflowApiOutputs', 'workflowApiStage', 'pluginOutputs',
+      'musicClipId', 'animationSheet', 'animationEdits',
+      'storyboardExtracted', 'storyboardOverrides', 'shotlistRows',
+      'shotlistScriptSource', 'shotlistProductionSource', 'frameAnalysis', 'outputHistory',
+      'directorCaptureUrls', 'directorCaptureFilePaths', 'directorScene',
+      'directorPrevisScene', 'directorResultManifest',
+      'dramaAssetId', 'dramaAssetKind', 'characterLibraryLinks', 'hiddenByCharacterLibrary',
+      'agentPresetRunId', 'agentPresetTaskId', 'agentPresetStepIndex', 'agentPresetTotalSteps',
+      'error',
+    ]) delete duplicate[key];
+    duplicate.status = 'idle';
+  }
 
   if (duplicate.status === 'loading') {
     duplicate.status = hasMaterializedNodeOutput(duplicate, nodeType) ? 'success' : 'idle';
@@ -521,8 +542,8 @@ export interface NodeSlice {
     artifact: MediaGenerationResult,
     position?: { x: number; y: number },
   ) => string;
-  /** 在原位复制一个节点，并让拖出的副本继承入口边——用于 Ctrl 拖拽复制。 */
-  duplicateNode: (nodeId: string) => Promise<string | undefined>;
+  /** 在原位复制节点并继承入口边；拖拽时可只复用配置。 */
+  duplicateNode: (nodeId: string, options?: { includeContent?: boolean }) => Promise<string | undefined>;
   duplicateCanvasNote: (nodeId: string) => string | null | Promise<string | null>;
   convertImageNodeKind: (nodeId: string) => 'to-note' | 'to-node' | 'connected' | null;
   updateCanvasNote: (nodeId: string, patch: CanvasNotePatch) => boolean;
@@ -575,7 +596,7 @@ export function createNodeDuplicateDrag(getState: () => AppState, sourceId: stri
   const getClone = () => getState().currentProjectId === projectId
     ? getState().nodes.find((node) => node.id === cloneId)
     : undefined;
-  const ready = initial.duplicateNode(sourceId).then((id) => {
+  const ready = initial.duplicateNode(sourceId, { includeContent: false }).then((id) => {
     cloneId = id;
     if (getClone()) {
       getState().onNodesChange([{ type: 'position', id: id!, position, dragging }]);
@@ -590,7 +611,7 @@ export function createNodeDuplicateDrag(getState: () => AppState, sourceId: stri
         if (change.type !== 'position' || change.id !== sourceId) return [change];
         if (change.position) position = { ...change.position };
         if (change.dragging !== undefined) dragging = change.dragging;
-        // 媒体文件还在复制时只缓存最新落点，失败时原节点也不会被拖走。
+        // 副本身份就绪前先记住最新落点，原节点始终留在原位。
         const original = getState().currentProjectId === projectId
           ? getState().nodes.find((node) => node.id === sourceId)
           : undefined;
@@ -946,14 +967,16 @@ export const createNodeSlice: StateCreator<AppState, [], [], NodeSlice> = (set, 
     return restoredNodeIds;
   },
 
-  duplicateNode: async (nodeId) => {
+  duplicateNode: async (nodeId, options) => {
     const state = get();
     const src = state.nodes.find((n) => n.id === nodeId);
     // 分组节点暂不支持拖拽复制（涉及子节点/边重映射）
     if (!src || src.type === 'group') return;
     if (isAiAppNode(src)) { state.showToast(AI_APP_COPY_MESSAGE, 'error'); return; }
+    // 笔记承载手写内容，继续沿用完整复制。
+    const includeContent = options?.includeContent !== false || src.type === 'canvas-note';
     let duplicateData = src.data;
-    if (needsNodeMediaCopy(src.data)) {
+    if (includeContent && needsNodeMediaCopy(src.data)) {
       const guard = registerCanvasDerivation(state, nodeId);
       if (!guard) { state.showToast('请先创建项目再复制媒体', 'error'); return; }
       state.showToast('正在复制素材…');
@@ -972,7 +995,7 @@ export const createNodeSlice: StateCreator<AppState, [], [], NodeSlice> = (set, 
     }
     get().commitToHistory();
 
-    // 原节点的真实 ID、编号和引用保持不变；新身份与独立素材都属于副本。
+    // 原节点的真实 ID、编号和引用保持不变，副本使用自己的新身份。
     const cloneId = `node-${generateId()}`;
     const newDisplayId = getNextDisplayId(get().nodes);
 
@@ -981,7 +1004,7 @@ export const createNodeSlice: StateCreator<AppState, [], [], NodeSlice> = (set, 
         ...src,
         id: cloneId,
         position: { ...src.position },
-        data: { ...prepareDuplicateNodeData(duplicateData, src.type, cloneId), displayId: newDisplayId },
+        data: { ...prepareDuplicateNodeData(duplicateData, src.type, cloneId, includeContent), displayId: newDisplayId },
         selected: false,
         dragging: false,
       } as Node<BaseNodeData>;
