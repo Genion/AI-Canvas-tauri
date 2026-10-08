@@ -1239,10 +1239,7 @@ function CanvasInner({ onReady }: CanvasProps) {
       renderableGraph.nodes,
       nodeProjectionCache,
     );
-    return [
-      ...projected,
-      ...(draftNode ? [projectTransientCanvasNode(draftNode)] : []),
-    ];
+    return draftNode ? [...projected, projectTransientCanvasNode(draftNode)] : projected;
   }, [draftNode, nodeProjectionCache, renderableGraph.nodes]);
 
   // 仅派生渲染状态，不把隐藏和节点选中效果写回可持久化的边数据。

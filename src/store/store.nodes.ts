@@ -444,6 +444,9 @@ function pruneDeletedNodesAndEmptyGroups(
   };
 }
 
+// 每个源数组只保留最近一次过滤结果；正文更新不必让连线投影跟着重建。
+const visibleEdgesBySource = new WeakMap<Edge[], Edge[]>();
+
 /** 渲染前剔除隐藏元素：角色库收纳的节点、已折叠分组的子节点，以及它们的连线 */
 export function filterHiddenCanvasElements(
   nodes: Node<BaseNodeData>[],
@@ -458,11 +461,17 @@ export function filterHiddenCanvasElements(
   ));
   if (visibleNodes.length === nodes.length) return { nodes, edges };
   const visibleNodeIds = new Set(visibleNodes.map((node) => node.id));
+  const nextEdges = edges.filter(
+    (edge) => visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target),
+  );
+  const previousEdges = visibleEdgesBySource.get(edges);
+  const visibleEdges = nextEdges.length === edges.length ? edges
+    : previousEdges?.length === nextEdges.length
+      && nextEdges.every((edge, index) => edge === previousEdges[index]) ? previousEdges : nextEdges;
+  visibleEdgesBySource.set(edges, visibleEdges);
   return {
     nodes: visibleNodes,
-    edges: edges.filter(
-      (edge) => visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target),
-    ),
+    edges: visibleEdges,
   };
 }
 
