@@ -64,6 +64,7 @@ function parseAspectRatio(value: unknown) {
 
 function AnimationNode({ id, data, selected }: { id: string; data: BaseNodeData; selected?: boolean }) {
   const t = useT();
+  const projectId = useAppStore((s) => s.currentProjectId);
   const updateNodeDataTransient = useAppStore((s) => s.updateNodeDataTransient);
   const updateNodeData = useAppStore((s) => s.updateNodeData);
   const commitToHistory = useAppStore((s) => s.commitToHistory);
@@ -90,7 +91,7 @@ function AnimationNode({ id, data, selected }: { id: string; data: BaseNodeData;
   const [editorOpen, setEditorOpen] = useState(false);
   const [previewState, setPreviewState] = useState<{ key: string; value?: AnimationPreview; error?: string }>();
   const pageVisible = usePageVisible();
-  const previewKey = JSON.stringify([data.filePath, sheet, processing]);
+  const previewKey = JSON.stringify([projectId, data.filePath, sheet, processing]);
   const preview = previewState?.key === previewKey ? previewState.value : undefined;
   const processingError = previewState?.key === previewKey ? previewState.error : undefined;
   const displaySrc = preview?.url ?? originalSrc;
@@ -98,7 +99,7 @@ function AnimationNode({ id, data, selected }: { id: string; data: BaseNodeData;
     if (!data.filePath || !pageVisible) return;
     let active = true;
     let prepared: AnimationPreview | undefined;
-    void prepareAnimationPreview(data.filePath, sheet, processing).then((value) => {
+    void prepareAnimationPreview(data.filePath, sheet, processing, projectId).then((value) => {
       if (!active) { value.dispose(); return; }
       prepared = value;
       setPreviewState({ key: previewKey, value });
@@ -106,7 +107,7 @@ function AnimationNode({ id, data, selected }: { id: string; data: BaseNodeData;
       if (active) setPreviewState({ key: previewKey, error: error instanceof Error ? error.message : String(error) });
     });
     return () => { active = false; prepared?.dispose(); };
-  }, [data.filePath, pageVisible, previewKey, processing, sheet]);
+  }, [data.filePath, pageVisible, previewKey, processing, projectId, sheet]);
   const { displayLabel: storedLabel, handleRename } = useNodeRename(id, data, t('帧动画'));
   const displayLabel = !data.displayLabel && !data.fileName && ['生成动画', '动画'].includes(storedLabel)
     ? t('帧动画') : storedLabel;

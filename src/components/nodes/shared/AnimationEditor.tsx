@@ -188,7 +188,7 @@ function Editor({ nodeId, data, projectId, onClose }: { nodeId: string; data: Ba
     let active = true;
     let prepared: AnimationPreview | undefined;
     const timer = window.setTimeout(() => {
-      void prepareAnimationPreview(data.filePath!, sheet, processing).then((value) => {
+      void prepareAnimationPreview(data.filePath!, sheet, processing, projectId).then((value) => {
         if (!active) { value.dispose(); return; }
         prepared = value;
         setPreviewState({ key: requestKey, value });
@@ -197,7 +197,7 @@ function Editor({ nodeId, data, projectId, onClose }: { nodeId: string; data: Ba
       });
     }, 180);
     return () => { active = false; window.clearTimeout(timer); prepared?.dispose(); };
-  }, [data.filePath, processing, requestKey, sheet]);
+  }, [data.filePath, processing, projectId, requestKey, sheet]);
 
   useEffect(() => {
     if (stopped || !src) return;
@@ -246,7 +246,7 @@ function Editor({ nodeId, data, projectId, onClose }: { nodeId: string; data: Ba
       const result = await uploadSourceFileToProject('.png,.webp,.jpg,.jpeg', projectId);
       if (!result || !mounted.current || !isCanvasDerivationFresh(guard, useAppStore.getState())) return;
       if (!result.filePath) throw new Error(t('动画原图未保存到项目目录'));
-      const checked = await prepareAnimationPreview(result.filePath, sheet, processing);
+      const checked = await prepareAnimationPreview(result.filePath, sheet, processing, projectId);
       try {
         if (!mounted.current || !isCanvasDerivationFresh(guard, useAppStore.getState())) return;
         useAppStore.getState().updateNodeData(nodeId, {
@@ -319,8 +319,8 @@ function Editor({ nodeId, data, projectId, onClose }: { nodeId: string; data: Ba
           <div className="ui-card__header flex items-center justify-between"><span>{t('选中帧')}</span><span className="ui-badge ui-badge--primary">{String(selectedPosition + 1).padStart(2, '0')}</span></div>
           <div className="ui-card__body ui-stack">
             <div className="flex items-center justify-between gap-2"><div className="animation-editor-check"><input id={`${nodeId}-enabled`} className="ui-checkbox" type="checkbox" checked={selectedEdit.enabled} disabled={selectedEdit.enabled && enabled.length === 1} onChange={(event) => patchFrame({ enabled: event.target.checked })} /><label htmlFor={`${nodeId}-enabled`}>{t('保留此帧')}</label></div><span className="ui-hint">{t('原帧')} {selectedEdit.sourceIndex + 1}</span></div>
-            <label className="animation-editor-field"><span className="ui-label">{t('横向偏移')}</span><NumberStepper value={selectedEdit.offsetX} min={-layout.cellWidth} max={layout.cellWidth} unit="px" aria-label={t('帧横向偏移')} onChange={(offsetX) => patchFrame({ offsetX })} size="sm" /></label>
-            <label className="animation-editor-field"><span className="ui-label">{t('纵向偏移')}</span><NumberStepper value={selectedEdit.offsetY} min={-layout.cellHeight} max={layout.cellHeight} unit="px" aria-label={t('帧纵向偏移')} onChange={(offsetY) => patchFrame({ offsetY })} size="sm" /></label>
+            <label className="animation-editor-field"><span className="ui-label">{t('横向偏移')}</span><NumberStepper value={selectedEdit.offsetX} min={-layout.cellWidth} max={layout.cellWidth} step={0.5} unit="px" aria-label={t('帧横向偏移')} onChange={(offsetX) => patchFrame({ offsetX })} size="sm" /></label>
+            <label className="animation-editor-field"><span className="ui-label">{t('纵向偏移')}</span><NumberStepper value={selectedEdit.offsetY} min={-layout.cellHeight} max={layout.cellHeight} step={0.5} unit="px" aria-label={t('帧纵向偏移')} onChange={(offsetY) => patchFrame({ offsetY })} size="sm" /></label>
             <div className="flex items-center gap-1"><button type="button" className="ui-btn ui-btn--secondary ui-btn--sm" disabled={selectedPosition === 0} onClick={() => move(-1)}><Icon icon="mdi:arrow-left" width="13" />{t('前移')}</button><button type="button" className="ui-btn ui-btn--secondary ui-btn--sm" disabled={selectedPosition === edits.length - 1} onClick={() => move(1)}>{t('后移')}<Icon icon="mdi:arrow-right" width="13" /></button><button type="button" className="ui-btn ui-btn--ghost ui-btn--sm ml-auto" onClick={() => patchFrame({ offsetX: 0, offsetY: 0 })}>{t('重置偏移')}</button></div>
           </div>
         </section>
