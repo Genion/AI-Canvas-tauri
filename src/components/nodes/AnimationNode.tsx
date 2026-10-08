@@ -94,7 +94,9 @@ function AnimationNode({ id, data, selected }: { id: string; data: BaseNodeData;
   const previewKey = JSON.stringify([projectId, data.filePath, sheet, processing]);
   const preview = previewState?.key === previewKey ? previewState.value : undefined;
   const processingError = previewState?.key === previewKey ? previewState.error : undefined;
-  const displaySrc = preview?.url ?? originalSrc;
+  // 离屏后会重新挂载；先等透明缓存，避免键控底色原图闪现。
+  const preparingPreview = !!data.filePath && !preview && !processingError;
+  const displaySrc = preview?.url ?? (preparingPreview ? undefined : originalSrc);
   useEffect(() => {
     if (!data.filePath || !pageVisible) return;
     let active = true;
@@ -305,6 +307,11 @@ function AnimationNode({ id, data, selected }: { id: string; data: BaseNodeData;
             )
           ) : data.status === 'loading' ? (
             <NodeGenerationProgress nodeId={id} fallbackLabel={t('正在生成 Sprite Sheet')} />
+          ) : preparingPreview ? (
+            <div className="animation-empty" role="status">
+              <span className="spinner-sm" aria-hidden="true" />
+              <span>{t('加载帧动画预览')}</span>
+            </div>
           ) : (
             <div className="animation-empty">
               <Icon icon="mdi:animation-play-outline" width="38" height="38" />
