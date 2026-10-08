@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="description" content="AI Canvas 0.10.1 操作说明书：自定义接口 JSON 编辑、视频预设、试跑与任务完成后下载，图片信息编辑与批量反推提示词标签，附首次生成、资源整理、工作流及逐镜制作教程。">
+<meta name="description" content="AI Canvas 0.10.1 操作说明书：AI 应用节点的创建、使用、状态保存与 MCP 动作，自定义接口 JSON 编辑、视频预设、图片批量反推，附首次生成、资源整理、工作流及逐镜制作教程。">
 <title>AI Canvas 0.10.1 · 操作说明书</title>
 <style>
 /* Standalone document: a small copy of the application's base.css color tokens. */
@@ -46,7 +46,7 @@ dialog .character-actions-shot{width:1912px}
 <div class="group">自定义接口 · 详细配置</div>
 <a href="#connection">06 · 添加厂商与模型</a><a href="#import">07 · 从接口文档导入</a><a href="#protocol">08 · 调用协议与视频预设</a><a href="#protocol-json-editor">↳ JSON 变量插入与预览</a><a href="#variables">09 · 变量与结果路径</a><a href="#sync">10 · 同步图像接口示例</a><a href="#async">11 · 异步视频接口示例</a><a href="#async-download">↳ 完成后同源下载</a><a href="#api-check">12 · 验证与接口排错</a>
 <div class="group">日常制作与维护</div>
-<a href="#comfy">13 · 本地与云端工作流</a><a href="#assets">14 · 资源库、文件夹与创作资产</a><a href="#asset-image-batch-reverse">↳ 批量反推提示词与标签</a><a href="#assistant">15 · AI 助手与任务</a><a href="#director">16 · 分镜制作与 3D 导演台</a><a href="#plugins">17 · 插件与 MCP 控制</a><a href="#storage">18 · 保存、备份与迁移</a><a href="#shortcuts">19 · 快捷键速查</a><a href="#faq">20 · 常见问题</a><a href="#checklist">21 · 使用前检查单</a><a href="#appearance">22 · 外观主题与预设</a><a href="#about">说明书范围与版本</a>
+<a href="#comfy">13 · 本地与云端工作流</a><a href="#assets">14 · 资源库、文件夹与创作资产</a><a href="#asset-image-batch-reverse">↳ 批量反推提示词与标签</a><a href="#assistant">15 · AI 助手与任务</a><a href="#ai-app">↳ AI 应用节点</a><a href="#director">16 · 分镜制作与 3D 导演台</a><a href="#plugins">17 · 插件与 MCP 控制</a><a href="#mcp-ai-app">↳ 调用 AI 应用动作</a><a href="#storage">18 · 保存、备份与迁移</a><a href="#shortcuts">19 · 快捷键速查</a><a href="#faq">20 · 常见问题</a><a href="#checklist">21 · 使用前检查单</a><a href="#appearance">22 · 外观主题与预设</a><a href="#about">说明书范围与版本</a>
 </div>
 </nav>
 <main id="main">
@@ -54,10 +54,10 @@ dialog .character-actions-shot{width:1912px}
 <div class="eyebrow">AI CANVAS · USER MANUAL</div>
 <h1>AI Canvas 操作说明书<br>从首次生成到完整创作</h1>
 <p>从启动页选择项目，在资源库整理素材，再用无限画布连接文本、图像、视频与音频。按步骤完成首次出图、剧本分集、逐镜生成和剪辑；需要接入自己的服务时，查阅接口与工作流示例。</p>
-<span class="badge">0.10.1 说明书</span><span class="badge">2026-10-07 核对</span><span class="badge">截图内嵌 · 可离线阅读</span>
+<span class="badge">0.10.1 说明书</span><span class="badge">2026-10-08 补充核对</span><span class="badge">截图内嵌 · 可离线阅读</span>
 </header>
 <div class="actions"><button class="action" id="print" type="button">打印 / 保存为 PDF</button><button class="action" id="theme" type="button" aria-pressed="false">切换深色阅读</button><a class="action" href="#project-settings">先看项目设置 →</a><a class="action" href="#connection">直接看自定义接口 →</a></div>
-<aside class="tip"><b>0.10.1 新增说明：</b><a href="#protocol-json-editor">JSON 变量插入与共用预览</a>、<a href="#protocol-video-presets">视频协议预设</a>、<a href="#async-download">完成后下载文件</a>、<a href="#asset-image-reverse">单图反推与标签</a>、<a href="#asset-image-batch-reverse">批量反推</a>、<a href="#provider-model-updates">内置模型更新</a>。新增两张当前界面截图，版本范围见<a href="#about">文末说明</a>。</aside>
+<aside class="tip"><b>本次补充：</b><a href="#ai-app">由 Agent / MCP 创建的 AI 应用节点</a>与<a href="#mcp-ai-app">无界面动作调用</a>。0.10.1 说明另含<a href="#protocol-json-editor">JSON 变量插入与共用预览</a>、<a href="#protocol-video-presets">视频协议预设</a>、<a href="#async-download">完成后下载文件</a>、<a href="#asset-image-reverse">单图反推与标签</a>、<a href="#asset-image-batch-reverse">批量反推</a>、<a href="#provider-model-updates">内置模型更新</a>；版本与核对范围见<a href="#about">文末说明</a>。</aside>
 
 <section id="reading" class="reading-routes" aria-label="按需求阅读"><h2>先找到你要做的事</h2>
 <p class="small">第一次使用可走第一条路线。每章保留原有编号，旧链接仍可直接定位。</p>
@@ -200,6 +200,7 @@ dialog .character-actions-shot{width:1912px}
 <section id="canvas"><h2>04 · 画布、节点与连线</h2>
 <div class="table-scroll"><table><thead><tr><th>想做什么</th><th>操作方法</th></tr></thead><tbody><tr><td>选择与移动</td><td>单击节点选中；按 Shift 再单击追加选择。拖动节点标题移动节点。</td></tr><tr><td>编辑完整内容</td><td>选中一个内容节点后按 Space。输入文字时、多选时、分组或 Markdown 节点不使用这个快捷入口。</td></tr><tr><td>复制节点</td><td>Ctrl + C / Ctrl + V；也可 Ctrl + 拖动非分组节点，在原位置留下副本。</td></tr><tr><td>建立上下游</td><td>从上游输出点拖到下游输入点。将连线拖到空白处，可创建已连接的下游节点。</td></tr><tr><td>整理布局</td><td>多选后用浮动工具栏对齐、分布或分组；Ctrl + G 分组 / 取消分组。调整尺寸时按 Shift 锁定宽高比。</td></tr><tr><td>找回视野</td><td>按 F 适配全部内容；M 开关小地图。右下角可直接调整缩放。</td></tr><tr><td>写批注与结构图</td><td>使用底部画布笔记工具绘制形状、箭头、文字和图片笔记。</td></tr></tbody></table></div>
 <h3>两种画布交互方式</h3><p>在<b>设置 → 常规</b>切换交互方式：<b>Figma 模式</b>用右键或中键拖动画布、滚轮缩放；<b>经典模式</b>用左键拖动画布、Ctrl + 滚轮缩放。刚切换模式时，先在空白处试一下拖动与缩放。</p>
+<p><a href="#ai-app">AI 应用节点</a>只能由内部 Agent / MCP 创建，不能通过菜单、快捷键、复制粘贴或拖拽复制建立副本；选区或分组中含有 AI 应用时，整次复制也会被阻止。已有应用仍可移动、打开、使用和删除。</p>
 <aside class="tip"><b>连线后仍需检查输入：</b>下游是否使用了上游文本、图片或视频，取决于节点类型和模型支持。生成前打开下游编辑面板，确认实际参考素材、提示词与参数。</aside>
 <h3 id="canvas-navigation">小地图统计、缩放与大画布浏览</h3>
 <p>按 <kbd>M</kbd> 显示小地图，再把鼠标移到小地图上方，可查看各类型节点数量和总数。统计跟随当前画布中实际展示的节点；被收纳隐藏的节点不计入，不等于磁盘素材文件数。</p>
@@ -719,7 +720,7 @@ dialog .character-actions-shot{width:1912px}
 </section>
 
 <section id="assistant"><h2>15 · AI 助手与任务</h2>
-<div class="actions"><a class="action" href="#assistant-continuation">续聊与上下文</a><a class="action" href="#assistant-windows">独立窗口与草稿</a><a class="action" href="#assistant-packages">智能体与 Skill</a><a class="action" href="#assistant-memory">项目记忆与子智能体</a></div>
+<div class="actions"><a class="action" href="#assistant-continuation">续聊与上下文</a><a class="action" href="#assistant-windows">独立窗口与草稿</a><a class="action" href="#assistant-packages">智能体与 Skill</a><a class="action" href="#assistant-memory">项目记忆与子智能体</a><a class="action" href="#ai-app">AI 应用节点</a></div>
 <ol class="steps"><li>点击左侧<b>AI 助手</b>，选择可用的对话模型。</li><li>描述你的目标，例如“整理这几个镜头的顺序，并指出缺少的画面”。先说清范围和期望输出。</li><li>用 <code>@n</code> 引用节点、<code>@a</code> 引用资产、<code>@m</code> 引用模型；用 <code>/</code> 调用 Skill。引用能让助手更明确地使用指定材料。</li><li>如果要生成图片、视频或音频，建议<b>在本轮消息中显式引用目标媒体模型</b>，并说明参考素材及参数。未指定时，协作模式会弹出模型选择确认卡；自主模式可使用项目默认模型，或在项目开启自动选择后挑选模型。配置方法见<a href="#project-models">项目默认模型</a>。</li><li>选择合适模式后发送；在任务时间线查看步骤、处理确认或选择题，需要时暂停、继续或停止。</li></ol>
 <div class="table-scroll"><table><thead><tr><th>模式</th><th>适合什么情况</th><th>执行行为</th></tr></thead><tbody><tr><td>规划</td><td>先分析需求、检查现状、制定方案。</td><td>只读，不执行写入和生成。</td></tr><tr><td>协作</td><td>希望逐步审核画布、文件、配置或媒体变化。</td><td>读取可执行；写入及媒体生成需要确认。</td></tr><tr><td>自主</td><td>任务范围清晰，希望连续完成。</td><td>自动执行已授权工具，包含媒体生成、文件及配置写入；选择题仍等待用户回答。</td></tr></tbody></table></div>
 <aside class="hold"><b>自主模式可能直接产生模型费用。</b>发送前检查目标模型、任务范围和素材。创建一个媒体节点与真正调用媒体模型是两个步骤；看到节点出现，仍应查看生成步骤与最终结果。</aside>
@@ -739,6 +740,19 @@ dialog .character-actions-shot{width:1912px}
 <h3 id="assistant-memory">15.4 · 项目记忆和只读子智能体</h3>
 <p>在主窗口助手顶部打开<b>项目记忆</b>，查看作品设定、偏好及来源。需要长期沿用时，明确让助手提议记忆并检查内容；规划模式不写入，协作模式确认后保存，自主模式可直接写入。关键设定变化后，请同步核对已有记忆。</p>
 <p>在<b>子智能体</b>配置角色和允许读取的材料，再让父任务分配分析工作。子智能体只读，可辅助检查人物、剧情或镜头，不能直接写画布；父任务再根据结果及当前模式执行。每个父任务最多六个子任务，调用子智能体也可能产生模型费用。</p>
+<h3 id="ai-app">15.5 · AI 应用节点：让助手制作画布小工具</h3>
+<p>在<b>桌面版</b>打开项目后，可以让内部 Agent 或外部 MCP 客户端创建一个带界面的小工具，用来筛选素材、整理文本、展示对比或计算清单。AI 可以定义界面、交互和可重复调用的动作；节点上会标明<b>AI 应用 · 由 Agent / MCP 创建</b>。这里的画布节点与 <a href="#runninghub-import">RunningHub 平台的 AI 应用</a>分别使用各自入口。</p>
+<ol class="steps"><li>先在当前画布准备文本或图片素材，在助手消息中用 <code>@n</code> 引用要交给应用的实际节点，说明用途、界面、动作和需要保留的状态。</li><li>选择<b>协作</b>或<b>自主</b>模式发送。规划模式只分析；协作模式的创建、更新与保存需要确认，自主模式和 MCP 会话按已开放权限直接执行。</li><li>节点出现后，核对应用名称、版本、绑定素材数与动作数，点击<b>打开应用</b>。在应用内操作，或点击顶部无需必填参数的动作按钮，完成后展开<b>结果摘要</b>检查。</li><li>动作标注<b>需填写参数</b>时，在应用内填写，或让 Agent / MCP 传入参数；顶部按钮不会替你猜测必填内容。</li><li>需要保留本次筛选条件、编辑状态或结果时，等待动作完成，点击<b>保存状态与结果</b>，确认出现<b>状态与结果已保存</b>后再关闭。重新打开会从最近保存的状态开始。</li><li>需要增加功能或更换绑定素材时，在助手中引用这个应用节点并说明修改要求。新代码先经过初始化校验；更新失败会保留旧版本。应用仍可像普通节点一样移动或删除，但不能复制为新实例。</li></ol>
+<div class="code-head"><span>创建示例 · 发送前用 @n 引用实际素材节点</span><button class="action copy" type="button" data-copy="ai-app-request">复制</button></div><pre><code id="ai-app-request">请基于本条消息引用的素材创建一个 AI 应用节点，名称为“素材筛选器”。
+只读取我引用的节点，提供名称关键词输入框、筛选按钮和素材清单。
+提供可由 Agent / MCP 重复调用的筛选动作，返回匹配项的节点 ID 和名称。
+把筛选条件放入应用状态，方便我点击“保存状态与结果”后下次继续使用。</code></pre>
+<h4 id="ai-app-resources">应用能读取哪些材料</h4>
+<div class="table-scroll"><table><thead><tr><th>材料或操作</th><th>首版范围</th></tr></thead><tbody><tr><td>绑定素材</td><td>由 Agent / MCP 明确绑定当前项目的节点，最多 50 个。仅画一条连线不会增加应用的读取范围；更换材料时让助手更新绑定。</td></tr><tr><td>文本与素材信息</td><td>可读取绑定节点的名称、类型、状态和已有文本输出；每个文本节点最多提供前 2000 个字符。需要全文处理时，先让助手拆分材料或调整任务范围。</td></tr><tr><td>图片预览</td><td>可读取绑定节点的 PNG / JPEG / GIF / WebP 图片，每张不超过 2 MiB。本地图片需已保存到当前项目；仅有外部网址或其他项目文件不能直接读取。</td></tr><tr><td>动作与计算</td><td>每个应用可声明 1–12 个动作，进行只读计算并返回结构化结果。视频、音频仅提供是否存在等信息，不开放原始媒体读取。</td></tr><tr><td>画布、文件与模型</td><td>当前应用内部不修改其他节点、不创建结果节点、不调用生成模型，也不能任意读取本机文件或访问网络。需要这些操作时，继续交给助手或 MCP 的相应工具。</td></tr></tbody></table></div>
+<aside class="hold"><b>应用内状态需要单独保存。</b>画布自动保存或 Ctrl + S 不会把应用尚未保存的临时状态和结果收进项目。关闭应用、停止操作或重启后，这部分内容会丢失；重要结果先点<b>保存状态与结果</b>。运行应用动作本身不调用生成模型；让助手编写或修改应用仍会使用所选对话模型。</aside>
+<h4 id="ai-app-recovery">停止、重新加载与版本变化</h4>
+<p>动作执行中可点击<b>停止</b>。超时或无响应时应用会停止，运行与保存按钮变灰；检查提示后点击<b>重试</b>，从已保存状态重新加载。切换项目、更新代码、改变绑定素材，或在动作执行期间修改画布，都可能使旧会话失效；回到正确项目，核对节点和素材后再打开应用。重启不会继续上次在途动作。</p>
+<p>保存和更新会纳入画布操作记录，可按<a href="#canvas-history">操作记录</a>撤销或还原。更新保留已保存状态，但首版不自动迁移不兼容的旧数据；若新界面无法使用旧状态，让助手核对当前版本并明确修复。迁移电脑时使用<a href="#storage">桌面项目包</a>保留项目记录和应用定义。</p>
 </section>
 
 <section id="director"><h2>16 · 分镜制作与 3D 导演台</h2>
@@ -800,6 +814,10 @@ dialog .character-actions-shot{width:1912px}
 <p>远程 <b>Streamable HTTP</b> 是另一种传输，开启前需要确认。它当前是明文 HTTP，只用于受信网络或隔离环境；令牌鉴权不等于传输加密。同机接入无需为了使用 MCP 而改成远程传输。</p>
 <h3 id="mcp-discovery">按需发现工具</h3>
 <p>在 MCP 设置的<b>工具发现方式</b>中，默认使用按需加载。客户端先通过 <code>tools_search</code> 查找能力，必要时用 <code>tools_describe</code> 读取完整参数，再由 <code>tools_call</code> 调用；后续可以复用已经取得的参数说明。需要完整列表时可切换模式，并在客户端刷新或重连；切换列表不会改变工具权限。</p>
+<h3 id="mcp-ai-app">创建、修改和调用 AI 应用</h3>
+<p>连接后先确认当前项目，按需搜索“AI 应用”或 <code>canvas_app</code> 并读取工具参数。内部 Agent 与 MCP 共用以下能力；普通使用步骤见<a href="#ai-app">15.5 · AI 应用节点</a>。</p>
+<div class="table-scroll"><table><thead><tr><th>工具</th><th>用途与检查点</th></tr></thead><tbody><tr><td><code>canvas_app_get_sdk</code></td><td>创建或改代码前先读取界面、动作、资源与状态的实际合同和示例。</td></tr><tr><td><code>canvas_app_create</code></td><td>提交应用定义、明确的输入节点 ID 与初始状态，创建唯一实例；成功创建不代表已经运行某个动作。</td></tr><tr><td><code>canvas_app_get</code></td><td>读取动作目录、参数要求、绑定素材、版本和已保存状态 / 结果。修改代码时可明确请求完整定义。</td></tr><tr><td><code>canvas_app_update</code></td><td>更新定义或绑定素材，携带最新读取到的 <code>expectedRevision</code>；版本过期时重新读取，不覆盖别人的修改。</td></tr><tr><td><code>canvas_app_run</code></td><td>不打开界面也可执行已声明的只读动作。按动作参数要求传入数据，返回本次结果；不会自动保存状态或结果。</td></tr><tr><td><code>canvas_app_save_state</code></td><td>明确提交要保存的状态与结果 JSON，携带最新 <code>expectedRevision</code>；仅保存应用自身数据，纳入一次画布历史。</td></tr></tbody></table></div>
+<p>无界面调用从<b>最近保存的应用状态</b>启动，不共享用户当前打开界面里的临时筛选条件或编辑内容。动作使用与可见界面相同的隔离环境，只能读取绑定材料，最多运行 10 秒，不自动重试。保持主应用和目标项目打开；切换项目、改变相关内容或取消后，旧结果可能被拒绝。MCP 客户端断开不影响已经保存的节点，下次连接后先查询实际版本与结果再继续。</p>
 <h3 id="mcp-media-import">让 MCP 导入图片、媒体或界面截图</h3>
 <div class="table-scroll"><table><thead><tr><th>需求</th><th>工具与操作</th></tr></thead><tbody><tr><td>导入本机图片、视频或音频</td><td><code>file_import_media_to_canvas</code> 一次导入 1–20 项，使用已授权的本地文件；按顺序返回节点 ID，可指定位置或采用网格布局。原文件保留，不调用生成模型。</td></tr><tr><td>把客户端持有的图片传入应用</td><td><code>file_media_upload</code> 按 begin → append → finish 完成 PNG / JPEG / WebP 分块上传，再把返回的 <code>uploadId</code> 交给批量导入工具。客户端应按工具 schema 发送字节，不把整张图片 Base64 当作聊天正文。</td></tr><tr><td>粘贴系统内容</td><td><code>canvas_paste_external</code> 读取系统图片或纯文本，不等同于复制已有画布节点；不会自动访问剪贴板里的网址或文件路径。</td></tr><tr><td>把应用界面变成参考图片</td><td><code>ui_capture_to_canvas</code> 把主窗口可见界面截图保存成图片节点，过滤敏感界面元素；它不是整个桌面截图。只需查看而不添加节点时使用 <code>ui_capture_window</code>。</td></tr></tbody></table></div>
 <p>上传绑定当前项目和 MCP 会话，空闲 10 分钟会失效；完成的 uploadId 在成功导入后消费一次。可以查询上传状态或取消，再根据实际返回继续。未授权目录需要先完成授权；上传或导入期间切换项目、修改相关画布或取消，可能使本次回填失效。</p>
@@ -842,6 +860,8 @@ dialog .character-actions-shot{width:1912px}
 <details><summary>生成本集分镜后只有空表，或制作准备后没有视频</summary><p>前者先创建来源快照和空表，需要在弹出的文本生成窗口实际生成镜头；后者只准备制作节点，需要选择媒体模型并生成。完整步骤见<a href="#director">第 16 章</a>。</p></details>
 <details><summary>助手说创建完成，为什么还没有视频</summary><p>先区分“创建视频节点”和“实际生成视频”。查看任务时间线是否已调用媒体模型，实际选择了哪个媒体模型，以及生成任务是否最终返回可用结果。未显式 @ 模型时，按项目默认、自动选择或模型选择确认卡检查。</p></details>
 <details><summary>插件安装后没看到按钮</summary><p>在设置中检查是否启用，展开“详细信息”阅读入口及适用节点；打开节点右键菜单的“插件工具”二级菜单，或检查浮动工具栏。</p></details>
+<details><summary>找不到 AI 应用的创建入口，或复制节点失败</summary><p>AI 应用只能由内部 Agent / MCP 创建，没有手动添加入口。应用本身、包含它的选区或分组都不能复制；需要另一份时，让助手按新用途创建独立应用。创建步骤见<a href="#ai-app">15.5</a>。</p></details>
+<details><summary>AI 应用关闭后条件丢了，或运行与保存按钮变灰</summary><p>应用临时状态需要点击<b>保存状态与结果</b>，画布自动保存不能代替这一步。变灰时先检查是否仍在执行、必填参数未填写，或会话已停止 / 失效；按提示重试，从最近保存的状态恢复。详见<a href="#ai-app-recovery">停止与恢复</a>。</p></details>
 <details><summary>导演台操作按钮是灰色</summary><p>检查所选运行时是否可用、是否已经打开并就绪。某些操作取决于运行时支持，等待窗口打开不等于同步结果已经成功。</p></details>
 <details><summary>自动保存失败，或移动电脑后素材不见了</summary><p>先按 Ctrl + S，检查磁盘空间和存储健康。迁移用桌面项目包，并在目标电脑实际打开检查素材；重新配置本机服务、凭据和外部软件路径。</p></details>
 <p>自定义接口的 401、404、轮询不结束和结果提取失败，请查看<a href="#api-check">第 12 章排错表</a>。</p>
@@ -875,13 +895,14 @@ dialog .character-actions-shot{width:1912px}
 </section>
 
 <section id="about"><h2>说明书范围与版本</h2>
-<p>本说明书版本为 <b>0.10.1</b>，按 <b>2026-10-07</b> 当前源码与可运行界面核对。本次补充自定义协议 JSON 变量插入与共用预览、视频预设、当前草稿试跑、异步完成后下载，图片标签与单张 / 批量反推，以及 APIMart、GRSAI 模型更新；保留启动页、资源整理、工作流、助手与逐镜制作说明。说明书版本不代表已发布安装包的版本；看不到入口时核对实际构建。以 Windows 桌面版为主要操作环境，macOS 操作仅在相应功能可用时适用。</p>
+<p>本说明书版本为 <b>0.10.1</b>，主体内容按 <b>2026-10-07</b> 源码与可运行界面核对，<b>2026-10-08</b> 补充 AI 应用节点的创建、素材绑定、动作、显式保存与恢复，以及 MCP 工具用法。原有说明包括自定义协议 JSON 变量插入与共用预览、视频预设、草稿试跑、异步完成后下载、图片反推与模型更新。说明书版本不代表已发布安装包的版本；看不到入口时核对实际构建。操作说明以桌面版为主，Web 端主要用于演示。</p>
 <p>本次更新与验证范围为说明书内容、离线页面、内部导航和阅读交互；未重新执行真实模型生成、桌面文件移动 / 回收站、声音克隆、官方费用对账或桌面多窗口验收。内置工作流表示已有配置模板，不代表本机已安装依赖或所有声音效果已验收；本地费用核算不等于官方扣费。</p>
+<p>AI 应用节点当前为首版，只读绑定材料并保存自身状态；画布写入、结果节点及模型 / 文件编排仍待后续实现。已有 macOS 桌面核心验收记录，Windows / Linux 原生界面和真实外部 MCP 客户端联调仍待补充；本次说明书更新不扩大功能验收范围。</p>
 <p>共十一张内嵌截图：保留原有九张界面示意，新增当前构建的自定义视频协议 JSON 编辑器和批量反推窗口。新增截图只展示未保存的示例草稿与待执行队列，没有启动模型调用。旧截图来自此前构建，用于位置与空状态示意；按钮可用性仍取决于资料、分集和模型配置。</p>
 <p>内容依据当前版本的启动页、资源库、设置界面、应用帮助与相关操作实现核对。接口示例用于本地配置校验，<b>未调用真实厂商接口</b>；所有 example.com 地址与示例模型 ID 均为占位内容。按钮准备草稿、创建节点、实际模型生成和媒体保存是不同步骤，请按各章检查实际结果。</p>
 <p class="small">页面所需样式、脚本和十一张截图均在当前 HTML 内，无外部字体或 CDN 依赖。可直接双击离线打开；点击“返回软件首页”需同时保留 site 目录中的首页。打印按钮使用浏览器打印功能，可选择保存为 PDF。</p>
 </section>
-<footer>AI Canvas · 0.10.1 操作说明书 · 2026-10-07 核对<br>从一个节点开始，逐步完成你的创作。</footer>
+<footer>AI Canvas · 0.10.1 操作说明书 · 2026-10-08 补充核对<br>从一个节点开始，逐步完成你的创作。</footer>
 </main>
 <dialog id="zoom" aria-label="放大界面截图"><button class="action" id="zoom-close" type="button">关闭放大图（Esc）</button><div class="zoom-box"></div></dialog>
 <script>

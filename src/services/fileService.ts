@@ -1138,7 +1138,7 @@ export async function renameAssetFile(
     const assetUrl = await getAssetUrlFromPath(newPath);
     if (!assetUrl) throw new Error('无法解析改名后的图片位置');
     const move: MediaRelocation = { oldPath: path, newPath, oldAssetUrl: file.assetUrl, assetUrl, relativePath,
-      projectId: ownerId ?? 'asset-rename',
+      projectId: ownerId ?? 'asset-rename', renamedFileName: name,
       ...(source !== 'project' ? { assetMove: { assetId: identity.assetId, rootPath: root, source: source as 'global' | 'folder',
         digest: content.digest, totalBytes: content.bytes, mtimeMs: info.mtime?.getTime() ?? 0 } } : {}) };
     const next: AssetFileEntry = { ...file, assetId: identity.assetId, name, path: newPath, assetUrl, relativePath };

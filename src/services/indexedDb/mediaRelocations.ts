@@ -9,6 +9,8 @@ export interface MediaRelocation {
   relativePath: string;
   projectId: string;
   ownerId?: string;
+  /** 用户在资源库改名时，也把对应节点的标题一起更新。 */
+  renamedFileName?: string;
   /** 全局资产移动：项目引用不再使用原项目相对路径，身份保持不变。 */
   assetMove?: { assetId: string; rootPath: string; source: 'global' | 'folder'; digest: string; totalBytes: number; mtimeMs: number };
 }
@@ -80,6 +82,11 @@ export function relocateMediaReferences<T>(value: T, moves: readonly MediaReloca
       } else if ('relativePath' in record || 'filePath' in record) next.relativePath = move.relativePath;
       if (move.ownerId && 'assetId' in record) delete next.assetId;
       if ('fileName' in record) next.fileName = move.newPath.replace(/\\/g, '/').split('/').pop();
+      if (move.renamedFileName && typeof record.filePath === 'string'
+        && typeof record.type === 'string' && typeof record.label === 'string') {
+        next.label = move.renamedFileName;
+        if ('displayLabel' in record) next.displayLabel = move.renamedFileName;
+      }
       changed = true;
     }
     const result = changed ? next : item;

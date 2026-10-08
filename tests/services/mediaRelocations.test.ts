@@ -120,12 +120,55 @@ it('rolls back all references and the journal if an asset index constraint fails
 
 it('updates undo, clipboard and URL references without changing embedded prompts', async () => {
   const { relocateMediaReferences } = await import('../../src/services/indexedDb/mediaRelocations');
-  const node = { id: 'n', data: { filePath: 'D:\\p\\a.png', imageUrl: move.oldAssetUrl, prompt: `use ${move.oldPath}` } };
+  const node = { id: 'n', data: { type: 'ai-image', label: '生成图像', displayLabel: '自定义标题',
+    filePath: 'D:\\p\\a.png', imageUrl: move.oldAssetUrl, prompt: `use ${move.oldPath}` } };
   const result = relocateMediaReferences({ history: [{ nodes: [node] }], clipboard: [node] }, [move]);
   expect(result.history[0].nodes[0].data.filePath).toBe(move.newPath);
+  expect(result.history[0].nodes[0].data).toMatchObject({ label: '生成图像', displayLabel: '自定义标题' });
   expect(result.clipboard[0].data.imageUrl).toBe(move.assetUrl);
   expect(result.clipboard[0].data.prompt).toBe(`use ${move.oldPath}`);
   expect(node.data.filePath).toBe('D:\\p\\a.png');
+});
+
+it('syncs renamed media node titles in the canvas, undo and clipboard without renaming reference owners', async () => {
+  const { relocateMediaReferences } = await import('../../src/services/indexedDb/mediaRelocations');
+  const renamedFileName = '森系_4.png';
+  const rename = { ...move, newPath: `D:/p/${renamedFileName}`, relativePath: renamedFileName, renamedFileName };
+  const nodes = [
+    { id: 'generated', data: { type: 'ai-image', label: '生成图像', filePath: 'D:\\p\\a.png' } },
+    { id: 'source', data: { type: 'source-image', label: '粘贴图像', fileName: 'a.png', filePath: move.oldPath } },
+    { id: 'custom', data: { type: 'ai-image', label: '生成图像', displayLabel: '旧标题', filePath: move.oldPath } },
+  ];
+  const owner = { type: 'ai-video', label: '视频标题', filePath: 'D:/p/other.mp4',
+    reference: { path: move.oldPath, label: '参考图' } };
+  const result = relocateMediaReferences({ nodes, history: [{ nodes }], clipboard: nodes, owner }, [rename]);
+  for (const entries of [result.nodes, result.history[0].nodes, result.clipboard]) {
+    for (const node of entries) expect(node.data).toMatchObject({ label: renamedFileName, filePath: rename.newPath });
+    expect(entries[1].data.fileName).toBe(renamedFileName);
+    expect(entries[2].data.displayLabel).toBe(renamedFileName);
+  }
+  expect(result.owner).toEqual({ ...owner, reference: { path: rename.newPath, label: '参考图' } });
+  expect(nodes[0].data.label).toBe('生成图像');
+});
+
+it('persists renamed node titles across projects and repairs stale project saves through the journal', async () => {
+  const { openDB } = await import('../../src/services/indexedDb/schema');
+  const service = await import('../../src/services/indexedDb/mediaRelocations');
+  const db = await openDB();
+  const renamedFileName = '森系_4.png';
+  const rename = { ...move, newPath: `D:/p/${renamedFileName}`, relativePath: renamedFileName, renamedFileName };
+  const original = { id: 'p', nodes: [{ id: 'n', data: { type: 'ai-image', label: '生成图像',
+    displayLabel: '旧标题', filePath: move.oldPath, imageUrl: move.oldAssetUrl } }] };
+  for (const id of ['p', 'other-project']) await put(db, 'projects', { ...original, id });
+  await service.persistMediaRelocation(rename);
+  await service.completeMediaRelocation(rename);
+  const expected = { ...original.nodes[0].data, label: renamedFileName, displayLabel: renamedFileName,
+    filePath: rename.newPath, imageUrl: rename.assetUrl, relativePath: renamedFileName };
+  for (const id of ['p', 'other-project']) {
+    expect((await read(db, 'projects', id))?.nodes).toEqual([{ id: 'n', data: expected }]);
+  }
+  const moves = (await read(db, 'metadata', 'media-relocations'))?.moves as MediaRelocation[];
+  expect((await replayJournal(db, original, moves)).nodes[0].data).toEqual(expected);
 });
 
 it('splits shared owners before moving the final owner and normalizes stale shared writes in order', async () => {
