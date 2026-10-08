@@ -13,7 +13,7 @@ function paintPolishBadge(ctx: CanvasRenderingContext2D, width: number, height: 
   ctx.fill();
 }
 // 生成中的思考球：仅在生成时按需加载
-const ThinkingOrb = lazy(() => import('thinking-orbs').then((m) => ({ default: m.ThinkingOrb })));
+const ThinkingOrb = lazy(() => import('../../../vendor/generation-effects/thinking-orbs/src').then((m) => ({ default: m.ThinkingOrb })));
 import type {
   AnimationAction,
   CameraAperture,
