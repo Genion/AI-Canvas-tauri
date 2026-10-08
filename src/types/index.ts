@@ -15,6 +15,7 @@ import type { ShotlistColumnKey, ShotRow, ShotlistScriptSource, ShotlistProducti
 import type { Locale } from '../i18n';
 import type { McpToolExposure } from './mcp';
 import type { AnimationFrameEdit, AnimationProcessing, AnimationSheet } from './animation';
+import type { AiAppReference } from './aiApp';
 
 export type {
   CanvasDrawingTool,
@@ -116,6 +117,7 @@ export type NodeType =
   | 'ai-storyboard'
   | 'ai-shotlist'
   | 'ai-director'
+  | 'ai-app'
   | 'source-image'
   | 'source-video'
   | 'source-audio'
@@ -213,6 +215,7 @@ export interface VideoFrameAnalysisData {
 export interface BaseNodeData {
   label: string;
   type: NodeType;
+  aiApp?: AiAppReference;
   displayId?: number;         // 节点展示编号（#10, #11, ...）
   role?: 'generator' | 'source'; // 节点角色：生成器（有AI对话框） vs 源节点（上传/粘贴内容）
   fileName?: string;           // 上传的文件名（源节点使用）

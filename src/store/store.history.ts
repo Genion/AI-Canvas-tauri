@@ -44,6 +44,7 @@ const STRUCTURAL_NODE_DATA_KEYS = [
   'directorPrevisPrompt',
   'directorPrevisModel',
   'directorPrevisProvider',
+  'aiApp',
 ] as const satisfies readonly (keyof BaseNodeData)[];
 const LAYOUT_NODE_DATA_KEYS = [
   'nodeWidth',
@@ -216,6 +217,7 @@ function restoreStructuralNode(
   }
 
   const data = { ...current.data };
+  if (target.data.type === 'ai-app') data.label = target.data.label;
   if (target.data.type === 'ai-animation') {
     for (const key of ANIMATION_MEDIA_KEYS) {
       if (Object.prototype.hasOwnProperty.call(target.data, key)) data[key] = target.data[key] as never;

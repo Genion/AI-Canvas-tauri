@@ -35,6 +35,7 @@ import { getCanvasPointerPosition } from '../services/canvasPointerService';
 import { resolveDirectorRuntime } from '../services/directorRuntimeRegistry';
 import { copyNodeMedia, needsNodeMediaCopy, discardCopiedNodeMedia } from '../services/nodeMediaCopy';
 import { registerCanvasDerivation, isCanvasDerivationFresh, completeCanvasDerivation } from '../services/canvasDerivationGuard';
+import { AI_APP_COPY_MESSAGE, AI_APP_CREATION_MESSAGE, assertAiAppNodeInsertion, isAiAppNode } from '../services/aiApps/aiAppCreation';
 
 interface GroupNodeDataAccess {
   groupId: string;
@@ -298,6 +299,23 @@ function insertNodeInGroup(state: Pick<AppState, 'nodes' | 'groups'>, node: Node
   };
 }
 
+function insertPreparedNode(state: AppState, node: Node<BaseNodeData>) {
+  const displayId = getNextDisplayId(state.nodes);
+  const settings = state.projects.find((project) => project.id === state.currentProjectId)?.settings;
+  const data = applyProjectDefaultsToNodeData(node.data, settings);
+  return insertNodeInGroup(state, prepareNodeForInsertion(node, data, displayId));
+}
+
+function appendPreparedNodes(state: AppState, nodes: Node<BaseNodeData>[]): Node<BaseNodeData>[] {
+  const nextNodes = [...state.nodes];
+  const settings = state.projects.find((project) => project.id === state.currentProjectId)?.settings;
+  for (const node of nodes) {
+    const data = applyProjectDefaultsToNodeData(node.data, settings);
+    nextNodes.push(prepareNodeForInsertion(node, data, getNextDisplayId(nextNodes)));
+  }
+  return nextNodes;
+}
+
 function prepareDuplicateNodeData(
   data: BaseNodeData,
   nodeType: string | undefined,
@@ -347,6 +365,10 @@ export function collectKeepPaths(
 }
 
 function mergeNodeData(previous: BaseNodeData, patch: Partial<BaseNodeData>): BaseNodeData {
+  if ('type' in patch && patch.type !== previous.type
+    && (patch.type === 'ai-app' || previous.type === 'ai-app')) {
+    throw new Error(AI_APP_CREATION_MESSAGE);
+  }
   const next = { ...previous, ...patch } as BaseNodeData;
   if (previous.type === 'ai-video' && previous.shotlistProductionSource?.kind === 'video'
     && 'seedanceDuration' in patch && patch.seedanceDuration !== previous.seedanceDuration) {
@@ -608,26 +630,21 @@ export const createNodeSlice: StateCreator<AppState, [], [], NodeSlice> = (set, 
   setSelectedNodeIds: (ids) => set({ selectedNodeIds: ids }),
 
   addNode: (node) => {
+    assertAiAppNodeInsertion([node]);
     get().commitToHistory();
-    get().addNodeTransient(node);
+    set((state) => insertPreparedNode(state, node));
   },
 
   addNodeTransient: (node) => {
-    set((state) => {
-      const displayId = getNextDisplayId(state.nodes);
-      const settings = state.projects.find((project) => project.id === state.currentProjectId)?.settings;
-      const data = applyProjectDefaultsToNodeData(node.data, settings);
-      return insertNodeInGroup(state, prepareNodeForInsertion(node, data, displayId));
-    });
+    assertAiAppNodeInsertion([node]);
+    set((state) => insertPreparedNode(state, node));
   },
 
   addNodeWithEdge: (node, edge) => {
+    assertAiAppNodeInsertion([node]);
     get().commitToHistory();
     set((state) => {
-      const displayId = getNextDisplayId(state.nodes);
-      const settings = state.projects.find((project) => project.id === state.currentProjectId)?.settings;
-      const data = applyProjectDefaultsToNodeData(node.data, settings);
-      const inserted = insertNodeInGroup(state, prepareNodeForInsertion(node, data, displayId));
+      const inserted = insertPreparedNode(state, node);
       const connected = appendConnectionMentions(inserted.nodes, [edge], state.config?.autoMentionOnConnect);
       return {
         ...inserted,
@@ -639,15 +656,10 @@ export const createNodeSlice: StateCreator<AppState, [], [], NodeSlice> = (set, 
 
   addNodesWithEdges: (nodes, edges) => {
     if (nodes.length === 0) return;
+    assertAiAppNodeInsertion(nodes);
     get().commitToHistory();
     set((state) => {
-      const nextNodes = [...state.nodes];
-      const settings = state.projects.find((project) => project.id === state.currentProjectId)?.settings;
-      for (const node of nodes) {
-        const displayId = getNextDisplayId(nextNodes);
-        const data = applyProjectDefaultsToNodeData(node.data, settings);
-        nextNodes.push(prepareNodeForInsertion(node, data, displayId));
-      }
+      const nextNodes = appendPreparedNodes(state, nodes);
       const connected = appendConnectionMentions(nextNodes, edges, state.config?.autoMentionOnConnect);
       return {
         nodes: connected.nodes,
@@ -658,22 +670,15 @@ export const createNodeSlice: StateCreator<AppState, [], [], NodeSlice> = (set, 
 
   addNodes: (nodes) => {
     if (nodes.length === 0) return;
+    assertAiAppNodeInsertion(nodes);
     get().commitToHistory();
-    get().addNodesTransient(nodes);
+    set((state) => ({ nodes: appendPreparedNodes(state, nodes) }));
   },
 
   addNodesTransient: (nodes) => {
     if (nodes.length === 0) return;
-    set((state) => {
-      const nextNodes = [...state.nodes];
-      const settings = state.projects.find((project) => project.id === state.currentProjectId)?.settings;
-      for (const node of nodes) {
-        const displayId = getNextDisplayId(nextNodes);
-        const data = applyProjectDefaultsToNodeData(node.data, settings);
-        nextNodes.push(prepareNodeForInsertion(node, data, displayId));
-      }
-      return { nodes: nextNodes };
-    });
+    assertAiAppNodeInsertion(nodes);
+    set((state) => ({ nodes: appendPreparedNodes(state, nodes) }));
   },
 
   createMediaPlaceholder: (intent, requestedPosition) => {
@@ -822,10 +827,9 @@ export const createNodeSlice: StateCreator<AppState, [], [], NodeSlice> = (set, 
   },
 
   updateNodeData: (nodeId, data) => {
+    const nodes = mergeNodeDataWithShotDurations(get().nodes, new Set([nodeId]), data);
     get().commitToHistory();
-    set((state) => ({
-      nodes: mergeNodeDataWithShotDurations(state.nodes, new Set([nodeId]), data),
-    }));
+    set({ nodes });
   },
 
   updateNodeDataTransient: (nodeId, data) => {
@@ -844,11 +848,9 @@ export const createNodeSlice: StateCreator<AppState, [], [], NodeSlice> = (set, 
 
   updateNodesDataBatch: (nodeIds, data) => {
     if (nodeIds.length === 0) return;
-    const targetIds = new Set(nodeIds);
+    const nodes = mergeNodeDataWithShotDurations(get().nodes, new Set(nodeIds), data);
     get().commitToHistory();
-    set((state) => ({
-      nodes: mergeNodeDataWithShotDurations(state.nodes, targetIds, data),
-    }));
+    set({ nodes });
   },
 
   linkNodeToCharacter: (nodeId, link, hideNode) => {
@@ -949,6 +951,7 @@ export const createNodeSlice: StateCreator<AppState, [], [], NodeSlice> = (set, 
     const src = state.nodes.find((n) => n.id === nodeId);
     // 分组节点暂不支持拖拽复制（涉及子节点/边重映射）
     if (!src || src.type === 'group') return;
+    if (isAiAppNode(src)) { state.showToast(AI_APP_COPY_MESSAGE, 'error'); return; }
     let duplicateData = src.data;
     if (needsNodeMediaCopy(src.data)) {
       const guard = registerCanvasDerivation(state, nodeId);
@@ -1354,6 +1357,7 @@ export const createNodeSlice: StateCreator<AppState, [], [], NodeSlice> = (set, 
   },
 
   addNodeFromSelection: (node, sourceIds, projectId) => {
+    assertAiAppNodeInsertion([node]);
     const state = get();
     const sources = resolveBatchSources(state, sourceIds, projectId, node.id);
     if (!sources || !isBatchConnectableNode(node) || state.nodes.some((item) => item.id === node.id)) return false;
@@ -1375,6 +1379,9 @@ export const createNodeSlice: StateCreator<AppState, [], [], NodeSlice> = (set, 
   },
 
   onNodesChange: (changes) => {
+    assertAiAppNodeInsertion(changes.flatMap((change) => (
+      change.type === 'add' || change.type === 'replace' ? [change.item] : []
+    )));
     const removedIds = changes
       .filter((c) => c.type === 'remove')
       .map((c) => c.id);

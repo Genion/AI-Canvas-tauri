@@ -31,6 +31,7 @@ import ShotlistNode from './nodes/ShotlistNode';
 import GroupNode from './nodes/GroupNode';
 import CanvasNoteNode from './noteNodes/CanvasNoteNode';
 import PluginNode from './nodes/PluginNode';
+import AiAppNode from './nodes/AiAppNode';
 import NodeRenderBoundary from './nodes/shared/NodeRenderBoundary';
 import CanvasNodeLodBoundary from './nodes/shared/CanvasNodeLodBoundary';
 import { CanvasNodeLodContext } from '../hooks/useCanvasNodeLod';
@@ -148,6 +149,7 @@ const nodeTypes: NodeTypes = withNodeRenderBoundaries({
   group: GroupNode,
   'canvas-note': CanvasNoteNode,
   'plugin-node': PluginNode,
+  'ai-app': AiAppNode,
 });
 
 const edgeTypes: EdgeTypes = {
