@@ -97,7 +97,14 @@ describe('plugin developer CLI', () => {
       await waitOutput('构建完成', offset);
       expect(await readFile(join(root, 'main.js'), 'utf8')).toContain('WATCH_RECOVERED');
       child.kill('SIGINT');
-      expect(await exited).toBe(0);
+      const code = await exited;
+      // Windows 的 kill 不会向 Node 派发可捕获的 POSIX SIGINT，而是终止进程。
+      if (process.platform === 'win32') {
+        expect(code).toBeNull();
+        expect(child.signalCode).toBe('SIGINT');
+      } else {
+        expect(code).toBe(0);
+      }
     } finally {
       if (child && child.exitCode === null && child.signalCode === null) { child.kill('SIGKILL'); await exited; }
       await rm(temporary, { recursive: true, force: true });
