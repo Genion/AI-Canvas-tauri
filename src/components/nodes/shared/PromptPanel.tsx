@@ -790,6 +790,7 @@ export default function PromptPanel({
   const runninghubModel = selectedProvider === 'runninghub' ? getRunningHubModel(selectedModel, true) : undefined;
   const runninghubWorkflow = workflows?.find((workflow) => workflow.id === selectedWorkflowId && workflow.adapterType === 'runninghub');
   const workflowApi = workflows?.find((workflow) => workflow.id === selectedWorkflowId && workflow.adapterType === 'workflow-api');
+  const generatingFallback = <span className="ui-spinner" role="img" aria-label={t('生成中')} />;
   const submitButton = (
     <button
       type="button"
@@ -807,8 +808,8 @@ export default function PromptPanel({
       onClick={handleSubmitClick}
     >
       {isGenerating && !performanceMode ? (
-        <LazyLoadBoundary label="生成按钮动画" errorFallback={<span aria-label={t('生成中')}>…</span>}>
-          <Suspense fallback={null}>
+        <LazyLoadBoundary label="生成按钮动画" errorFallback={generatingFallback}>
+          <Suspense fallback={generatingFallback}>
             <ThinkingOrb state="composing" size={20} aria-label={t('生成中')} />
           </Suspense>
         </LazyLoadBoundary>
@@ -1080,8 +1081,8 @@ export default function PromptPanel({
               >
                 {!performanceMode && (
                   <span className="prompt-stop-orb" aria-hidden="true">
-                    <LazyLoadBoundary label="停止按钮动画" errorFallback={null}>
-                      <Suspense fallback={null}>
+                    <LazyLoadBoundary label="停止按钮动画" errorFallback={generatingFallback}>
+                      <Suspense fallback={generatingFallback}>
                         <ThinkingOrb state="composing" size={20} />
                       </Suspense>
                     </LazyLoadBoundary>
