@@ -2223,6 +2223,12 @@
           "markdownDescription": "Allows registered AI Canvas application commands for trusted first-party windows."
         },
         {
+          "description": "Allows the main window to consume its one-shot WebContent recovery status.",
+          "type": "string",
+          "const": "allow-main-webview-recovery",
+          "markdownDescription": "Allows the main window to consume its one-shot WebContent recovery status."
+        },
+        {
           "description": "Allows only the native-registered plugin window session bridge.",
           "type": "string",
           "const": "allow-plugin-ui-window-request",

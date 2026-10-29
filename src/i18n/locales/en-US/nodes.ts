@@ -67,7 +67,7 @@ const nodes = {
   "一键生成场景多视图": "Generate multiple scene views",
   "一键生成场景多视图和全景图": "Generate multiple scene views and panoramas",
   "一键生成故事板分镜": "Generate a storyboard",
-  "上排双面部特写，下排正侧面颈部以下、背面带头 · 4:5": "Two face close-ups above; front/side below the neck and full back view below · 4:5",
+  "上排双面部特写，下排正侧背均为颈根以下 · 4:5": "Two face close-ups above; front, side, and back below the neck · 4:5",
   "人物三视图": "Character turnaround",
   "人物三视图＋双面部特写": "Character turnaround + dual face close-ups",
   "人设参考": "Character design reference",
