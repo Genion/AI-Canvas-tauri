@@ -4,6 +4,58 @@
  * 提取自 generateImage / generateText 中重复的 `!response.ok → 解析 errorBody → throw` 样板。
  */
 
+/** 保留 HTTP 判定所需的有限元数据，不保留响应正文或原始 payload。 */
+export class HttpResponseError extends Error {
+  readonly status: number;
+  readonly definitiveFailure: boolean;
+
+  constructor(status: number, message: string, definitiveFailure = false) {
+    super(message);
+    this.name = 'HttpResponseError';
+    this.status = status;
+    this.definitiveFailure = definitiveFailure;
+  }
+}
+
+/** 提交信息等包装不能丢失 HTTP 判定；仅沿有界 cause 链查找真实错误实例。 */
+export function getHttpResponseError(error: unknown): HttpResponseError | undefined {
+  const seen = new Set<Error>();
+  for (let depth = 0; depth < 8 && error instanceof Error && !seen.has(error); depth++) {
+    if (error instanceof HttpResponseError) return error;
+    seen.add(error);
+    error = error.cause;
+  }
+  return undefined;
+}
+
+const DEFINITIVE_REJECTION_CODES = new Set([
+  'invalid_api_key', 'invalid_request_error', 'invalid_request', 'model_not_found',
+  'permission_denied', 'insufficient_quota', 'insufficient_balance',
+  'billing_hard_limit_reached', 'rate_limit_exceeded', 'content_policy_violation',
+]);
+
+function responseRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
+}
+
+/** 只认 HTTP 拒绝、有限拒绝码或明确 failed 终态，不能从任意 message 推断未生成。 */
+export function classifyHttpResponseFailure(status: number, payload: unknown): boolean {
+  // 网关等待超时不能证明上游没接受生成，即使错误正文写了 timeout/failed。
+  if (status === 408 || status === 504) return false;
+  if (status >= 400 && status < 500 && status !== 429) return true;
+  const record = responseRecord(payload);
+  if (!record) return false;
+  const data = responseRecord(record.data);
+  const candidates = [record, responseRecord(record.error), data, responseRecord(data?.error), responseRecord(record.task)];
+  if (candidates.some((item) => item && typeof item.status === 'string' && item.status.trim().toLowerCase() === 'failed')) return true;
+  if (Array.isArray(record.data) && record.data.length > 0 && record.data.every((item) => {
+    const result = responseRecord(item);
+    return typeof result?.status === 'string' && result.status.trim().toLowerCase() === 'failed';
+  })) return true;
+  return candidates.some((item) => item && [item.code, item.type].some((code) => typeof code === 'string'
+    && DEFINITIVE_REJECTION_CODES.has(code.trim().toLowerCase())));
+}
+
 /**
  * 解析 fetch 响应的错误信息并抛出。
  *
@@ -19,11 +71,13 @@ export async function parseResponseError(response: Response, defaultMsg: string)
   const isHtml = /text\/html/i.test(response.headers.get('Content-Type') ?? '')
     || /^\s*(?:<!doctype\s+html\b|<html\b)/i.test(errorBody);
   if (response.status === 504 && (isHtml || !errorBody.trim())) {
-    throw new Error(`${defaultMsg}：网关等待上游响应超时（HTTP 504）。本次生成结果尚未确认，请先检查服务商任务记录，再决定是否重新生成。`);
+    throw new HttpResponseError(response.status, `${defaultMsg}：网关等待上游响应超时（HTTP 504）。本次生成结果尚未确认，请先检查服务商任务记录，再决定是否重新生成。`);
   }
   let errorMsg = defaultMsg;
+  let definitiveFailure = classifyHttpResponseFailure(response.status, undefined);
   try {
     const payload = JSON.parse(errorBody) as unknown;
+    definitiveFailure = classifyHttpResponseFailure(response.status, payload);
     if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
       const record = payload as Record<string, unknown>;
       const error = record.error;
@@ -57,7 +111,7 @@ export async function parseResponseError(response: Response, defaultMsg: string)
   if (/^upstream request failed[.!]?$/i.test(errorMsg.trim())) {
     errorMsg += `（HTTP ${response.status}）`;
   }
-  throw new Error(errorMsg);
+  throw new HttpResponseError(response.status, errorMsg, definitiveFailure);
 }
 
 /**

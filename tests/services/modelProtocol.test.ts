@@ -28,12 +28,13 @@ import {
 } from '../../src/services/ai/modelProtocolHttp';
 import { PollTaskFailedError, PollTimeoutError } from '../../src/services/pollTask';
 import { buildGeneralVideoProtocolVariables } from '../../src/services/ai/generateVideo';
-import { getPendingTasksForProject, MediaTaskPausedError, VideoPollingPausedError } from '../../src/services/pollManager';
+import { getPendingTasksForProject, MediaTaskPausedError, resumePendingTasks, savePendingTask, VideoPollingPausedError } from '../../src/services/pollManager';
 import {
   assertImageModelCapability, assertModelCapabilityProtocol, resolveConfiguredImageParameters, resolveConfiguredImageQuality,
   resolveConfiguredImageBackground,
 } from '../../src/services/ai/modelCapabilityValidation';
 import { RELAYON_MODEL_MANIFEST, RELAYON_VIDEO_RESULT_URL_PATHS } from '../../src/services/ai/providers/relayonModelManifest';
+import { getHttpResponseError, HttpResponseError } from '../../src/services/ai/httpUtils';
 
 const jsonResponse = (
   payload: unknown,
@@ -51,6 +52,145 @@ beforeEach(() => {
 const pngResult = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/vYkAAAAASUVORK5CYII='), (char) => char.charCodeAt(0));
 const wavResult = Uint8Array.from(pcmS16LeToWav(new Uint8Array([0, 0]), 24000, 1));
 const encodedResult = (bytes: Uint8Array, mime: string) => `data:${mime};base64,${btoa(String.fromCharCode(...bytes))}`;
+
+describe('structured submission failures', () => {
+  const protocol: ModelExecutionProtocol = { version: 2, mode: 'async',
+    submit: { method: 'POST', path: '/images', body: { prompt: '{{prompt}}' } },
+    response: { type: 'json', taskIdPath: 'id', errorPath: 'error.message' },
+    poll: { method: 'GET', path: '/tasks/{{submit.id}}', retry: { maxRetries: 0 },
+      response: { statusPath: 'status', successValues: ['completed'], failureValues: ['failed'], result: { urlPath: 'url' } } } };
+
+  async function configuredRequest(response: Response | Error, queryResponse?: Response) {
+    const previous = useAppStore.getState();
+    localStorage.clear();
+    useAppStore.setState({ currentProjectId: 'structured-submit-project', nodes: [],
+      config: { ...previous.config, providers: { ...previous.config.providers,
+        'structured-submit': { name: 'Fixture', baseUrl: 'https://gateway.example/v1', apiKey: 'private-fixture-key' } } } });
+    const fetchMock = response instanceof Error ? vi.fn().mockRejectedValueOnce(response) : vi.fn().mockResolvedValueOnce(response);
+    if (queryResponse) fetchMock.mockResolvedValueOnce(queryResponse);
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const error = await runConfiguredModelProtocol({ category: 'image', nodeId: 'structured-node',
+        model: { id: 'structured', name: 'Fixture', modelId: 'fixture', category: 'image', providerConfigId: 'structured-submit',
+          executionProfile: { preset: 'custom', protocol } }, variables: { prompt: 'scene' } }).catch((reason: unknown) => reason);
+      return { error, tasks: getPendingTasksForProject('structured-submit-project'), fetchMock };
+    } finally {
+      localStorage.clear();
+      useAppStore.setState(previous, true);
+    }
+  }
+
+  it.each([
+    { status: 200, payload: { error: { code: 'rate_limit_exceeded', message: 'Request rejected' } } },
+    { status: 429, payload: { error: { code: 'rate_limit_exceeded', message: 'Request rejected' } } },
+    { status: 500, payload: { error: { code: 'insufficient_quota', message: 'Request rejected' } } },
+    { status: 200, payload: { status: 'failed', error: { message: 'Generation failed' } } },
+  ])('removes only a confirmed rejection before a task ID was accepted (HTTP $status)', async ({ status, payload }) => {
+    const { error, tasks, fetchMock } = await configuredRequest(jsonResponse(payload, status));
+    expect(error).toBeInstanceOf(ModelProtocolHttpError);
+    expect(error).toMatchObject({ status, definitiveFailure: true });
+    expect(tasks).toEqual([]);
+    expect(fetchMock).toHaveBeenCalledExactlyOnceWith('https://gateway.example/v1/images', expect.objectContaining({ method: 'POST' }));
+  });
+
+  it.each([
+    jsonResponse({ status: 'failed', error: { code: 'rate_limit_exceeded', message: 'Gateway timeout' } }, 504),
+    jsonResponse({ error: { code: 'upstream_error', message: 'Upstream unavailable' } }, 500),
+    jsonResponse({ message: 'rate_limit_exceeded' }, 429),
+    new TypeError('connection interrupted'),
+  ])('retains uncertain submissions without an automatic retry %#', async (response) => {
+    const { error, tasks, fetchMock } = await configuredRequest(response);
+    expect(error).toBeInstanceOf(MediaTaskPausedError);
+    expect(tasks).toEqual([expect.objectContaining({ submitted: false, taskId: '', mediaRecoveryState: 'submit_unknown' })]);
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it('preserves an accepted task when a later query receives a definitive HTTP rejection', async () => {
+    const { error, tasks, fetchMock } = await configuredRequest(jsonResponse({ id: 'accepted-original' }),
+      jsonResponse({ error: { code: 'invalid_api_key', message: 'Query denied' } }, 401));
+    expect(error).toBeInstanceOf(MediaTaskPausedError);
+    expect(tasks).toEqual([expect.objectContaining({ submitted: true, taskId: 'accepted-original', mediaRecoveryState: 'query_paused' })]);
+    expect(fetchMock.mock.calls.map(([, init]) => init?.method)).toEqual(['POST', 'GET']);
+  });
+
+  it('accepts usable results and IDs without treating an empty errorPath as a failure', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({ id: 'accepted', error: { message: '' } }))
+      .mockResolvedValueOnce(jsonResponse({ data: [{ url: 'https://cdn.example/result.png' }], error: false, status: 'completed' }));
+    vi.stubGlobal('fetch', fetchMock);
+    expect(await submitModelProtocol({ protocol, apiKey: 'fixture', baseUrl: 'https://gateway.example/v1', variables: {} }))
+      .toMatchObject({ taskId: 'accepted' });
+    const sync: ModelExecutionProtocol = { version: 2, mode: 'sync', submit: protocol.submit,
+      response: { type: 'json', errorPath: 'error', result: { urlPath: 'data.*.url' } } };
+    expect(await submitModelProtocol({ protocol: sync, apiKey: 'fixture', baseUrl: 'https://gateway.example/v1', variables: {} }))
+      .toEqual({ urls: ['https://cdn.example/result.png'] });
+  });
+
+  it('does not infer failure from a numeric provider code or override a usable result with unrelated error metadata', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({ code: 500, id: 'accepted-original',
+      error: { code: 'rate_limit_exceeded' } }))
+      .mockResolvedValueOnce(jsonResponse({ status: 'failed', data: [{ url: 'https://cdn.example/result.png' }], error: { code: 'invalid_request' } }))
+      .mockResolvedValueOnce(jsonResponse({ code: 500, message: 'Private numeric codes require a provider contract' }));
+    vi.stubGlobal('fetch', fetchMock);
+    const options = { apiKey: 'fixture', baseUrl: 'https://gateway.example/v1', variables: {} };
+    expect(await submitModelProtocol({ ...options, protocol })).toMatchObject({ taskId: 'accepted-original' });
+    const sync: ModelExecutionProtocol = { version: 2, mode: 'sync', submit: protocol.submit,
+      response: { type: 'json', result: { urlPath: 'data.*.url' }, errorPath: 'error.message' } };
+    expect(await submitModelProtocol({ ...options, protocol: sync })).toEqual({ urls: ['https://cdn.example/result.png'] });
+    const unknown = await submitModelProtocol({ ...options, protocol }).catch((error: unknown) => error);
+    expect(unknown).toBeInstanceOf(Error);
+    expect(getHttpResponseError(unknown)).toBeUndefined();
+  });
+
+  it.each(['submit-rejected', 'task-failed'] as const)('clears only the original failed receipt after a project switch: %s', async (phase) => {
+    const previous = useAppStore.getState();
+    localStorage.clear();
+    useAppStore.setState({ currentProjectId: 'original-project', nodes: [], config: { ...previous.config,
+      providers: { ...previous.config.providers, 'original-connection': { name: 'Fixture', apiKey: 'fixture', baseUrl: 'https://gateway.example/v1' } } } });
+    let finish!: (response: Response) => void;
+    const heldResponse = new Promise<Response>((resolve) => { finish = resolve; });
+    const fetchMock = phase === 'submit-rejected' ? vi.fn().mockReturnValueOnce(heldResponse)
+      : vi.fn().mockResolvedValueOnce(jsonResponse({ id: 'accepted-original' })).mockReturnValueOnce(heldResponse);
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const pending = runConfiguredModelProtocol({ category: 'image', nodeId: 'same-node',
+        model: { id: 'fixture', name: 'Fixture', modelId: 'fixture', category: 'image', providerConfigId: 'original-connection',
+          executionProfile: { preset: 'custom', protocol } }, variables: {} }).catch((error: unknown) => error);
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(phase === 'submit-rejected' ? 1 : 2));
+      useAppStore.setState({ currentProjectId: 'new-project' });
+      const otherReceipt = savePendingTask({ nodeId: 'same-node', projectId: 'new-project', nodeType: 'ai-image',
+        provider: 'general', providerConfigId: 'original-connection', taskType: 'custom-protocol', taskId: 'unrelated-new-task', submitted: true });
+      finish(jsonResponse(phase === 'submit-rejected' ? { error: { code: 'rate_limit_exceeded', message: 'Rejected' } }
+        : { status: 'failed', error: { message: 'Task failed' } }));
+      expect(await pending).toBeInstanceOf(phase === 'submit-rejected' ? ModelProtocolHttpError : PollTaskFailedError);
+      expect(getPendingTasksForProject('original-project')).toEqual([expect.objectContaining({ terminalFailure: true })]);
+      expect(getPendingTasksForProject('new-project')).toEqual([expect.objectContaining(otherReceipt)]);
+      useAppStore.setState({ currentProjectId: 'original-project', nodes: [{ id: 'same-node', type: 'ai-image',
+        position: { x: 0, y: 0 }, data: { type: 'ai-image', label: 'Original', status: 'loading' } }] });
+      await resumePendingTasks('original-project');
+      expect(useAppStore.getState().nodes[0].data).toMatchObject({ status: 'error', mediaTaskState: undefined });
+      expect(getPendingTasksForProject('original-project')).toEqual([]);
+      expect(getPendingTasksForProject('new-project')).toEqual([expect.objectContaining(otherReceipt)]);
+      expect(fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1);
+    } finally {
+      localStorage.clear();
+      useAppStore.setState(previous, true);
+    }
+  });
+
+  it('keeps safe HTTP failure metadata when redacting direct or wrapped errors', () => {
+    const direct = new ModelProtocolHttpError(429, 'Rejected private-fixture-key', 2500, true);
+    expect(redactModelProtocolError(direct, 'private-fixture-key')).toMatchObject({ status: 429, retryAfterMs: 2500,
+      definitiveFailure: true, message: 'Rejected [REDACTED]' });
+    const wrapped = new Error('Rejected private-fixture-key', { cause: new HttpResponseError(200, 'Explicit failure', true) });
+    const redacted = redactModelProtocolError(wrapped, 'private-fixture-key');
+    expect(getHttpResponseError(redacted)).toMatchObject({ status: 200, definitiveFailure: true, message: 'Rejected [REDACTED]' });
+    expect(redacted).not.toHaveProperty('cause');
+    const hidden = redactModelProtocolError(new Error('Submission context', { cause: direct }), 'private-fixture-key');
+    expect(hidden).toBeInstanceOf(ModelProtocolHttpError);
+    expect(hidden).toMatchObject({ status: 429, retryAfterMs: 2500, definitiveFailure: true, message: 'Submission context' });
+    expect(hidden).not.toHaveProperty('cause');
+  });
+});
 
 async function mp4Result(): Promise<Uint8Array<ArrayBuffer>> {
   const { Output, BufferTarget, Mp4OutputFormat, EncodedVideoPacketSource, EncodedPacket } = await import('mediabunny');

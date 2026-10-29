@@ -28,6 +28,16 @@ function MediaTaskStatus({ nodeId, overlay = false }: { nodeId: string; overlay?
     : (authorizationMessage ? t(authorizationMessage) : task.videoRecoveryMessage) || (deliveryPending
       ? t('媒体已生成，保存或回填尚未完成；可继续取回原结果。')
       : t('查询已暂停，任务已保留'));
+  const diagnostic = task.mediaFailureDiagnostic;
+  const httpStatus = diagnostic?.kind === 'http' && typeof diagnostic.httpStatus === 'number'
+    && Number.isInteger(diagnostic.httpStatus) && diagnostic.httpStatus >= 400 && diagnostic.httpStatus <= 599
+    ? diagnostic.httpStatus : undefined;
+  const diagnosticMessage = httpStatus !== undefined
+    ? t(httpStatus === 504 || httpStatus === 408 ? '等待服务商响应超时（HTTP {status}）'
+      : httpStatus === 429 ? '接口限频或容量不足（HTTP {status}）'
+        : httpStatus >= 500 ? '服务商或网关返回异常（HTTP {status}）' : '接口请求被拒绝（HTTP {status}）', { status: httpStatus })
+    : diagnostic?.kind === 'timeout' ? t('等待服务商响应超时，尚未确认最终结果')
+      : diagnostic?.kind === 'network' ? t('网络连接中断，未收到完整结果') : undefined;
   const kind = task.nodeType === 'ai-audio' ? 'audio' : task.nodeType === 'ai-video' ? 'video' : 'image';
   const identity = JSON.stringify([task.projectId, task.nodeId, task.taskId, task.attemptId]);
   return <div className={overlay ? 'generation-progress-overlay generation-progress-overlay--interactive nodrag nopan text-center'
@@ -36,6 +46,7 @@ function MediaTaskStatus({ nodeId, overlay = false }: { nodeId: string; overlay?
     onDoubleClick={(event) => event.stopPropagation()}>
     <div className={`flex min-w-0 flex-col gap-1${overlay ? ' max-w-full items-center' : ' flex-1'}`}>
       <span className={`break-words text-canvas-text-secondary${overlay ? ' line-clamp-3 text-[11px]' : ' text-xs'}`} title={message}>{message}</span>
+      {diagnosticMessage && <span className={`break-words text-canvas-text-secondary${overlay ? ' text-[11px]' : ' text-xs'}`} title={diagnosticMessage}>{diagnosticMessage}</span>}
       <GenerationWaitTime nodeId={nodeId} />
       {!canQuery && !overlay && <details className="text-xs text-canvas-text-secondary">
         <summary className="cursor-pointer">{t('在平台确认任务结束后解除限制')}</summary>

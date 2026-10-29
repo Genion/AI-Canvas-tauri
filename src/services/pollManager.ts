@@ -30,6 +30,7 @@ import {
 import type { BaseNodeData, NodeType } from '../types';
 import type { MediaDownloadAccess, MediaTaskContext, MediaTaskReceipt, ResolvedModelProtocolPoll } from '../types/aiTypes';
 import { createMediaDownloadAccess, sanitizeMediaDownloadAccess, sanitizeMediaResultUrls } from './ai/mediaDownloadAccess';
+import { getHttpResponseError } from './ai/httpUtils';
 import {
   APIMART_BASE_URL,
   RUNNINGHUB_MODEL_BASE_URL,
@@ -199,6 +200,10 @@ export interface PendingTask {
   mediaContext?: MediaTaskContext;
   mediaRecoveryState?: 'query_paused' | 'delivery_pending' | 'submit_unknown';
   mediaRecoveryReason?: MediaTaskPauseReason;
+  /** 只保存有限错误分类与状态码，不保存响应正文、Key 或原始异常。 */
+  mediaFailureDiagnostic?: { kind: 'http' | 'timeout' | 'network'; httpStatus?: number };
+  /** 已确认终态失败，但所属项目未加载；切回后显示普通失败，不再续查。 */
+  terminalFailure?: true;
   /** 批次已有部分 ID 但仍有提交响应丢失，不能由已知任务成功掩盖。 */
   mediaSubmissionUncertain?: boolean;
   /** 本地查询暂停，重启后等待用户手动继续。 */
@@ -346,7 +351,7 @@ function isRecoverableMediaTask(task: PendingTask): boolean {
 export function pauseMediaTask(receipt: MediaTaskReceipt, error?: unknown,
   reason: MediaTaskPauseReason = 'query_interrupted'): MediaTaskPausedError | undefined {
   const task = loadAll().find((item) => matchesReceipt(item, receipt));
-  if (!task || !isRecoverableMediaTask(task)) return undefined;
+  if (!task || task.terminalFailure || !isRecoverableMediaTask(task)) return undefined;
   const unknown = task.mediaSubmissionUncertain || !task.submitted || !task.taskId || reason === 'submit_unknown';
   const resolvedReason = unknown ? 'submit_unknown' : reason;
   const comfyQueryHttpStatus = !unknown && task.taskType === 'comfyui'
@@ -355,6 +360,7 @@ export function pauseMediaTask(receipt: MediaTaskReceipt, error?: unknown,
     mediaRecoveryState: unknown ? 'submit_unknown' : reason === 'delivery_pending' ? 'delivery_pending' : 'query_paused',
     mediaRecoveryReason: resolvedReason,
     comfyQueryHttpStatus,
+    mediaFailureDiagnostic: error === undefined ? task.mediaFailureDiagnostic : describeMediaFailure(error),
     ...(task.nodeType === 'ai-video' && !unknown ? { videoRecoveryState: 'paused' as const } : {}),
   }, task.taskId, task.attemptId);
   const store = useAppStore.getState();
@@ -372,6 +378,28 @@ export function pauseMediaTask(receipt: MediaTaskReceipt, error?: unknown,
   const outcome = mediaResumeOutcomes.get(JSON.stringify([task.projectId, task.nodeId]));
   if (comfyQueryHttpStatus && outcome && matchesReceipt(task, outcome.receipt)) outcome.error = paused;
   return paused;
+}
+
+function sanitizeMediaFailureDiagnostic(value: unknown): PendingTask['mediaFailureDiagnostic'] {
+  if (!value || typeof value !== 'object') return;
+  const record = value as Record<string, unknown>;
+  if (record.kind === 'network' || record.kind === 'timeout') return { kind: record.kind };
+  if (record.kind === 'http' && typeof record.httpStatus === 'number' && Number.isInteger(record.httpStatus)
+    && record.httpStatus >= 400 && record.httpStatus <= 599) return { kind: 'http', httpStatus: record.httpStatus };
+}
+
+function describeMediaFailure(error: unknown): PendingTask['mediaFailureDiagnostic'] {
+  const http = getHttpResponseError(error);
+  if (http) return sanitizeMediaFailureDiagnostic({ kind: 'http', httpStatus: http.status });
+  const seen = new Set<Error>();
+  for (let depth = 0; depth < 8 && error instanceof Error && !seen.has(error); depth++) {
+    seen.add(error);
+    const status = /\bHTTP\s*\(?\s*([45]\d{2})\b/i.exec(error.message)?.[1];
+    if (status) return { kind: 'http', httpStatus: Number(status) };
+    if (isPollTimeoutError(error) || /timed?\s*out|timeout|超时/i.test(error.message)) return { kind: 'timeout' };
+    if (/failed to fetch|network|网络|连接.*(?:失败|中断)|connection (?:reset|closed|refused)/i.test(error.message)) return { kind: 'network' };
+    error = error.cause;
+  }
 }
 
 export function pauseMediaNodeTask(nodeId: string, expectedTaskId?: string, reason?: MediaTaskPauseReason): MediaTaskPausedError | undefined {
@@ -412,6 +440,75 @@ export function discardMediaTask(receipt: MediaTaskReceipt): void {
   }
 }
 
+const CONFIRMED_MEDIA_FAILURE_MESSAGE = '生成失败：服务商已明确拒绝请求或任务已失败';
+
+/** 同组占位节点若已开始独立生成，不再归旧批次终态所有。 */
+function failedTaskNodeIds(task: PendingTask): Set<string> {
+  const store = useAppStore.getState();
+  const tasks = loadAll();
+  return new Set([...getBatchTaskNodeIds(task, store.nodes), task.mediaContext?.canvasNodeId ?? task.nodeId]
+    .filter((nodeId) => nodeId === task.nodeId || (!isMediaOperationActive(task.projectId, nodeId)
+      && !tasks.some((other) => other.projectId === task.projectId && other.nodeId === nodeId && !matchesReceipt(other, receiptForTask(task))))));
+}
+
+/** 后台失败只更新原消息；未落盘时保留终态记录，不能丢失其唯一交付身份。 */
+async function persistFailedMediaMessage(task: PendingTask): Promise<void> {
+  const context = task.mediaContext ?? task.runninghubMessage;
+  if (!context?.messageId || !context.conversationId) return;
+  const patch = { mediaStatus: 'failed' as const, mediaError: CONFIRMED_MEDIA_FAILURE_MESSAGE };
+  const { getConversationMessages, putChatMessage } = await import('./indexedDbService');
+  for (let offset = 0; ; offset += 50) {
+    const page = await getConversationMessages(context.conversationId, offset, 50);
+    if (!loadAll().some((item) => matchesReceipt(item, receiptForTask(task)))) return;
+    const state = useAppStore.getState();
+    const currentMessage = state.currentProjectId === task.projectId ? state.messages.find((message) =>
+      message.id === context.messageId && message.conversationId === context.conversationId) : undefined;
+    const storedMessage = page.messages.find((message) => message.id === context.messageId && message.projectId === task.projectId);
+    const message = currentMessage ?? storedMessage;
+    if (message) {
+      // 已成功的消息不能被旧终态回调覆盖；失败消息也要确认落盘后才能清理回执。
+      if (message.mediaStatus === 'succeeded') return;
+      if (currentMessage) {
+        const { persistMessage } = await import('./chat/chatHistoryService');
+        await persistMessage({ ...currentMessage, ...patch }, task.projectId, context.conversationId);
+        if (useAppStore.getState().currentProjectId === task.projectId
+          && useAppStore.getState().messages.find((item) => item.id === context.messageId) === currentMessage) {
+          state.updateMessage(currentMessage.id, patch);
+        }
+      } else if (storedMessage) await putChatMessage({ ...storedMessage, ...patch, updatedAt: Date.now() });
+      return;
+    }
+    if (offset + page.messages.length >= page.total || page.messages.length === 0) return;
+  }
+}
+
+/** 仅用于已确认的拒绝或终态失败；完整身份防止旧回调清理新尝试。 */
+export function removeFailedMediaTask(receipt: MediaTaskReceipt): void {
+  const tasks = loadAll();
+  const task = tasks.find((item) => matchesReceipt(item, receipt));
+  if (!task) return;
+  const store = useAppStore.getState();
+  const hasMessage = !!(task.mediaContext?.messageId || task.runninghubMessage?.messageId);
+  if (store.currentProjectId !== task.projectId || (hasMessage && !task.terminalFailure)) {
+    // 原项目的持久化节点可能仍为 loading；留下有限终态，避免切回时误判提交未知。
+    saveAll(tasks.map((item) => matchesReceipt(item, receipt) ? { ...item, terminalFailure: true } : item));
+    if (hasMessage && store.currentProjectId === task.projectId) {
+      // 同项目也可能已切换对话，调用方的当前消息守卫不会再回写原消息。
+      void persistFailedMediaMessage(task).then(() => {
+        if (useAppStore.getState().currentProjectId === task.projectId) removeFailedMediaTask(receipt);
+      }).catch(() => { /* 持久化失败保留终态，下一次项目恢复继续交付失败状态。 */ });
+    }
+    return;
+  }
+  saveAll(tasks.filter((item) => !matchesReceipt(item, receipt)));
+  const nodeIds = failedTaskNodeIds(task);
+  for (const node of store.nodes) {
+    if (nodeIds.has(node.id)) store.updateNodeDataTransient(node.id, {
+      mediaTaskState: undefined, mediaTaskStage: undefined, videoTaskState: undefined,
+    });
+  }
+}
+
 const VIDEO_PAUSE_MESSAGES = {
   canvas_changed: '画布或项目在本轮视频取回期间发生变化，结果尚未回填；请点击重试取回原任务',
   query_interrupted: '本轮视频查询中断或等待超时，任务已保留；请点击重试继续查询',
@@ -431,7 +528,7 @@ function isRecoverableVideoTask(task: PendingTask): boolean {
 
 export function canResumeMediaTask(task: PendingTask): boolean {
   return (isRecoverableMediaTask(task) || isRecoverableVideoTask(task))
-    && task.submitted && !!task.taskId && !task.mediaSubmissionUncertain
+    && !task.terminalFailure && task.submitted && !!task.taskId && !task.mediaSubmissionUncertain
     && task.mediaRecoveryState !== 'submit_unknown'
     && (videoResumePromises.has(task.nodeId) || !isMediaOperationActive(task.projectId, task.nodeId));
 }
@@ -575,7 +672,9 @@ export function prepareVideoNodeGeneration(nodeId: string): void {
 export function prepareMediaNodeGeneration(nodeId: string): void {
   const store = useAppStore.getState();
   const task = loadAll().find((item) => item.nodeId === nodeId && item.projectId === store.currentProjectId);
-  if (!task || !isRecoverableMediaTask(task)) return;
+  if (!task) return;
+  if (task.terminalFailure) { removeFailedMediaTask(receiptForTask(task)); return; }
+  if (!isRecoverableMediaTask(task)) return;
   if (!task.taskId || !task.submitted || task.mediaSubmissionUncertain || task.mediaRecoveryState === 'submit_unknown') {
     throw new MediaTaskPausedError(receiptForTask(task), 'submit_unknown');
   }
@@ -632,7 +731,7 @@ function inferLegacyProviderConfigId(task: LegacyPendingTask): string | undefine
 }
 
 function sanitizePendingTask(task: LegacyPendingTask): PendingTask {
-  const { baseUrl: legacyBaseUrl, comfyQueryHttpStatus, mediaDownloadAccess, resultUrls, ...safeTask } = task;
+  const { baseUrl: legacyBaseUrl, comfyQueryHttpStatus, mediaDownloadAccess, resultUrls, mediaFailureDiagnostic, terminalFailure, ...safeTask } = task;
   delete safeTask.apiKey;
   const providerConfigId = inferLegacyProviderConfigId(task);
   const parameters = sanitizeMediaParameters(task.mediaContext?.parameters);
@@ -645,6 +744,8 @@ function sanitizePendingTask(task: LegacyPendingTask): PendingTask {
     providerConfigId,
     ...(safeAccess ? { mediaDownloadAccess: safeAccess } : {}),
     ...(urls ? { resultUrls: urls } : {}),
+    ...(sanitizeMediaFailureDiagnostic(mediaFailureDiagnostic) ? { mediaFailureDiagnostic: sanitizeMediaFailureDiagnostic(mediaFailureDiagnostic) } : {}),
+    ...(terminalFailure === true ? { terminalFailure: true as const } : {}),
     ...(task.taskType === 'comfyui' && legacyBaseUrl ? { baseUrl: legacyBaseUrl } : {}),
     ...(task.taskType === 'comfyui' && (comfyQueryHttpStatus === 401 || comfyQueryHttpStatus === 403) ? { comfyQueryHttpStatus } : {}),
     ...(task.mediaContext ? { mediaContext: { projectId: task.projectId,
@@ -867,6 +968,10 @@ async function handleResumeError(
   err: unknown,
   signal?: AbortSignal,
 ): Promise<void> {
+  if (err instanceof PollTaskFailedError && useAppStore.getState().currentProjectId !== task.projectId) {
+    removeFailedMediaTask(receiptForTask(task));
+    return;
+  }
   if (useAppStore.getState().currentProjectId !== task.projectId
     || !loadAll().some((item) => item.projectId === task.projectId && item.nodeId === task.nodeId && item.attemptId === task.attemptId)) return;
   if (err instanceof PollTaskFailedError) {
@@ -896,7 +1001,7 @@ async function handleResumeError(
   }
   const msg = err instanceof Error ? err.message : String(err || '任务恢复失败');
   const store = useAppStore.getState();
-  const nodeIds = new Set(getBatchTaskNodeIds(task, store.nodes));
+  const nodeIds = failedTaskNodeIds(task);
   for (const node of store.nodes) {
     if (nodeIds.has(node.id) && node.data.status === 'loading') {
       store.updateNodeDataTransient(node.id, { status: 'error', error: msg });
@@ -1977,6 +2082,7 @@ export function resumeMediaNodeTask(nodeId: string, externalSignal?: AbortSignal
     || (!task.mediaContext?.messageId && !store.nodes.some((node) => node.id === nodeId))) {
     return Promise.reject(new Error('没有可恢复的生成任务'));
   }
+  if (task.terminalFailure) return Promise.reject(new Error(CONFIRMED_MEDIA_FAILURE_MESSAGE));
   if (!task.submitted || !task.taskId || task.mediaSubmissionUncertain || task.mediaRecoveryState === 'submit_unknown') {
     return Promise.reject(new MediaTaskPausedError(receiptForTask(task), 'submit_unknown'));
   }
@@ -2087,6 +2193,20 @@ export async function resumePendingTasks(projectId: string): Promise<void> {
 
   for (const task of tasks) {
     if (useAppStore.getState().currentProjectId !== projectId) return;
+    if (task.terminalFailure) {
+      try { await persistFailedMediaMessage(task); } catch { continue; }
+      if (useAppStore.getState().currentProjectId !== projectId) return;
+      if (!loadAll().some((item) => matchesReceipt(item, receiptForTask(task)))) continue;
+      const nodeIds = failedTaskNodeIds(task);
+      for (const node of store.nodes) {
+        if (nodeIds.has(node.id)) store.updateNodeDataTransient(node.id, {
+          status: 'error', error: CONFIRMED_MEDIA_FAILURE_MESSAGE,
+          mediaTaskState: undefined, mediaTaskStage: undefined, videoTaskState: undefined,
+        });
+      }
+      removeFailedMediaTask(receiptForTask(task));
+      continue;
+    }
     if (isMediaOperationActive(projectId, task.nodeId) || abortControllers.has(task.nodeId)) continue;
     const node = store.nodes.find((n) => n.id === task.nodeId);
     const nodeData = node?.data as BaseNodeData | undefined;

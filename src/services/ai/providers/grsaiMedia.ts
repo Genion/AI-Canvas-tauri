@@ -1,9 +1,9 @@
 /** GRSAI H3 复用声明式提交、轮询与恢复；生成提交不重试。 */
 import { GRSAI_BASE_URL } from '../../../constants/api';
 import { useAppStore } from '../../../store/useAppStore';
-import { captureVideoTaskGeneration, cleanupNodePolling, pauseMediaTask, registerNodePolling, removePendingTask, savePendingTask, updatePendingTask } from '../../pollManager';
+import { captureVideoTaskGeneration, cleanupNodePolling, pauseMediaTask, registerNodePolling, removeFailedMediaTask, savePendingTask, updatePendingTask } from '../../pollManager';
 import { PollTaskFailedError } from '../../pollTask';
-import { ModelProtocolHttpError } from '../modelProtocolHttp';
+import { getHttpResponseError } from '../httpUtils';
 import type { MediaTaskReceipt } from '../../../types/aiTypes';
 import { resolveMediaReferenceUrl } from '../../uploadService';
 import { getMediaReferenceUrl } from '../connectedReferenceMedia';
@@ -78,11 +78,10 @@ export const grsaiMediaProviderAdapter: MediaProviderAdapter = {
       if (receipt) receipt = updatePendingTask(receipt.nodeId, { mediaRecoveryState: 'delivery_pending' }, receipt.taskId, receipt.attemptId) ?? receipt;
       return { url, ...(receipt ? { taskReceipt: receipt } : {}) };
     } catch (error) {
-      const certainHttpRejection = !receipt?.taskId && error instanceof ModelProtocolHttpError
-        && error.status < 500 && ![408, 429].includes(error.status);
+      const certainHttpRejection = !receipt?.taskId && getHttpResponseError(error)?.definitiveFailure === true;
       if (receipt) {
         if (rejected || !requestSent || certainHttpRejection || error instanceof PollTaskFailedError) {
-          removePendingTask(receipt.nodeId, receipt.taskId, receipt.attemptId);
+          removeFailedMediaTask(receipt);
         } else {
           const paused = pauseMediaTask(receipt, error, receipt.taskId ? undefined : 'submit_unknown');
           if (paused) throw paused;

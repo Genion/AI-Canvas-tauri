@@ -3,6 +3,7 @@ import type { AIVideoGenParams, VideoGenerationReferenceInput } from '../../src/
 
 const mocks = vi.hoisted(() => {
   const receipts = new Map<string, { projectId: string; nodeId: string; taskId: string; attemptId: string }>();
+  const removePendingTask = vi.fn((nodeId: string, _taskId?: string, _attemptId?: string) => { receipts.delete(nodeId); });
   return {
   receipts, fetch: vi.fn(),
   savePendingTask: vi.fn((task: { nodeId: string; projectId: string; taskId: string }) => {
@@ -15,7 +16,10 @@ const mocks = vi.hoisted(() => {
     receipts.set(nodeId, receipt); return receipt;
   }),
   getMediaTaskReceipt: vi.fn((nodeId: string) => receipts.get(nodeId)),
-  removePendingTask: vi.fn((nodeId: string) => { receipts.delete(nodeId); }), cleanupNodePolling: vi.fn(() => true),
+  removePendingTask,
+  removeFailedMediaTask: vi.fn((receipt: { nodeId: string; taskId: string; attemptId: string }) => {
+    removePendingTask(receipt.nodeId, receipt.taskId, receipt.attemptId);
+  }), cleanupNodePolling: vi.fn(() => true),
   captureVideoTaskGeneration: vi.fn(),
   pauseMediaTask: vi.fn((receipt: { taskId: string }, _error?: unknown, reason?: string) => Object.assign(new Error('任务查询已暂停'),
     { name: 'MediaTaskPausedError', taskReceipt: receipt, reason: reason ?? 'query_interrupted' })),
@@ -134,6 +138,23 @@ describe('GRSAI H3 独立视频合同', () => {
     mocks.fetch.mockResolvedValueOnce(json({ error: 'gateway timeout' }, 504));
     await expect(generate()).rejects.toMatchObject({ name: 'MediaTaskPausedError', reason: 'submit_unknown' });
     expect(mocks.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails immediately for a documented structured submission rejection', async () => {
+    mocks.fetch.mockResolvedValueOnce(json({ error: { code: 'rate_limit_exceeded', message: '当前请求被拒绝' } }, 429));
+    await expect(generate()).rejects.toMatchObject({ status: 429, definitiveFailure: true });
+    expect(mocks.removeFailedMediaTask).toHaveBeenCalledWith({ projectId: 'project', nodeId: 'node', taskId: '', attemptId: 'attempt' });
+    expect(mocks.pauseMediaTask).not.toHaveBeenCalled();
+    expect(mocks.fetch).toHaveBeenCalledOnce();
+  });
+
+  it('preserves the submitted task on a query authorization error', async () => {
+    mocks.fetch.mockResolvedValueOnce(json({ id: 'retained-task', status: 'running' }))
+      .mockResolvedValueOnce(json({ error: { code: 'invalid_api_key', message: 'Key 已失效' } }, 401));
+    await expect(generate()).rejects.toMatchObject({ name: 'MediaTaskPausedError', taskReceipt: { taskId: 'retained-task' } });
+    expect(mocks.removeFailedMediaTask).not.toHaveBeenCalled();
+    expect(mocks.receipts.get('node')).toMatchObject({ taskId: 'retained-task' });
+    expect(mocks.fetch.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1);
   });
 
   it('reuses the saved query descriptor with the current Key and never submits during recovery', async () => {

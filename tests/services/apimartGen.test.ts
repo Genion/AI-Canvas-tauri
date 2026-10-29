@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const pollingMocks = vi.hoisted(() => {
   const receipts = new Map<string, { projectId: string; nodeId: string; taskId: string; attemptId: string }>();
+  const removePendingTask = vi.fn((nodeId: string, _taskId?: string, _attemptId?: string) => { receipts.delete(nodeId); });
   return {
   receipts,
   cleanupNodePolling: vi.fn(() => true),
@@ -10,7 +11,10 @@ const pollingMocks = vi.hoisted(() => {
     { name: 'MediaTaskPausedError', taskReceipt: receipt, reason: reason ?? 'query_interrupted' })),
   getMediaTaskReceipt: vi.fn((nodeId: string) => receipts.get(nodeId)),
   registerNodePolling: vi.fn(() => new AbortController().signal),
-  removePendingTask: vi.fn((nodeId: string) => { receipts.delete(nodeId); }),
+  removePendingTask,
+  removeFailedMediaTask: vi.fn((receipt: { nodeId: string; taskId: string; attemptId: string }) => {
+    removePendingTask(receipt.nodeId, receipt.taskId, receipt.attemptId);
+  }),
   savePendingTask: vi.fn((task: { nodeId: string; projectId: string; taskId: string }) => {
     const receipt = { projectId: task.projectId, nodeId: task.nodeId, taskId: task.taskId, attemptId: 'attempt' };
     receipts.set(task.nodeId, receipt); return receipt;
@@ -95,6 +99,59 @@ describe('APIMart 错误凭据隔离', () => {
     expect(safeError.message).not.toContain(new URLSearchParams({ key: apiKey }).toString().slice(4));
     expect(pollingMocks.receipts.get('unknown-node')).toMatchObject({ taskId: '', attemptId: 'attempt' });
     expect(pollingMocks.removePendingTask).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it.each(['image', 'video', 'general'] as const)('%s 收到明确限流拒绝时直接失败，不保留空任务', async (kind) => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ error: { code: 'rate_limit_exceeded', message: echoed() } }, 429));
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(calls[kind]('rejected-node')).rejects.toMatchObject({ status: 429, definitiveFailure: true });
+    expect(pollingMocks.removeFailedMediaTask).toHaveBeenCalledWith({
+      projectId: 'project-1', nodeId: 'rejected-node', taskId: '', attemptId: 'attempt',
+    });
+    expect(pollingMocks.pauseMediaTask).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it.each(['image', 'video', 'general'] as const)('%s 的 HTTP 200 failed 响应直接失败且不查询或重发', async (kind) => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ status: 'failed', error: { message: echoed() } }));
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(calls[kind]('failed-node')).rejects.toMatchObject({ definitiveFailure: true, message: expect.stringContaining('[REDACTED]') });
+    expect(pollingMocks.removeFailedMediaTask).toHaveBeenCalledWith(expect.objectContaining({ nodeId: 'failed-node', taskId: '', attemptId: 'attempt' }));
+    expect(pollingMocks.pauseMediaTask).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it.each(['image', 'video'] as const)('APIMart %s 的专有业务拒绝码直接失败', async (kind) => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ code: 402, message: '余额不足' }));
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(calls[kind]('business-node')).rejects.toMatchObject({ definitiveFailure: true, message: '余额不足' });
+    expect(pollingMocks.removeFailedMediaTask).toHaveBeenCalledWith(expect.objectContaining({ nodeId: 'business-node', taskId: '' }));
+    expect(pollingMocks.pauseMediaTask).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it('通用自定义接口不把未声明的数字 code 当成确定拒绝', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ code: 402, message: '自定义状态' }));
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(calls.general('custom-node')).rejects.toMatchObject({ name: 'MediaTaskPausedError', reason: 'submit_unknown' });
+    expect(pollingMocks.removeFailedMediaTask).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it.each(['image', 'video'] as const)('APIMart %s 的服务端业务码不证明请求未受理', async (kind) => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ code: 503, message: '服务暂时不可用' }));
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(calls[kind]('server-node')).rejects.toMatchObject({ name: 'MediaTaskPausedError', reason: 'submit_unknown' });
+    expect(pollingMocks.removeFailedMediaTask).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it.each(['image', 'video', 'general'] as const)('%s 的网关超时即使正文含 failed 也保留未知状态', async (kind) => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ status: 'failed', error: { code: 'invalid_request_error' } }, 504));
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(calls[kind]('timeout-node')).rejects.toMatchObject({ name: 'MediaTaskPausedError', reason: 'submit_unknown' });
+    expect(pollingMocks.removeFailedMediaTask).not.toHaveBeenCalled();
     expect(fetchMock).toHaveBeenCalledOnce();
   });
 

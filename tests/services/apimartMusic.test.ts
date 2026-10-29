@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => {
   const receipts = new Map<string, { projectId: string; nodeId: string; taskId: string; attemptId: string }>();
+  const removePendingTask = vi.fn((nodeId: string, _taskId?: string, _attemptId?: string) => { receipts.delete(nodeId); });
   return {
   receipts,
   savePendingTask: vi.fn((task: { nodeId: string; projectId: string; taskId: string }) => {
@@ -17,7 +18,10 @@ const mocks = vi.hoisted(() => {
   pauseMediaTask: vi.fn((receipt: { taskId: string }, _error?: unknown, reason?: string) => Object.assign(new Error('任务查询已暂停'),
     { name: 'MediaTaskPausedError', taskReceipt: receipt, reason: reason ?? 'query_interrupted' })),
   VIDEO_POLL_MAX_DURATION_MS: 30 * 60 * 1000,
-  removePendingTask: vi.fn((nodeId: string) => { receipts.delete(nodeId); }), cleanupNodePolling: vi.fn(),
+  removePendingTask,
+  removeFailedMediaTask: vi.fn((receipt: { nodeId: string; taskId: string; attemptId: string }) => {
+    removePendingTask(receipt.nodeId, receipt.taskId, receipt.attemptId);
+  }), cleanupNodePolling: vi.fn(),
   registerNodePolling: vi.fn(() => new AbortController().signal),
   state: { config: { providers: { apimart: { apiKey: 'test-key', baseUrl: 'https://api.example/v1' } } }, currentProjectId: 'project', nodes: [] },
 }; });
@@ -62,6 +66,25 @@ describe('APIMart 音频错误脱敏', () => {
     const error = await calls[kind]().catch((value: unknown) => value);
     expect(error).toBeInstanceOf(TypeError);
     expect((error as Error).message).toBe('Failed to fetch [REDACTED] | [REDACTED] | [REDACTED]');
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it('TTS HTTP 200 的明确 JSON 拒绝不会被交付为音频字节', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(json({ error: { code: 'insufficient_balance', message: echoed() } }));
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(calls.tts()).rejects.toMatchObject({
+      name: 'ModelProtocolHttpError', status: 200, definitiveFailure: true,
+      message: '[REDACTED] | [REDACTED] | [REDACTED]',
+    });
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it('TTS 未声明的 JSON 格式不能冒充音频，也不猜测为明确拒绝', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(json({ unexpected: true }));
+    vi.stubGlobal('fetch', fetchMock);
+    const error = await calls.tts().catch((value: unknown) => value);
+    expect(error).toMatchObject({ message: 'APIMart TTS 返回 JSON，未返回音频数据' });
+    expect(error).not.toHaveProperty('definitiveFailure');
     expect(fetchMock).toHaveBeenCalledOnce();
   });
 
@@ -194,6 +217,40 @@ describe('APIMart 音乐版本协议', () => {
     });
     expect(mocks.removePendingTask).not.toHaveBeenCalled();
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    [200, { code: 402, message: '余额不足' }],
+    [429, { error: { code: 'rate_limit_exceeded', message: '请求被限流拒绝' } }],
+    [503, { error: { code: 'insufficient_balance', message: '余额不足' } }],
+  ] as const)('音乐提交 HTTP %s 的明确业务拒绝直接失败，保留错误分类', async (status, payload) => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(payload), {
+      status, headers: { 'Content-Type': 'application/json' },
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(apimartMediaProviderAdapter.generateAudio?.({ params: {
+      provider: 'apimart', model: 'apimart/suno-v6', nodeId: 'music-node', prompt: 'jazz',
+    }, prompt: 'jazz', referenceAudioUrls: [] })).rejects.toMatchObject({
+      name: 'ModelProtocolHttpError', status, definitiveFailure: true,
+    });
+    expect(mocks.removeFailedMediaTask).toHaveBeenCalledWith({ projectId: 'project', nodeId: 'music-node', taskId: '', attemptId: 'attempt' });
+    expect(mocks.pauseMediaTask).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it('已提交音乐的查询鉴权错误保留原 ID，不误当任务失败', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(json({ data: [{ task_id: 'music-auth' }] }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ error: { code: 'invalid_api_key', message: 'Key 已失效' } }), {
+        status: 401, headers: { 'Content-Type': 'application/json' },
+      }));
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(apimartMediaProviderAdapter.generateAudio?.({ params: {
+      provider: 'apimart', model: 'apimart/suno-v6', nodeId: 'music-node', prompt: 'jazz',
+    }, prompt: 'jazz', referenceAudioUrls: [] })).rejects.toMatchObject({
+      name: 'MediaTaskPausedError', taskReceipt: { taskId: 'music-auth' },
+    });
+    expect(mocks.removeFailedMediaTask).not.toHaveBeenCalled();
+    expect(fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1);
   });
 
   it('音乐查询断网保留已提交 ID，重试入口不需要重新生成', async () => {

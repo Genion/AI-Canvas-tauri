@@ -3,7 +3,7 @@
  */
 import { useAppStore } from '../../store/useAppStore';
 import { pollTask, PollTaskFailedError, PollTimeoutError } from '../pollTask';
-import { savePendingTask, updatePendingTask, removePendingTask, registerNodePolling, cleanupNodePolling, pauseMediaTask, VIDEO_POLL_MAX_DURATION_MS } from '../pollManager';
+import { savePendingTask, updatePendingTask, removePendingTask, removeFailedMediaTask, registerNodePolling, cleanupNodePolling, pauseMediaTask, VIDEO_POLL_MAX_DURATION_MS } from '../pollManager';
 import { parseMultiPathResponse, splitCommaSeparatedUrls } from './helpers';
 import type { BatchImageResult, MediaTaskReceipt } from '../../types/aiTypes';
 import {
@@ -15,7 +15,8 @@ import { corsSafeFetch } from './httpTransport';
 import { mapImageParameters } from './imageParameterMappings';
 import { runBatchTasks } from './batchUtils';
 import { resolveConfiguredImageBackground } from './modelCapabilityValidation';
-import { redactModelProtocolError, redactModelProtocolErrorText } from './modelProtocolHttp';
+import { redactModelProtocolError, redactModelProtocolErrorText, throwIfDefinitiveModelResponseFailure } from './modelProtocolHttp';
+import { classifyHttpResponseFailure, getHttpResponseError, HttpResponseError } from './httpUtils';
 
 /* ── APIMart 任务轮询共享类型 ── */
 export interface ApimartTaskResult<TResult = Record<string, unknown>> {
@@ -57,9 +58,32 @@ function getApimartFailureMessage(
   return redactModelProtocolErrorText(detail?.trim() ? `${label}: ${detail}` : `${label}: ${task.status}`, apiKey);
 }
 
-function discardTask(receipt: MediaTaskReceipt | undefined): void {
+function discardFailedTask(receipt: MediaTaskReceipt | undefined): void {
   if (!receipt) return;
-  removePendingTask(receipt.nodeId, receipt.taskId, receipt.attemptId);
+  removeFailedMediaTask(receipt);
+}
+
+/** 保留提交错误分类；脱敏必须早于已有的正文截断。 */
+async function throwSubmitResponseError(response: Response, label: string, apiKey: string): Promise<never> {
+  const body = await response.text().catch(() => '');
+  let payload: unknown;
+  try { payload = JSON.parse(body); } catch { /* 非 JSON 错误仍保留 HTTP 分类。 */ }
+  throw new HttpResponseError(response.status,
+    `${label} (${response.status}): ${redactModelProtocolErrorText(body, apiKey).slice(0, 200)}`,
+    classifyHttpResponseFailure(response.status, payload));
+}
+
+/** APIMart 的业务拒绝只在没有可用任务 ID 时判定；网关/服务端错误仍可能已受理。 */
+function throwApimartSubmissionFailure(payload: unknown, apiKey: string, label: string): void {
+  const record = payload && typeof payload === 'object' && !Array.isArray(payload)
+    ? payload as Record<string, unknown> : undefined;
+  if (typeof record?.code === 'number' && Number.isInteger(record.code)
+    && record.code >= 400 && record.code < 500 && record.code !== 408) {
+    const detail = typeof record.message === 'string' ? record.message : typeof record.msg === 'string' ? record.msg : '';
+    throw new HttpResponseError(200,
+      redactModelProtocolErrorText(detail.trim() || `${label}（业务码 ${record.code}）`, apiKey), true);
+  }
+  throwIfDefinitiveModelResponseFailure(payload, 200, undefined, apiKey);
 }
 /**
  * 通用异步任务执行器 — 提交 + 轮询，兼容支持 task_id 模式的 OpenAI 兼容接口
@@ -77,7 +101,6 @@ export async function executeGeneralAsyncTask(
 ): Promise<{ url: string; taskReceipt?: MediaTaskReceipt }> {
   let receipt: MediaTaskReceipt | undefined;
   let requestSent = false;
-  let rejected = false;
   const nodeSignal = nodeId ? registerNodePolling(nodeId) : undefined;
   const signal = nodeSignal && externalSignal
     ? AbortSignal.any([nodeSignal, externalSignal])
@@ -112,9 +135,7 @@ export async function executeGeneralAsyncTask(
     });
 
     if (!submitResp.ok) {
-      rejected = submitResp.status < 500 && ![408, 429].includes(submitResp.status);
-      const errBody = await submitResp.text().catch(() => '');
-      throw new Error(`提交失败 (${submitResp.status}): ${redactModelProtocolErrorText(errBody, apiKey).slice(0, 200)}`);
+      await throwSubmitResponseError(submitResp, '提交失败', apiKey);
     }
 
     const submitResult = await submitResp.json() as Record<string, unknown>;
@@ -124,10 +145,17 @@ export async function executeGeneralAsyncTask(
     // 无 task_id 时尝试直接从响应中解析结果（同步完成，无需轮询）
     if (!taskId) {
       const url = parseMultiPathResponse(submitResult, resultField);
-      if (url) { discardTask(receipt); return { url }; }
+      if (url) {
+        if (receipt) removePendingTask(receipt.nodeId, receipt.taskId, receipt.attemptId);
+        return { url };
+      }
       // 尝试标准 OpenAI 图片格式
       const dataArr = submitResult.data as Array<{ url: string }> | undefined;
-      if (dataArr?.[0]?.url) { discardTask(receipt); return { url: dataArr[0].url }; }
+      if (dataArr?.[0]?.url) {
+        if (receipt) removePendingTask(receipt.nodeId, receipt.taskId, receipt.attemptId);
+        return { url: dataArr[0].url };
+      }
+      throwIfDefinitiveModelResponseFailure(submitResult, submitResp.status, undefined, apiKey);
       throw new Error('响应格式异常：未返回 task_id 或结果 URL');
     }
 
@@ -169,7 +197,8 @@ export async function executeGeneralAsyncTask(
     return { ...result, ...(receipt ? { taskReceipt: receipt } : {}) };
   } catch (unsafeError) {
     const error = redactModelProtocolError(unsafeError, apiKey);
-    if (rejected || !requestSent || error instanceof PollTaskFailedError) discardTask(receipt);
+    const rejected = !receipt?.taskId && getHttpResponseError(error)?.definitiveFailure === true;
+    if (rejected || !requestSent || error instanceof PollTaskFailedError) discardFailedTask(receipt);
     else if (receipt) {
       const paused = pauseMediaTask(receipt, error, receipt.taskId ? undefined : 'submit_unknown');
       if (paused) throw paused;
@@ -262,7 +291,6 @@ export async function generateApimartImagesBatch(
     let firstError: unknown;
     const submitted = await runBatchTasks(submitBodies.length, 3, async (index) => {
       let sent = false;
-      let rejected = false;
       try {
         signal?.throwIfAborted();
         sent = requestSent = true;
@@ -278,9 +306,7 @@ export async function generateApimartImagesBatch(
           signal,
         });
         if (!submitResp.ok) {
-          rejected = submitResp.status < 500 && ![408, 429].includes(submitResp.status);
-          const errBody = await submitResp.text().catch(() => '');
-          throw new Error(`APIMart 生成提交失败 (${submitResp.status}): ${redactModelProtocolErrorText(errBody, apiKey).slice(0, 200)}`);
+          await throwSubmitResponseError(submitResp, 'APIMart 生成提交失败', apiKey);
         }
         const submitResult = await submitResp.json() as {
           task_id?: string;
@@ -290,7 +316,10 @@ export async function generateApimartImagesBatch(
           ? submitResult.data.flatMap((item) => item.task_id ? [item.task_id] : [])
           : submitResult.data?.task_id ? [submitResult.data.task_id] : [];
         const taskIds = [...dataTaskIds, ...(submitResult.task_id ? [submitResult.task_id] : [])];
-        if (taskIds.length === 0) throw new Error('APIMart 生成提交失败: 未返回 task_id');
+        if (taskIds.length === 0) {
+          throwApimartSubmissionFailure(submitResult, apiKey, 'APIMart 生成提交失败');
+          throw new Error('APIMart 生成提交失败: 未返回 task_id');
+        }
         taskIdsBySubmission[index] = taskIds;
         if (nodeId) {
           const persistedTaskIds = taskIdsBySubmission.flatMap((ids) => ids ?? []);
@@ -303,6 +332,7 @@ export async function generateApimartImagesBatch(
         return taskIds;
       } catch (unsafeError) {
         const error = redactModelProtocolError(unsafeError, apiKey);
+        const rejected = getHttpResponseError(error)?.definitiveFailure === true;
         if (sent && !rejected) uncertainSubmission = true;
         firstError ??= error;
         throw error;
@@ -372,7 +402,7 @@ export async function generateApimartImagesBatch(
     };
   } catch (unsafeError) {
     const error = redactModelProtocolError(unsafeError, apiKey);
-    if (!requestSent || allTasksFailed || (!receipt?.taskId && !uncertainSubmission)) discardTask(receipt);
+    if (!requestSent || allTasksFailed || (!receipt?.taskId && !uncertainSubmission)) discardFailedTask(receipt);
     else if (receipt) {
       const paused = pauseMediaTask(receipt, error, uncertainSubmission ? 'submit_unknown' : undefined);
       if (paused) throw paused;
@@ -431,7 +461,6 @@ export async function generateApimartVideo(
 ): Promise<{ url: string; taskReceipt?: MediaTaskReceipt }> {
   let receipt: MediaTaskReceipt | undefined;
   let requestSent = false;
-  let rejected = false;
   const nodeSignal = nodeId ? registerNodePolling(nodeId) : undefined;
   const signal = nodeSignal && externalSignal
     ? AbortSignal.any([nodeSignal, externalSignal])
@@ -476,14 +505,13 @@ export async function generateApimartVideo(
     });
 
     if (!submitResp.ok) {
-      rejected = submitResp.status < 500 && ![408, 429].includes(submitResp.status);
-      const errBody = await submitResp.text().catch(() => '');
-      throw new Error(`APIMart 视频提交失败 (${submitResp.status}): ${redactModelProtocolErrorText(errBody, apiKey).slice(0, 200)}`);
+      await throwSubmitResponseError(submitResp, 'APIMart 视频提交失败', apiKey);
     }
 
     const submitResult = await submitResp.json() as { code: number; data: Array<{ task_id: string; status: string }> };
     const taskId = submitResult.data?.[0]?.task_id;
     if (!taskId) {
+      throwApimartSubmissionFailure(submitResult, apiKey, 'APIMart 视频提交失败');
       throw new Error('APIMart 视频提交失败: 未返回 task_id');
     }
 
@@ -517,7 +545,8 @@ export async function generateApimartVideo(
     return { ...result, ...(receipt ? { taskReceipt: receipt } : {}) };
   } catch (unsafeError) {
     const error = redactModelProtocolError(unsafeError, apiKey);
-    if (rejected || !requestSent || error instanceof PollTaskFailedError) discardTask(receipt);
+    const rejected = !receipt?.taskId && getHttpResponseError(error)?.definitiveFailure === true;
+    if (rejected || !requestSent || error instanceof PollTaskFailedError) discardFailedTask(receipt);
     else if (receipt) {
       const paused = pauseMediaTask(receipt, error, receipt.taskId ? undefined : 'submit_unknown');
       if (paused) throw paused;

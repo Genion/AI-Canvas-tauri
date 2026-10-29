@@ -23,8 +23,9 @@ import { analyzeModelProtocolExamples } from '../../src/services/ai/modelProtoco
 import { useAppStore } from '../../src/store/useAppStore';
 import { createImageQuickAdaptTemplate } from '../../src/services/ai/imageModelTemplates';
 import { uploadToRemote } from '../../src/services/uploadService';
-import { getPendingTasksForProject } from '../../src/services/pollManager';
+import { getPendingTasksForProject, removePendingTask } from '../../src/services/pollManager';
 import { LIBAPI_MODEL_MANIFEST } from '../../src/services/ai/providers/libapiModelManifest';
+import { executeRunningHubModel } from '../../src/services/ai/providers/runninghubMedia';
 
 function jsonResponse(payload: unknown): Response {
   return new Response(JSON.stringify(payload), {
@@ -288,6 +289,58 @@ describe('CCC 图片异步任务与旧同步响应', () => {
     expect(transportMocks.corsSafeFetch.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1);
   });
 
+  it.each([
+    { status: 200, payload: { status: 'failed', error: { message: 'CCC 已明确生成失败' } } },
+    { status: 200, payload: { data: { status: 'failed', error: { message: 'CCC 已明确生成失败' } } } },
+    { status: 200, payload: { data: [{ status: 'failed', error: { message: 'CCC 已明确生成失败' } }] } },
+    { status: 200, payload: { error: { code: 'rate_limit_exceeded', message: 'CCC 已明确拒绝提交' } } },
+    { status: 429, payload: { error: { code: 'rate_limit_exceeded', message: 'CCC 已明确拒绝提交' } } },
+    { status: 500, payload: { error: { code: 'rate_limit_exceeded', message: 'CCC 已明确拒绝提交' } } },
+  ])('CCC HTTP $status 明确失败且没有任务 ID 时清理空记录，不误报提交未知', async ({ status, payload }) => {
+    const params = configureCcc();
+    transportMocks.corsSafeFetch.mockResolvedValueOnce(new Response(JSON.stringify(payload), {
+      status, headers: { 'Content-Type': 'application/json' },
+    }));
+    const error = await generateImagesBatch(params, 1).catch((cause: unknown) => cause);
+    expect(error).toMatchObject({ name: 'HttpResponseError' });
+    expect(error).not.toMatchObject({ name: 'MediaTaskPausedError' });
+    expect(getPendingTasksForProject('ccc-project')).toEqual([]);
+    expect(transportMocks.corsSafeFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('CCC 初始失败中回显 Key 仍会脱敏，且不会重发提交', async () => {
+    const params = configureCcc();
+    transportMocks.corsSafeFetch.mockResolvedValueOnce(jsonResponse({ data: { status: 'failed', error: { message: 'rejected discount-fixture' } } }));
+    const error = await generateImagesBatch(params, 1).catch((cause: unknown) => cause);
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toContain('[REDACTED]');
+    expect((error as Error).message).not.toContain('discount-fixture');
+    expect(getPendingTasksForProject('ccc-project')).toEqual([]);
+    expect(transportMocks.corsSafeFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('CCC 普通 502 没有明确终态或任务 ID 时仍保留提交未知，不重投', async () => {
+    const params = configureCcc();
+    transportMocks.corsSafeFetch.mockResolvedValueOnce(new Response(JSON.stringify({ error: { message: 'upstream request failed' } }), {
+      status: 502, headers: { 'Content-Type': 'application/json' },
+    }));
+    await expect(generateImagesBatch(params, 1)).rejects.toMatchObject({ name: 'MediaTaskPausedError', reason: 'submit_unknown' });
+    expect(getPendingTasksForProject('ccc-project')).toEqual([expect.objectContaining({ taskId: '', submitted: false, mediaRecoveryState: 'submit_unknown' })]);
+    expect(transportMocks.corsSafeFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('CCC 带参考图的 HTML 504 统一读取响应后仍保留未知任务，不重投', async () => {
+    const params = configureCcc();
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('image', { headers: { 'Content-Type': 'image/png' } }));
+    transportMocks.corsSafeFetch.mockResolvedValueOnce(new Response('<html>504 Gateway Time-out</html>', {
+      status: 504, headers: { 'Content-Type': 'text/html' },
+    }));
+    await expect(generateImagesBatch({ ...params, image_urls: ['asset://localhost/reference.png'] }, 1))
+      .rejects.toMatchObject({ name: 'MediaTaskPausedError', reason: 'submit_unknown' });
+    expect(getPendingTasksForProject('ccc-project')).toEqual([expect.objectContaining({ taskId: '', submitted: false, mediaRecoveryState: 'submit_unknown' })]);
+    expect(transportMocks.corsSafeFetch).toHaveBeenCalledExactlyOnceWith('https://cccapi.cn/v1/images/edits', expect.objectContaining({ method: 'POST' }));
+  });
+
   it.each([404, 200])('CCC 本地参考图准备失败（HTTP %s）时不提交或保留空任务', async (status) => {
     const params = configureCcc();
     const referenceUrl = 'asset://localhost/reference.png';
@@ -331,6 +384,53 @@ describe('CCC 图片异步任务与旧同步响应', () => {
     await expect(generateImageStandard({ apiKey: 'fixture', baseUrl: 'https://custom.example/v1', modelName: 'gpt-image-2',
       prompt: '风景', dimensions: { width: 1024, height: 1024 } })).rejects.toThrow('结果为空');
     expect(transportMocks.corsSafeFetch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('RunningHub 模型提交失败分类', () => {
+  function configureRunningHub() {
+    removePendingTask('runninghub-rejection-node');
+    const model = 'seedream-v5-pro/text-to-image';
+    useAppStore.setState((state) => ({ currentProjectId: 'runninghub-rejection-project', config: { ...state.config,
+      providers: { 'runninghub-model': { name: 'RunningHub', apiKey: 'runninghub-rejection-fixture', baseUrl: 'https://www.runninghub.cn' } } },
+      nodes: [{ id: 'runninghub-rejection-node', type: 'ai-image', position: { x: 0, y: 0 },
+        data: { type: 'ai-image', label: 'RunningHub 图片', status: 'loading', model, provider: 'runninghub' } }],
+    }));
+    return { provider: 'runninghub', model, prompt: '安静的山谷风景', nodeId: 'runninghub-rejection-node' };
+  }
+
+  it('HTTP200 非成功业务码明确拒绝时清理空记录，不保留未知提交', async () => {
+    const params = configureRunningHub();
+    transportMocks.corsSafeFetch.mockResolvedValueOnce(jsonResponse({ code: 400, msg: '余额不足' }));
+    await expect(executeRunningHubModel(params, 'image', params.prompt, {})).rejects.toMatchObject({
+      name: 'HttpResponseError', definitiveFailure: true,
+    });
+    expect(getPendingTasksForProject('runninghub-rejection-project')).toEqual([]);
+    expect(transportMocks.corsSafeFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['network', 'gateway-504'] as const)('首次提交 %s 时保留未知状态且不重投', async (mode) => {
+    const params = configureRunningHub();
+    if (mode === 'network') transportMocks.corsSafeFetch.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+    else transportMocks.corsSafeFetch.mockResolvedValueOnce(new Response('<html>504 Gateway Time-out</html>', { status: 504, headers: { 'Content-Type': 'text/html' } }));
+    await expect(executeRunningHubModel(params, 'image', params.prompt, {})).rejects.toBeInstanceOf(Error);
+    expect(getPendingTasksForProject('runninghub-rejection-project')).toEqual([expect.objectContaining({
+      taskId: '', submitted: false, runninghubRecoveryState: 'submit_unknown', runninghubSubmissionUncertain: true,
+    })]);
+    expect(transportMocks.corsSafeFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('已取得任务ID后的查询401保留原任务，不重发生成', async () => {
+    const params = configureRunningHub();
+    transportMocks.corsSafeFetch.mockResolvedValueOnce(jsonResponse({ code: 0, data: { taskId: '1904152026220003329', status: 'QUEUED' } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ error: { message: 'Key 权限改变' } }), { status: 401, headers: { 'Content-Type': 'application/json' } }));
+    await expect(executeRunningHubModel(params, 'image', params.prompt, {})).rejects.toBeInstanceOf(Error);
+    expect(getPendingTasksForProject('runninghub-rejection-project')).toEqual([expect.objectContaining({
+      taskId: '1904152026220003329', taskIds: ['1904152026220003329'], submitted: true,
+    })]);
+    expect(transportMocks.corsSafeFetch.mock.calls.map(([url]) => url)).toEqual([
+      'https://www.runninghub.cn/openapi/v2/seedream-v5-pro/text-to-image', 'https://www.runninghub.cn/openapi/v2/query',
+    ]);
   });
 });
 

@@ -19,6 +19,7 @@ import {
   readJsonResponse,
   readBinaryModelProtocolResult,
   redactModelProtocolError,
+  throwIfDefinitiveModelResponseFailure,
 } from './modelProtocolHttp';
 import {
   getModelProtocolPreset,
@@ -172,7 +173,10 @@ export async function submitModelProtocol(
       : undefined;
     const text = textValue === undefined || textValue === null ? undefined : String(textValue);
     const mediaUrls = [...urls, ...base64Urls];
-    if (mediaUrls.length === 0 && !text) throw new Error('模型响应中未找到配置的结果');
+    if (mediaUrls.length === 0 && !text) {
+      throwIfDefinitiveModelResponseFailure(payload, response.status, responseConfig.errorPath, options.apiKey);
+      throw new Error('模型响应中未找到配置的结果');
+    }
     return {
       ...(mediaUrls.length > 0 ? { urls: mediaUrls } : {}),
       ...(text ? { text } : {}),
@@ -186,7 +190,9 @@ export async function submitModelProtocol(
     throw redactModelProtocolError(error, options.apiKey);
   }
   const taskIdValue = readModelProtocolFirstScalar(payload, responseConfig.taskIdPath!);
-  if (taskIdValue === undefined || taskIdValue === null || taskIdValue === '') {
+  if (!(typeof taskIdValue === 'string' && taskIdValue.trim())
+    && !(typeof taskIdValue === 'number' && Number.isFinite(taskIdValue))) {
+    throwIfDefinitiveModelResponseFailure(payload, response.status, responseConfig.errorPath, options.apiKey);
     throw new Error(`模型提交响应中未找到任务 ID：${responseConfig.taskIdPath}`);
   }
   const pollContext = { ...context, submit: payload };

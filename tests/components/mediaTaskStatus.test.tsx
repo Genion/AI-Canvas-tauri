@@ -19,7 +19,8 @@ vi.mock('../../src/store/useAppStore', () => ({ useAppStore: (selector: (state: 
 vi.mock('../../src/services/pollManager', () => ({
   getPendingTasksForProject: () => mocks.tasks, resumeMediaNodeTask: mocks.resume, discardMediaTask: mocks.discard,
 }));
-vi.mock('../../src/i18n', () => ({ useT: () => (text: string) => text }));
+vi.mock('../../src/i18n', () => ({ useT: () => (text: string, params?: Record<string, string | number>) =>
+  Object.entries(params ?? {}).reduce((value, [key, replacement]) => value.replaceAll(`{${key}}`, String(replacement)), text) }));
 import MediaTaskStatus from '../../src/components/nodes/shared/MediaTaskStatus';
 
 type Element = ReactElement<Record<string, unknown> & { children?: unknown }>;
@@ -40,6 +41,31 @@ beforeEach(() => {
 });
 
 describe('跨媒体原任务续取入口', () => {
+  it('未知提交同时展示安全的 HTTP 原因，不提供重新生成或伪查询', () => {
+    mocks.tasks[0] = { ...mocks.tasks[0], taskId: '', submitted: false,
+      mediaRecoveryState: 'submit_unknown', mediaFailureDiagnostic: { kind: 'http', httpStatus: 504, raw: 'secret' } };
+    mocks.state.nodes[0].data.mediaTaskState = 'submit_unknown';
+    const tree = render(true);
+    const text = elements(tree).filter((element) => element.type === 'span').map((element) => element.props.children);
+    expect(text).toContain('提交状态未知，请到对应平台核对；应用不会自动重新生成。');
+    expect(text).toContain('等待服务商响应超时（HTTP 504）');
+    expect(JSON.stringify(tree)).not.toContain('secret');
+    expect(queryButton()).toBeUndefined();
+  });
+
+  it('不展示非法状态码或任务诊断中的原始内容', () => {
+    mocks.tasks[0].mediaFailureDiagnostic = { kind: 'http', httpStatus: 'secret', message: 'private content' };
+    const text = JSON.stringify(render());
+    expect(text).not.toContain('secret');
+    expect(text).not.toContain('private content');
+  });
+
+  it('已知失败移除恢复任务后不再显示未知状态遮罩', () => {
+    mocks.state.nodes[0].data = { ...mocks.state.nodes[0].data, status: 'error', error: '生成失败' };
+    mocks.tasks = [];
+    expect(render(true)).toBeNull();
+  });
+
   it.each(['ai-image', 'ai-video', 'ai-audio'] as const)('%s 复用 UI Kit 按钮且只调用续取', async (kind) => {
     mocks.tasks[0].nodeType = kind;
     const button = queryButton()!;

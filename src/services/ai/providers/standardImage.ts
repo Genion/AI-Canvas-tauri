@@ -5,7 +5,7 @@
  * 缺省使用 /images/generations JSON；显式配置后，参考图请求使用 /images/edits multipart。
  */
 import { isLocalMediaUrl } from '../../../utils/mediaUrl';
-import { parseResponseError, buildAuthHeaders } from '../httpUtils';
+import { parseResponseError, buildAuthHeaders, classifyHttpResponseFailure, getHttpResponseError, HttpResponseError } from '../httpUtils';
 import { corsSafeFetch } from '../httpTransport';
 import {
   isOpenAIGptImageModel,
@@ -16,7 +16,7 @@ import { runBatchTasks } from '../batchUtils';
 import { useAppStore } from '../../../store/useAppStore';
 import { pollResolvedModelProtocol } from '../modelProtocol';
 import { PollTaskFailedError } from '../../pollTask';
-import { cleanupNodePolling, pauseMediaTask, registerNodePolling, removePendingTask, savePendingTask, updatePendingTask, VIDEO_POLL_MAX_DURATION_MS } from '../../pollManager';
+import { cleanupNodePolling, pauseMediaTask, registerNodePolling, removeFailedMediaTask, removePendingTask, savePendingTask, updatePendingTask, VIDEO_POLL_MAX_DURATION_MS } from '../../pollManager';
 import type { ImageReferenceRequestMode } from '../../../types';
 import type { BatchImageResult, ImageGenerationResult, MediaTaskReceipt, ResolvedModelProtocolPoll } from '../../../types/aiTypes';
 import { buildStandardImageRequestBody } from '../imageParameterMappings';
@@ -143,7 +143,6 @@ async function requestStandardImages(
       const response = await corsSafeFetch(apiUrl, {
         method: 'POST', headers: buildMultipartAuthHeaders(apiKey), body, signal,
       });
-      if (response.status === 504) await parseResponseError(response, '图片生成失败 (504)');
       return response;
     } catch (error) {
       if (signal?.aborted || (error instanceof Error && error.name === 'AbortError')) throw error;
@@ -194,6 +193,20 @@ async function readStandardResponse(
   return json;
 }
 
+function cccSubmissionFailureMessage(payload: Record<string, unknown>): string {
+  const data = Array.isArray(payload.data) ? payload.data : [payload.data];
+  const failed = data.find((item) => item && typeof item === 'object'
+    && (item as Record<string, unknown>).status === 'failed') as Record<string, unknown> | undefined;
+  for (const source of [failed, payload]) {
+    if (!source) continue;
+    const error = source.error;
+    const detail = typeof error === 'string' ? error
+      : error && typeof error === 'object' ? (error as Record<string, unknown>).message : source.message;
+    if (typeof detail === 'string' && detail.trim()) return `CCC 图片生成失败：${detail.trim()}`;
+  }
+  return 'CCC 图片生成失败，平台已返回明确失败状态';
+}
+
 async function parseStandardResponse(
   response: Response,
   dimensions: { width: number; height: number },
@@ -212,7 +225,6 @@ async function generateCccImagesBatch(
   const signal = nodeSignal && externalSignal ? AbortSignal.any([nodeSignal, externalSignal]) : nodeSignal ?? externalSignal;
   let receipt: MediaTaskReceipt | undefined;
   let requestSent = false;
-  let rejected = false;
   let allTasksFailed = false;
   try {
     if (params.nodeId && projectId && params.providerConfigId) {
@@ -222,14 +234,18 @@ async function generateCccImagesBatch(
     }
     signal?.throwIfAborted();
     const response = await requestStandardImages(params, requestedCount, signal, () => { requestSent = true; });
-    rejected = !response.ok && response.status < 500 && ![408, 429].includes(response.status);
     const payload = await readStandardResponse(response);
     const data = Array.isArray(payload.data) ? payload.data : [];
     const taskIds = [...new Set(data.flatMap((item) => item && typeof item === 'object'
       && typeof item.task_id === 'string' && item.task_id.trim() ? [item.task_id] : []))];
     if (!taskIds.length) {
       const urls = parseGeneralImageResponses(payload);
-      if (!urls.length) throw new Error('CCC 图片响应未返回任务 ID 或图片结果，请先到平台确认提交状态');
+      if (!urls.length) {
+        if (classifyHttpResponseFailure(response.status, payload)) {
+          throw new HttpResponseError(response.status, cccSubmissionFailureMessage(payload), true);
+        }
+        throw new Error('CCC 图片响应未返回任务 ID 或图片结果，请先到平台确认提交状态');
+      }
       if (receipt) removePendingTask(receipt.nodeId, receipt.taskId, receipt.attemptId);
       return { requestedCount, results: urls.slice(0, requestedCount).map((url) => ({ url, ...params.dimensions })),
         failedCount: Math.max(0, requestedCount - urls.length) };
@@ -281,8 +297,9 @@ async function generateCccImagesBatch(
       allTasksSettled: true, ...(receipt ? { taskReceipt: receipt } : {}) };
   } catch (error) {
     if (receipt) {
-      if (!requestSent || rejected || allTasksFailed) {
-        removePendingTask(receipt.nodeId, receipt.taskId, receipt.attemptId);
+      const rejectedBeforeTaskId = !receipt.taskId && getHttpResponseError(error)?.definitiveFailure;
+      if (!requestSent || rejectedBeforeTaskId || allTasksFailed) {
+        removeFailedMediaTask(receipt);
       } else {
         const paused = pauseMediaTask(receipt, error, receipt.taskId ? undefined : 'submit_unknown');
         if (paused) throw paused;

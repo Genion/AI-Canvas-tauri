@@ -4,9 +4,9 @@ import type {
   AudioOutputFormat,
   AudioTtsVoice,
 } from '../../types/aiTypes';
-import { buildAuthHeaders, parseResponseError } from './httpUtils';
+import { buildAuthHeaders, getHttpResponseError, parseResponseError } from './httpUtils';
 import { corsSafeFetch } from './httpTransport';
-import { ModelProtocolHttpError, redactModelProtocolError, redactModelProtocolErrorText } from './modelProtocolHttp';
+import { ModelProtocolHttpError, redactModelProtocolError, redactModelProtocolErrorText, throwIfDefinitiveModelResponseFailure } from './modelProtocolHttp';
 import {
   getAudioCapability,
   type AudioCapabilityKind,
@@ -104,11 +104,24 @@ async function submitFlowMusicTask(
         await throwApimartResponseError(response, `${errorLabel} (${response.status})`, apiKey);
       } catch (error) {
         throw new ModelProtocolHttpError(response.status,
-          redactModelProtocolErrorText(error instanceof Error ? error.message : errorLabel, apiKey));
+          redactModelProtocolErrorText(error instanceof Error ? error.message : errorLabel, apiKey),
+          undefined, getHttpResponseError(error)?.definitiveFailure);
       }
     }
-    const taskId = readTaskId(await response.json());
-    if (!taskId) throw new Error(`${errorLabel}：未返回 task_id`);
+    const payload: unknown = await response.json();
+    const taskId = readTaskId(payload);
+    if (!taskId) {
+      const record = payload && typeof payload === 'object' && !Array.isArray(payload)
+        ? payload as Record<string, unknown> : undefined;
+      if (typeof record?.code === 'number' && Number.isInteger(record.code)
+        && record.code >= 400 && record.code < 500 && record.code !== 408) {
+        const detail = typeof record.message === 'string' ? record.message : typeof record.msg === 'string' ? record.msg : '';
+        throw new ModelProtocolHttpError(response.status,
+          redactModelProtocolErrorText(detail.trim() || `${errorLabel}（业务码 ${record.code}）`, apiKey), undefined, true);
+      }
+      throwIfDefinitiveModelResponseFailure(payload, response.status, undefined, apiKey);
+      throw new Error(`${errorLabel}：未返回 task_id`);
+    }
     return taskId;
   } catch (error) {
     throw redactModelProtocolError(error, apiKey);
@@ -144,6 +157,13 @@ export async function generateApimartSpeech(
 
     const bytes = new Uint8Array(await response.arrayBuffer());
     if (bytes.length === 0) throw new Error('APIMart TTS 生成完成但未返回音频数据');
+    if (/\bjson\b|\+json\b/i.test(response.headers.get('Content-Type') || '')) {
+      let payload: unknown;
+      try { payload = JSON.parse(new TextDecoder().decode(bytes)); }
+      catch { throw new Error('APIMart TTS 返回无效 JSON，未返回音频数据'); }
+      throwIfDefinitiveModelResponseFailure(payload, response.status, undefined, apiKey);
+      throw new Error('APIMart TTS 返回 JSON，未返回音频数据');
+    }
     const blob = new Blob([bytes], {
       type: response.headers.get('Content-Type') || `audio/${params.format}`,
     });

@@ -7,11 +7,11 @@ import type { AIAudioGenParams, AIVideoGenParams, AudioGenerationResult, MediaTa
 import type { BaseNodeData } from '../../../types';
 import { mapImageDimensions } from '../../aiDimensions';
 import { pollTask, PollTaskFailedError } from '../../pollTask';
-import { ModelProtocolHttpError } from '../modelProtocolHttp';
+import { getHttpResponseError } from '../httpUtils';
 import {
   cleanupNodePolling,
   registerNodePolling,
-  removePendingTask,
+  removeFailedMediaTask,
   savePendingTask,
   updatePendingTask,
   pauseMediaTask,
@@ -203,10 +203,9 @@ async function generateFlowMusic(
     return { ...result, ...(receipt ? { taskReceipt: receipt } : {}) };
   } catch (error) {
     if (receipt) {
-      const rejected = !receipt.taskId && error instanceof ModelProtocolHttpError
-        && error.status < 500 && ![408, 429].includes(error.status);
+      const rejected = !receipt.taskId && getHttpResponseError(error)?.definitiveFailure === true;
       if (!requestSent || rejected || error instanceof PollTaskFailedError) {
-        removePendingTask(receipt.nodeId, receipt.taskId, receipt.attemptId);
+        removeFailedMediaTask(receipt);
       } else {
         const paused = pauseMediaTask(receipt, error, receipt.taskId ? undefined : 'submit_unknown');
         if (paused) throw paused;

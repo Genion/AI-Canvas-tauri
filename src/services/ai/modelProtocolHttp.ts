@@ -11,6 +11,7 @@ import { MIME_TYPE_RE, isRecord, resolveAuthentication, validateHeaderName } fro
 import { applyQueryAuthentication } from './modelProtocolRequest';
 import { PollTaskFailedError, PollTimeoutError, withPollRequestDeadline } from '../pollTask';
 import { parseRasterImageDimensions } from '../rasterImageDimensions';
+import { classifyHttpResponseFailure, getHttpResponseError, HttpResponseError } from './httpUtils';
 
 const RESULT_MAX_BYTES = 64 * 1024 * 1024;
 const RESULT_TOTAL_MAX_BYTES = 128 * 1024 * 1024;
@@ -21,18 +22,17 @@ interface BinaryResultBudget {
   maxBytes: number;
 }
 
-export class ModelProtocolHttpError extends Error {
-  readonly status: number;
+export class ModelProtocolHttpError extends HttpResponseError {
   readonly retryAfterMs?: number;
 
   constructor(
     status: number,
     message: string,
     retryAfterMs?: number,
+    definitiveFailure = classifyHttpResponseFailure(status, undefined),
   ) {
-    super(message);
+    super(status, message, definitiveFailure);
     this.name = 'ModelProtocolHttpError';
-    this.status = status;
     this.retryAfterMs = retryAfterMs;
   }
 }
@@ -53,9 +53,14 @@ export function redactModelProtocolError(error: unknown, apiKey: string): unknow
   const message = error instanceof Error ? error.message : exception?.message ?? (typeof error === 'string' ? error : undefined);
   if (message === undefined) return error;
   const safeMessage = redactModelProtocolErrorText(message, apiKey);
-  if (safeMessage === message) return error;
+  const httpError = getHttpResponseError(error);
+  const sensitiveHttpCause = httpError && httpError !== error
+    && redactModelProtocolErrorText(httpError.message, apiKey) !== httpError.message;
+  if (safeMessage === message && !sensitiveHttpCause) return error;
   if (typeof error === 'string') return safeMessage;
-  if (error instanceof ModelProtocolHttpError) return new ModelProtocolHttpError(error.status, safeMessage, error.retryAfterMs);
+  if (error instanceof ModelProtocolHttpError) return new ModelProtocolHttpError(error.status, safeMessage, error.retryAfterMs, error.definitiveFailure);
+  if (httpError instanceof ModelProtocolHttpError) return new ModelProtocolHttpError(httpError.status, safeMessage, httpError.retryAfterMs, httpError.definitiveFailure);
+  if (httpError) return new HttpResponseError(httpError.status, safeMessage, httpError.definitiveFailure);
   if (error instanceof PollTaskFailedError) return new PollTaskFailedError(safeMessage);
   if (error instanceof PollTimeoutError) return new PollTimeoutError(safeMessage);
   if (exception) return new DOMException(safeMessage, redactModelProtocolErrorText(exception.name, apiKey));
@@ -71,6 +76,24 @@ function parseRetryAfterMs(value: string | null): number | undefined {
   const timestamp = Date.parse(value);
   if (!Number.isFinite(timestamp)) return undefined;
   return Math.max(0, timestamp - Date.now());
+}
+
+/** 仅在提交没有交付结果或任务 ID 时调用，不能把可用结果旁的诊断字段当成拒绝。 */
+export function throwIfDefinitiveModelResponseFailure(
+  payload: unknown,
+  status: number,
+  errorPath?: string,
+  apiKey = '',
+): void {
+  if (!classifyHttpResponseFailure(status, payload)) return;
+  const configured = errorPath && (isRecord(payload) || Array.isArray(payload))
+    ? readModelProtocolFirstScalar(payload, errorPath) : undefined;
+  const record = isRecord(payload) ? payload : undefined;
+  const error = record && isRecord(record.error) ? record.error : undefined;
+  const detail = [configured, error?.message, record?.message, record?.msg]
+    .find((value): value is string => typeof value === 'string' && value.trim().length > 0);
+  throw new ModelProtocolHttpError(status,
+    redactModelProtocolErrorText(detail?.trim() || '模型请求已被平台明确拒绝或执行失败', apiKey), undefined, true);
 }
 
 export async function readJsonResponse(
@@ -98,12 +121,14 @@ export async function readJsonResponse(
           ? payload.message
           : rawText.trim() || `${label} (${response.status})`;
     if (response.status === 429 && /no deployments available/i.test(message)) {
-      throw new Error('所选模型暂无可用部署，请稍后手动重试（429）');
+      throw new ModelProtocolHttpError(response.status, '所选模型暂无可用部署，请稍后手动重试（429）',
+        parseRetryAfterMs(response.headers.get('Retry-After')), classifyHttpResponseFailure(response.status, payload));
     }
     throw new ModelProtocolHttpError(
       response.status,
       `${label} (${response.status}): ${redactModelProtocolErrorText(message, apiKey)}`,
       parseRetryAfterMs(response.headers.get('Retry-After')),
+      classifyHttpResponseFailure(response.status, payload),
     );
   }
   const payload = await response.json().catch(() => null) as unknown;

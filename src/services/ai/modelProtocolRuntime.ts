@@ -9,7 +9,7 @@ import {
   MEDIA_POLL_MAX_DURATION_MS,
   registerMediaNodeOperation,
   registerNodePolling,
-  removePendingTask,
+  removeFailedMediaTask,
   savePendingTask,
   updatePendingTask,
 } from '../pollManager';
@@ -23,7 +23,7 @@ import {
   submitModelProtocol,
   type ModelProtocolVariables,
 } from './modelProtocol';
-import { ModelProtocolHttpError } from './modelProtocolHttp';
+import { getHttpResponseError } from './httpUtils';
 import { PollTaskFailedError, isPollTimeoutError } from '../pollTask';
 import { REFERENCE_PROTOCOL_VARIABLES } from './modelProtocolVariables';
 import { readModelProtocolPathValues } from './modelProtocolResponse';
@@ -439,14 +439,13 @@ export async function runConfiguredModelProtocol(
     // 每类媒体都在本地保存和目标回填后确认，数组携带当次身份而非读取最新节点任务。
     return Object.assign(result.urls, { mediaDownloadAccess, ...(receipt ? { taskReceipt: receipt } : {}) });
   } catch (error) {
-    const rejected = !receipt?.taskId && error instanceof ModelProtocolHttpError
-      && error.status >= 400 && error.status < 500 && ![408, 429].includes(error.status);
+    const rejected = !receipt?.taskId && getHttpResponseError(error)?.definitiveFailure === true;
     if (receipt && !(error instanceof PollTaskFailedError) && !rejected) {
       const paused = pauseMediaTask(receipt, error, !receipt.taskId ? 'submit_unknown'
         : isPollTimeoutError(error) ? 'query_timeout' : 'query_interrupted');
       if (paused) throw paused;
     }
-    if (receipt && (error instanceof PollTaskFailedError || rejected)) removePendingTask(receipt.nodeId, receipt.taskId, receipt.attemptId);
+    if (receipt && (error instanceof PollTaskFailedError || rejected)) removeFailedMediaTask(receipt);
     throw error;
   } finally {
     if (options.nodeId) cleanupNodePolling(options.nodeId, nodeSignal);
