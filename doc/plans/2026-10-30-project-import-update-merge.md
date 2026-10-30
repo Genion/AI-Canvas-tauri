@@ -311,7 +311,7 @@ UI 实施时先查 `src/styles/ui-kit.css` 与样式预览窗口，复用 `Modal
 
 已补 `tests/services/projectExchangeFormat.test.ts`、`tests/services/projectExchangeRepository.test.ts`，并更新现有数据库迁移断言；均未运行。
 
-材料上限当前为单快照 64 MiB、交换文本 512 MiB、版本描述/正文合计 256 项、父版本最多 2 个、JSON 深度 32；超限明确失败，不自动丢弃基线、放松路径检查或推断成功。新实体与媒体各有数量/体积预算。完整历史保留策略仍待归档接线定稿。
+材料上限当前为单快照 64 MiB、交换文本 512 MiB、版本描述/正文合计 256 项、父版本最多 2 个、JSON 深度 32；超限明确失败，不自动丢弃基线、放松路径检查或推断成功。新实体与媒体各有数量/体积预算。当前携带有界完整历史，不自动压缩祖先或清除恢复点；长期保留与整理界面后续单独扩展。
 
 实现复用既有 `files/project_archive.rs` 的路径授权和 tar/gzip 边界，新增主窗口专属摘要与发布命令；没有新增通用脚本执行能力或私有目录，也不放宽现有路径策略。暂存是独立、没有项目数据库记录的数据目录，而非新的不透明原生句柄协议。
 
@@ -328,7 +328,7 @@ UI 实施时先查 `src/styles/ui-kit.css` 与样式预览窗口，复用 `Modal
 7. 项目右键“导入更新恢复点”，恢复前一状态，核对所有分集/画布/资产；再恢复“恢复操作前”验证可回到刚才状态。聊天/记忆保留。
 8. 旧 v1/v2 包选择新建、无基线人工更新及确认原始交接包三条路径分别验收；错误目标与不同协作来源不能自动关联。验证浅色、深色、窄窗口、键盘与长中文提示词。
 
-本次未运行测试，待用户验收。供用户执行的定向命令（仓库根目录）：`npx vitest run tests/services/projectExchangeFormat.test.ts tests/services/projectExchangeRepository.test.ts tests/services/projectMergeService.test.ts tests/services/projectImportRepository.test.ts tests/services/projectTransferService.test.ts`。Rust 命令与真实文件行为须另在 Tauri 桌面端验收，不能用该命令替代。
+本次未运行测试，待用户验收。实现与两次边界修正提交均已通过提交钩子的定向 ESLint。供用户执行的定向命令（仓库根目录）：`npx vitest run tests/services/projectExchangeFormat.test.ts tests/services/projectExchangeRepository.test.ts tests/services/projectExchangeRoundTrip.test.ts tests/services/projectMergeService.test.ts tests/services/projectImportRepository.test.ts tests/services/projectTransferService.test.ts`。Rust 命令与真实文件行为须另在 Tauri 桌面端验收，不能用该命令替代。
 
 供用户在仓库根目录执行的定向检查：
 
