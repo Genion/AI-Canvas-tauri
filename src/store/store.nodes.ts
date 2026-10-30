@@ -43,6 +43,7 @@ import { getGenerationNodeType } from '../utils/nodeGeneration';
 import { collectCanvasDescendantIds } from '../utils/canvasHierarchy';
 import { normalizeShotlistPromptReferences, resolveSingleShotlistRowReference } from '../services/shotlistPromptService';
 import { readNodeModelPreference } from '../services/modelPreferenceService';
+import { getNodeSize } from '../utils/nodeBounds';
 
 /** 只投影本次真实传入的媒体参数，保留 false、接口默认背景与自动时长。 */
 function mediaParametersToNodeData(kind: MediaKind, parameters?: MediaGenerationParameters): Partial<BaseNodeData> {
@@ -329,23 +330,16 @@ function absoluteNodePosition(node: Node<BaseNodeData>, nodes: Node<BaseNodeData
   return position;
 }
 
-function nodeSize(node: Node<BaseNodeData>) {
-  return {
-    width: node.measured?.width ?? node.width ?? (Number(node.style?.width) || node.data.nodeWidth || 280),
-    height: node.measured?.height ?? node.height ?? (Number(node.style?.height) || node.data.nodeHeight || 160),
-  };
-}
-
 function groupContainsPoint(group: Node<BaseNodeData>, point: { x: number; y: number }, nodes: Node<BaseNodeData>[]) {
   const position = absoluteNodePosition(group, nodes);
-  const size = nodeSize(group);
+  const size = getNodeSize(group);
   return point.x >= position.x && point.x <= position.x + size.width
     && point.y >= position.y && point.y <= position.y + size.height;
 }
 
 function nodeCenter(node: Node<BaseNodeData>, nodes: Node<BaseNodeData>[]) {
   const position = absoluteNodePosition(node, nodes);
-  const size = nodeSize(node);
+  const size = getNodeSize(node);
   return { x: position.x + size.width / 2, y: position.y + size.height / 2 };
 }
 

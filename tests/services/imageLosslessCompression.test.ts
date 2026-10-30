@@ -141,6 +141,18 @@ describe('图片节点无损压缩副本', () => {
     expect(node.parentId).toBeUndefined();
   });
 
+  it('放大后的组内图片按实测右边缘放置压缩副本，不与原图重叠', async () => {
+    source.parentId = 'group';
+    source.measured = { width: 480, height: 320 };
+    source.data.nodeWidth = 200;
+    state.nodes.unshift({ id: 'group', type: 'group', position: { x: 500, y: 1000 },
+      data: { type: 'comment', label: '分组' } });
+    const before = structuredClone(source);
+    await compressImageNode('source');
+    expect(state.addNode.mock.calls[0][0].position).toEqual({ x: 1030, y: 1020 });
+    expect(source).toEqual(before);
+  });
+
   it('source-image节点同样可用', async () => {
     source.type = source.data.type = 'source-image';
     await expect(compressImageNode('source')).resolves.toMatchObject({ status: 'compressed' });

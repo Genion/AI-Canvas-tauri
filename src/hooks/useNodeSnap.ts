@@ -6,6 +6,7 @@ import { useReactFlow } from '@xyflow/react';
 import type { Node } from '@xyflow/react';
 import type { BaseNodeData } from '../types';
 import { useAppStore } from '../store/useAppStore';
+import { getNodeSize } from '../utils/nodeBounds';
 
 /** 视口外保留的 margin（流坐标），略大于一个节点高度，避免边缘节点被误裁 */
 const VIEWPORT_CULL_MARGIN = 400;
@@ -41,21 +42,6 @@ export interface NodeBounds {
   bottom: number;
 }
 
-function getDefaultNodeSize(nodeType: string | undefined): { width: number; height: number } {
-  switch (nodeType) {
-    case 'ai-text':
-      return { width: 280, height: 160 };
-    case 'ai-image':
-      return { width: 280, height: 158 };
-    case 'ai-video':
-      return { width: 280, height: 160 };
-    case 'ai-audio':
-      return { width: 260, height: 140 };
-    default:
-      return { width: 280, height: 160 };
-  }
-}
-
 /** Follow parentId chain to compute absolute offset from relative position */
 function getParentOffset(
   node: Node<BaseNodeData>,
@@ -74,29 +60,11 @@ function getParentOffset(
   return { x: offsetX, y: offsetY };
 }
 
-/**
- * 实测尺寸优先 —— DOM 才是真相：data.nodeWidth/nodeHeight 只是建节点时写死的估值
- * （音频节点写 140，实际 88），分组节点更是压根没有这两个字段。
- * 未实测时才退回卡片估值 → xyflow 用户/样式尺寸 → 按类型兜底。
- */
-function resolveNodeSize(node: Node<BaseNodeData>, axis: 'width' | 'height'): number | undefined {
-  const measured = node.measured?.[axis];
-  if (typeof measured === 'number' && measured > 0) return measured;
-  const cardSize = node.data?.[axis === 'width' ? 'nodeWidth' : 'nodeHeight'] as number | undefined;
-  if (typeof cardSize === 'number') return cardSize;
-  if (typeof node[axis] === 'number') return node[axis];
-  const styleSize = Number(node.style?.[axis]);
-  if (Number.isFinite(styleSize) && styleSize > 0) return styleSize;
-  return undefined;
-}
-
 function getNodeBounds(
   node: Node<BaseNodeData>,
   nodeMap: Map<string, Node<BaseNodeData>>
 ): NodeBounds {
-  const defaultSize = getDefaultNodeSize(node.type);
-  const cardWidth = resolveNodeSize(node, 'width') ?? defaultSize.width;
-  const cardHeight = resolveNodeSize(node, 'height') ?? defaultSize.height;
+  const { width: cardWidth, height: cardHeight } = getNodeSize(node);
   const parentOffset = node.parentId ? getParentOffset(node, nodeMap) : { x: 0, y: 0 };
   const x = node.position.x + parentOffset.x;
   const y = node.position.y + parentOffset.y;

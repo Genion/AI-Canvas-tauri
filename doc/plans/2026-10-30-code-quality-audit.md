@@ -1,6 +1,6 @@
 # 全仓代码质量审查与精简建议
 
-日期：2026-10-30。状态：静态审查完成；Q01 已实现，自动回归与部分桌面交互已验证，真实生成及其余桌面场景待验收；其他业务精简尚未实施。
+日期：2026-10-30。状态：静态审查完成；Q01 自动回归与部分桌面交互已验证，真实生成等场景待验收；Q02 已实现、尚未运行测试；其余业务精简尚未实施。
 
 建议先收敛模型默认值和节点几何计算，再清理闲置模块、合并同领域重复函数。前两项已经存在实现差异；全仓建立通用抽象或批量拆分大文件的收益较低，影响面更难控制。
 
@@ -46,23 +46,31 @@ Tauri 桌面剩余验收：
 
 ### Q02 P2 节点尺寸计算存在多套优先级
 
-证据：
+原问题：[共享包围盒](../../src/utils/nodeBounds.ts) 只读业务估值，吸附与分组命中则各有实测／样式／业务值的回退顺序，默认尺寸也有重复实现；[压缩副本](../../src/services/imageLosslessCompression.ts) 按共享包围盒右边界放置，可能与放大后的原图重叠。新建分组还按节点数组预计算尺寸，却按选择顺序使用，顺序不同时会错配不同节点的尺寸。这些是源码结论，未做桌面复现。
 
-- [nodeBounds.ts:63](../../src/utils/nodeBounds.ts#L63) 的 `getNodeBounds` 使用 `data.nodeWidth/nodeHeight` 或类型默认值。
-- [useNodeSnap.ts:82](../../src/hooks/useNodeSnap.ts#L82) 的 `resolveNodeSize` 优先使用 `measured`，再回退到数据、节点尺寸和样式。
-- [store.nodes.ts:331](../../src/store/store.nodes.ts#L331) 的 `nodeSize` 又使用另一套尺寸优先级。
-- [nodeBounds.ts:7](../../src/utils/nodeBounds.ts#L7) 与 [useNodeSnap.ts:44](../../src/hooks/useNodeSnap.ts#L44) 的默认尺寸函数体完全重复。
-- [imageLosslessCompression.ts:109](../../src/services/imageLosslessCompression.ts#L109) 使用 `getNodeBounds` 的右边界放置压缩副本。
+实施方案（2026-10-30，已实现）：
 
-影响：当实际测量尺寸与持久化估值不一致时，吸附、分组命中和派生节点布局可能采用不同边界。例如实际宽度大于 `data.nodeWidth` 时，按旧宽度放置的副本可能与原节点重叠。尚未进行桌面复现。
+1. 在现有 `nodeBounds.ts` 增加纯尺寸读取入口。宽高分别选择有效正数：`measured` → React Flow `width/height` → `initialWidth/initialHeight` → 数值或 px 样式 → 业务卡片／笔记尺寸 → 类型默认。前两项描述已有显示边界；没有实测值的节点按后续声明估算，不将估算写回节点。百分比、auto 和相对单位不能脱离容器解析，跳过。
+2. [吸附](../../src/hooks/useNodeSnap.ts)、共享包围盒、[分组命中](../../src/store/store.nodes.ts) 和[新建分组包围盒](../../src/store/store.groups.ts) 共用 `getNodeSize()`；吸附父链仍使用 Map，几何位置与历史提交沿用原路径。新建分组直接读取当前节点尺寸，不再用数组下标关联选择顺序。逐镜排版和折叠展开的目标尺寸保留原职责，Q03 父链循环保护不在本项处理。
+3. 默认尺寸按生成／源媒体同类解析；过滤非有限值、零和负值，笔记缺少卡片镜像字段时可按自身尺寸估算。读取过程不改写节点，不新增持久化字段、依赖或权限。
+4. 新增 [nodeBounds 回归](../../tests/utils/nodeBounds.test.ts)，补充 [groupFolders](../../tests/store/groupFolders.test.ts) 和 [imageLosslessCompression](../../tests/services/imageLosslessCompression.test.ts)，覆盖优先级、异常值、音频／笔记／未挂载分组、嵌套坐标、反向选择与压缩副本放置。
 
-建议：先定义“实际显示尺寸”和“未挂载节点估算尺寸”的明确合同，再复用尺寸解析与默认尺寸。保留吸附路径现有 Map 索引，避免统一后退化为反复全表查找。不要机械地把所有入口替换成当前任意一套实现。
+状态：已完成源码、引用、UTF-8 和差异空白静态核对；提交时复用既有钩子执行本批 7 个 TS 文件的定向 ESLint。本次未运行测试、类型检查、构建或桌面验收，待用户验收；Q01 的既有结果不代表 Q02 已验证。
 
-验收重点：拖拽缩放后的节点、音频卡片、分组、嵌套分组、画布笔记及未挂载节点；检查吸附线、入组命中与新副本位置。
+Tauri 桌面验收：
+
+1. 在测试项目准备不同宽高的图片、音频和画布笔记，缩放图片后分别拖拽对齐与平均分布；吸附线、间距手柄应贴合当前显示边界，音频不因旧卡片高度产生额外间距。
+2. 以不同顺序选中两个大小明显不同的节点创建分组，分组应包住同一内容范围；撤销／重做保留位置和成员。把未生成音频移到展开分组的边缘，按节点中心判定入组；回归嵌套分组移动、折叠展开及隐藏子节点不参与吸附。
+3. 对放大的组内可压缩 PNG／JPEG 执行“无损压缩”。实际产生副本时，应位于原图当前右边缘外 40 个画布单位，纵坐标与原图绝对坐标一致；没有压缩收益时沿用不创建副本的行为。
+4. 保存重开项目，再检查音频、笔记、分组和图片首次挂载前后的尺寸恢复；比例／auto 样式无法独立换算时安全采用业务估值。异常数值和未实测场景优先由下列定向回归覆盖。
+
+回归命令（仓库根目录，尚未执行）：`npx vitest run tests/utils/nodeBounds.test.ts tests/hooks/useNodeSnap.test.ts tests/store/groupFolders.test.ts tests/services/imageLosslessCompression.test.ts tests/components/distributionGapHandles.test.tsx`。类型检查按需执行 `npm run typecheck` 与 `npm run test:typecheck`。
+
+回滚：撤销共享尺寸读取及四处接入、对应回归和文档差异；节点记录与项目存储格式不迁移。Q03 及其他精简项保持待实施。
 
 ### Q03 P2 两处父级遍历缺少循环终止条件
 
-证据：[nodeBounds.ts:45](../../src/utils/nodeBounds.ts#L45) 和 [useNodeSnap.ts:60](../../src/hooks/useNodeSnap.ts#L60) 的父级遍历只有 `while (pid)`，没有 visited 集合；[store.nodes.ts:316](../../src/store/store.nodes.ts#L316) 已有带循环保护的同类实现。[projectTransferService.ts:233](../../src/services/projectTransferService.ts#L233) 的归档形状检查只确认节点、边等为数组，该入口没有校验节点父链。
+证据：[nodeBounds.ts](../../src/utils/nodeBounds.ts) 和 [useNodeSnap.ts](../../src/hooks/useNodeSnap.ts) 的 `getParentOffset` 父级遍历只有 `while (pid)`，没有 visited 集合；[store.nodes.ts](../../src/store/store.nodes.ts) 的 `absoluteNodePosition` 已有带循环保护的同类实现。[projectTransferService.ts:233](../../src/services/projectTransferService.ts#L233) 的归档形状检查只确认节点、边等为数组，该入口没有校验节点父链。
 
 对于 A 的父级为 B、B 的父级为 A 的输入，前两个函数自身无法结束遍历。这是静态控制流结论，未实际加载此类归档。
 
@@ -168,12 +176,12 @@ Tauri 桌面剩余验收：
 1. 在仓库根目录执行 `npm run check`，检查前端 lint、源码与测试类型及现有回归；若出现仓库规则记录的 ESLint 工具链错误，单独记录，不修改依赖绕过。
 2. 在 `src-tauri/` 执行 `cargo check --lib`，确认原生源码与构建脚本编译。
 3. 使用既有 Tauri 开发入口打开画布、文本／音频节点、资产库、ComfyUI 管理和插件设置；确认页面可打开、交互与原版本一致，文件头不会进入产品显示内容。
-4. Q01 继续补齐上述桌面剩余场景；后续实施 Q02～Q03 时补对应行为回归，覆盖撤销重做和异常父链，不能用本次注释的静态核对替代功能验收。
+4. Q01 继续补齐上述桌面剩余场景，Q02 按上文执行尺寸与布局验收；后续 Q03 补异常父链回归，不能用本次注释的静态核对替代功能验收。
 
 ## 建议实施批次
 
-1. **默认模型与几何行为收敛**：Q01 已实现，自动回归与部分桌面交互已验证，真实生成等场景仍待验收；Q02～Q03 仍待确认并分领域实施，保留源码与测试的独立回退点。
+1. **默认模型与几何行为收敛**：Q01 自动回归与部分桌面交互已验证，真实生成等场景仍待验收；Q02 已实现、尚未运行测试；Q03 待实施，保留源码与测试的独立回退点。
 2. **闲置入口与局部重复清理**：确认 Q04 的兼容需求后删候选，再处理 Q05～Q09；每批保持同一业务领域。
 3. **低收益统一与热点重构**：处理 Q10、Q11；大模块只有在具体维护需求或性能证据出现时再按职责拆分。
 
-除已明确实施的 Q01 外，其余均为建议，不构成架构改动、删除文件、新增依赖或运行测试的授权。
+除已明确实施的 Q01、Q02 外，其余均为建议，不构成架构改动、删除文件、新增依赖或运行测试的授权。

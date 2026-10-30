@@ -153,6 +153,45 @@ describe('展开分组内创建和拖入空节点', () => {
     expect(useAppStore.getState().nodes[1].parentId).toBe(group.id);
   });
 
+  it('无实测音频按音频默认宽度判定中心，不误用通用节点宽度', () => {
+    const { group } = setup();
+    useAppStore.getState().addNode({
+      id: 'audio', type: 'ai-audio', position: { x: 965, y: 660 },
+      data: { type: 'ai-audio', label: '空音频', status: 'idle' },
+    });
+    expect(useAppStore.getState().nodes[1]).toMatchObject({
+      parentId: group.id, position: { x: 865, y: 560 },
+    });
+  });
+
+  it('分组无效实测尺寸不会遮蔽有效样式范围', () => {
+    const { group, empty } = setup();
+    useAppStore.setState({ nodes: [{ ...group,
+      width: undefined, height: undefined, measured: { width: 0, height: NaN },
+      style: { width: 1000, height: 700 },
+    }] });
+    useAppStore.getState().addNode(empty);
+    expect(useAppStore.getState().nodes[1].parentId).toBe(group.id);
+  });
+
+  it('反向选择不同尺寸节点时，新分组按各自实测边界包住内容并可撤销', async () => {
+    const first = { ...node('a'), measured: { width: 120, height: 88 },
+      data: { ...node('a').data, nodeWidth: 1000, nodeHeight: 500 } };
+    const second = { ...node('b'), position: { x: 300, y: 50 }, measured: { width: 400, height: 120 },
+      data: { ...node('b').data, nodeWidth: 10, nodeHeight: 10 } };
+    useAppStore.setState({ nodes: [first, second], groups: [] });
+    createGroup(['b', 'a']);
+    const state = useAppStore.getState();
+    expect(state.nodes[0]).toMatchObject({
+      type: 'group', position: { x: -36, y: -72 }, style: { width: 772, height: 278 },
+    });
+    expect(state.nodes.find((item) => item.id === 'a')?.position).toEqual({ x: 36, y: 72 });
+    expect(state.nodes.find((item) => item.id === 'b')?.position).toEqual({ x: 336, y: 122 });
+    await useAppStore.getState().undo();
+    expect(useAppStore.getState().nodes).toEqual([first, second]);
+    expect(useAppStore.getState().groups).toEqual([]);
+  });
+
   it('拖出分组还原绝对坐标，不影响其他分组的成员', () => {
     const { group, empty } = setup();
     useAppStore.getState().addNode(empty);

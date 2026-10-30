@@ -9,6 +9,7 @@ import type { NodeGroup } from '../types';
 import { GROUP_COLOR_PALETTE } from '../types';
 import { generateId } from './store.utils';
 import { layoutEpisodeShots } from '../utils/episodeLayout';
+import { getNodeSize } from '../utils/nodeBounds';
 import { isNodeMediaCopySource } from '../services/nodeMediaCopy';
 import { persistMissingNodeTextFiles } from '../services/nodeTextFilePersistence';
 import { registerCanvasImport, isCanvasDerivationFresh, completeCanvasDerivation, type CanvasDerivationGuard } from '../services/canvasDerivationGuard';
@@ -239,10 +240,6 @@ export const createGroupSlice: StateCreator<AppState, [], [], GroupSlice> = (set
 
     // Compute bounding box from absolute positions
     const selectedNodes = nodes.filter((n) => candidateIds.includes(n.id));
-    const sizes = selectedNodes.map((n) => ({
-      width: (n.data?.nodeWidth as number) || (n.measured?.width) || 280,
-      height: (n.data?.nodeHeight as number) || (n.measured?.height) || 160,
-    }));
     const minLeft = Math.min(...selectedNodes.map((n) => {
       const absX = n.parentId ? n.position.x + (nodes.find(p => p.id === n.parentId)?.position.x || 0) : n.position.x;
       return absX;
@@ -269,8 +266,9 @@ export const createGroupSlice: StateCreator<AppState, [], [], GroupSlice> = (set
       const rx = absX - gX;
       const ry = absY - gY;
       relMap.set(n.id, { x: rx, y: ry });
-      const right = rx + sizes[i].width;
-      const bottom = ry + sizes[i].height;
+      const size = getNodeSize(n);
+      const right = rx + size.width;
+      const bottom = ry + size.height;
       if (right > maxRight) maxRight = right;
       if (bottom > maxBottom) maxBottom = bottom;
     }
