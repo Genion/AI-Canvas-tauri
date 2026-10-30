@@ -1,8 +1,8 @@
 /**
- * comfyQuery — 回归测试：ComfyUI 短查询预算。
+ * comfyQuery — 回归测试：ComfyUI 响应读取合同与短查询预算。
  */
-import { describe, expect, it } from 'vitest';
-import { withComfyQueryTimeout } from '../../src/services/comfyQuery';
+import { describe, expect, it, vi } from 'vitest';
+import { assertComfyResponse, withComfyQueryTimeout } from '../../src/services/comfyQuery';
 
 describe('ComfyUI 短查询预算', () => {
   it('连接不返回时结束等待并取消底层请求', async () => {
@@ -56,5 +56,35 @@ describe('ComfyUI 短查询预算', () => {
     }, controller.signal)).resolves.toEqual({ ok: true });
     controller.abort();
     expect(requestSignal?.aborted).toBe(false);
+  });
+});
+
+describe('ComfyUI 普通响应检查', () => {
+  it('成功时不读取正文，调用方仍能正常解析 JSON', async () => {
+    const response = new Response('{"ok":true}');
+    const text = vi.spyOn(response, 'text');
+    await expect(assertComfyResponse(response, '读取状态')).resolves.toBeUndefined();
+    expect(text).not.toHaveBeenCalled();
+    expect(response.bodyUsed).toBe(false);
+    await expect(response.json()).resolves.toEqual({ ok: true });
+  });
+
+  it('失败时只读一次正文，保留动作及状态码并截断到 200 字符', async () => {
+    const response = new Response('x'.repeat(240), { status: 503 });
+    const text = vi.spyOn(response, 'text');
+    await expect(assertComfyResponse(response, '读取状态')).rejects.toMatchObject({
+      message: `读取状态失败（HTTP 503）：${'x'.repeat(200)}`,
+    });
+    expect(text).toHaveBeenCalledTimes(1);
+    expect(response.bodyUsed).toBe(true);
+  });
+
+  it('正文不可读时保留 HTTP 错误，不透传读取异常或重读', async () => {
+    const response = new Response('', { status: 500 });
+    const text = vi.spyOn(response, 'text').mockRejectedValueOnce(new Error('body read failed'));
+    await expect(assertComfyResponse(response, '释放资源')).rejects.toMatchObject({
+      message: '释放资源失败（HTTP 500）',
+    });
+    expect(text).toHaveBeenCalledTimes(1);
   });
 });

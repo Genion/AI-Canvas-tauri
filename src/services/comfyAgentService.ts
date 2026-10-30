@@ -16,7 +16,8 @@ import { comfyFetch, pollComfyHistory } from './comfyPolling';
 import { maybeAutoReleaseComfyMemory } from './comfyMemory';
 import { resolveComfyOutputUrl, type ComfyOutputKind } from './comfyOutputs';
 import { formatComfyPromptError } from './comfyWorkflowService';
-import { extractComfyUIIONodes } from './comfyUIWindowService';
+import { extractComfyUIIONodes, sanitizeWorkflowFileName } from './comfyUIWindowService';
+import { assertComfyResponse } from './comfyQuery';
 import { listConfiguredComfyServers, resolveComfyServerSelection, type ComfyServerSelection } from './comfyServers';
 
 type ComfyWorkflow = Record<string, ComfyWorkflowNode>;
@@ -141,10 +142,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 async function readJson(response: Response, action: string): Promise<unknown> {
-  if (!response.ok) {
-    const detail = await response.text().catch(() => '');
-    throw new Error(`${action}失败（HTTP ${response.status}）${detail ? `：${detail.slice(0, 200)}` : ''}`);
-  }
+  await assertComfyResponse(response, action);
   return response.json();
 }
 
@@ -475,11 +473,6 @@ function workflowNameFrom(entry: ValidatedWorkflowEntry): string {
   const model = entry.modelNames[0]?.split(/[\\/]/).pop()?.replace(/\.[^.]+$/, '').trim();
   const kind = entry.kind === 'image' ? '图像' : entry.kind === 'video' ? '视频' : '音频';
   return model ? `${model}-${kind}工作流` : `ComfyUI-${kind}工作流`;
-}
-
-function sanitizeWorkflowFileName(name: string): string {
-  const base = name.trim().replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, '_') || 'comfyui-workflow';
-  return `${base.replace(/\.json$/i, '')}.json`;
 }
 
 function createSaveOffer(

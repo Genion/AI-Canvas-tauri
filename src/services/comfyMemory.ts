@@ -6,7 +6,7 @@
  */
 import type { ComfyMemoryPolicy } from '../types';
 import { comfyFetch } from './comfyPolling';
-import { withComfyQueryTimeout } from './comfyQuery';
+import { assertComfyResponse, withComfyQueryTimeout } from './comfyQuery';
 
 export type ComfyMemoryReleaseMode = Exclude<ComfyMemoryPolicy, 'smart'>;
 
@@ -60,12 +60,6 @@ function parseDevice(value: unknown): ComfyMemoryDeviceStats | null {
   };
 }
 
-async function assertResponse(response: Response, action: string): Promise<void> {
-  if (response.ok) return;
-  const detail = await response.text().catch(() => '');
-  throw new Error(`${action}失败（HTTP ${response.status}）${detail ? `：${detail.slice(0, 200)}` : ''}`);
-}
-
 export function isLoopbackComfyUrl(baseUrl: string): boolean {
   try {
     const url = new URL(baseUrl);
@@ -86,7 +80,7 @@ export async function fetchComfyMemoryStats(
 ): Promise<ComfyMemoryStats> {
   const payload = await withComfyQueryTimeout(async (querySignal) => {
     const response = await comfyFetch(`${trimBaseUrl(baseUrl)}/system_stats`, { signal: querySignal });
-    await assertResponse(response, '读取 ComfyUI 显存状态');
+    await assertComfyResponse(response, '读取 ComfyUI 显存状态');
     return await response.json() as Record<string, unknown>;
   }, signal);
   const system = payload.system && typeof payload.system === 'object' && !Array.isArray(payload.system)
@@ -114,7 +108,7 @@ export async function releaseComfyMemory(
     }),
     signal,
   });
-  await assertResponse(response, '释放 ComfyUI 资源');
+  await assertComfyResponse(response, '释放 ComfyUI 资源');
 }
 
 function queueHasItems(value: unknown): boolean {
@@ -135,7 +129,7 @@ export async function maybeAutoReleaseComfyMemory(
 
   const queue = await withComfyQueryTimeout(async (querySignal) => {
     const response = await comfyFetch(`${trimBaseUrl(baseUrl)}/queue`, { signal: querySignal });
-    await assertResponse(response, '读取 ComfyUI 队列');
+    await assertComfyResponse(response, '读取 ComfyUI 队列');
     return await response.json() as Record<string, unknown>;
   }, signal);
   if (queueHasItems(queue.queue_running) || queueHasItems(queue.queue_pending)) {

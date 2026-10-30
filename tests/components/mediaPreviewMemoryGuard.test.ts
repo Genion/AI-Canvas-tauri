@@ -114,7 +114,7 @@ describe('media preview memory guards', () => {
     expect(videoNodeSource).toContain('shouldPlay: fullscreenPlaybackRef.current.wasPlaying');
     expect(videoNodeSource).toContain('releaseVideoElement(fullscreenVideo);');
     expect(videoNodeSource).toContain('releaseCanvasVideo(video);');
-    expect(videoPreviewCacheSource).toMatch(/function releaseCanvasVideo[\s\S]*?removeAttribute\('src'\)[\s\S]*?video\.load\(\)/);
+    expect(videoPreviewCacheSource).toContain('releaseViewportVideoElement(video);');
     expect(videoNodeSource).toMatch(/const cleanup = \(\) => \{[\s\S]*?releaseVideoElement\(video\)/);
     expect(videoNodeSource).toMatch(
       /className="fullscreen-overlay--image-preview"[\s\S]*?mediaRef=\{setFullscreenVideoElement\}/,

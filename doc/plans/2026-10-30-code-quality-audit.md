@@ -1,6 +1,6 @@
 # 全仓代码质量审查与精简建议
 
-日期：2026-10-30。状态：静态审查完成；Q01 自动回归与部分桌面交互已验证，真实生成等场景待验收；Q02 与 Q03 运行时保护已实现、尚未运行测试；Q04 闲置模块及专属样式已清理，Q05 音视频工具栏预设执行、Q06 历史筛选、Q07 参考媒体串行处理、Q08 模型协议基础逻辑已合并，均待用户验收；Q09～Q11 尚未实施。
+日期：2026-10-30。状态：静态审查完成；Q01 自动回归与部分桌面交互已验证，真实生成等场景待验收；Q02 与 Q03 运行时保护已实现、尚未运行测试；Q04 闲置模块及专属样式已清理，Q05 音视频工具栏预设执行、Q06 历史筛选、Q07 参考媒体串行处理、Q08 模型协议基础逻辑及 Q09 四组局部重复已合并，均待用户验收；Q10～Q11 尚未实施。
 
 建议先收敛模型默认值和节点几何计算，再清理闲置模块、合并同领域重复函数。前两项已经存在实现差异；全仓建立通用抽象或批量拆分大文件的收益较低，影响面更难控制。
 
@@ -204,7 +204,7 @@ Tauri 桌面验收（准备测试项目、已有的通用视频模型协议与 A
 - 比较函数留在已依赖解析器的协议入口，共享基础模块不反向依赖入口；未新增文件、依赖、厂商合同、鉴权策略或数据迁移。
 - 在现有 [modelProtocol.test.ts](../../tests/services/modelProtocol.test.ts) 补充 9 个回归场景，覆盖对象键序／数组顺序、输入不被改写、无法比较的配置、JSON／unknown 成员类型、三个危险路径段，以及校验与 multipart 编码对三种非法 MIME 的拒绝。用例已编写，尚未执行；类型断言仍待测试类型检查。
 
-本次未运行测试，待用户验收；未执行 Q08 ESLint、类型检查、构建、厂商调用或桌面实测。仅完成引用、调用链、迁移文本、UTF-8／原 BOM 与混合换行及差异空白静态核对。
+Q08 已提交为 `f1fa71df`，提交钩子完成 9 个 TS 文件的定向 ESLint。回归用例尚未运行，类型检查、构建、厂商调用与桌面实测仍待用户验收；实现阶段仅完成引用、调用链、迁移文本、UTF-8／原 BOM 与混合换行及差异空白静态核对。
 
 Tauri 桌面验收（准备已有的 RelayOn／LIBAPI 测试模型配置、自定义协议与可控测试接口）：
 
@@ -220,14 +220,37 @@ Tauri 桌面验收（准备已有的 RelayOn／LIBAPI 测试模型配置、自�
 
 ### Q09 P3 其他适合顺手合并的小重复
 
-| 领域 | 位置 | 合并边界 |
-|---|---|---|
-| ComfyUI 响应错误处理 | [comfyWorkflowService.ts:58](../../src/services/comfyWorkflowService.ts#L58)、[comfyMemory.ts:63](../../src/services/comfyMemory.ts#L63) | 保持响应读取与异常文案合同 |
-| ComfyUI 工作流文件名清洗 | [comfyAgentService.ts:480](../../src/services/comfyAgentService.ts#L480)、[comfyUIWindowService.ts:68](../../src/services/comfyUIWindowService.ts#L68) | 清洗逻辑共用，调用方授权仍各自保留 |
-| 视频元素资源释放 | [viewportVideoResource.ts:4](../../src/components/shared/viewportVideoResource.ts#L4)、[canvasVideoPreviewCache.ts:45](../../src/components/nodes/shared/video/canvasVideoPreviewCache.ts#L45) | 已有通用释放函数，优先复用 |
-| 字节数组相等判断 | [projectFiles.ts:96](../../src/services/fs/projectFiles.ts#L96)、[directorSceneService.ts:57](../../src/services/directorSceneService.ts#L57) | 只复用字节比较，不合并文件写入权限或场景绑定 |
+2026-10-30 已实现：
 
-这些重复本身没有证明运行错误，适合随对应模块的小步维护处理，不值得单独引入多层抽象。
+| 领域 | 共享入口与调用方 | 保留边界 |
+|---|---|---|
+| ComfyUI 响应错误处理 | [comfyQuery.ts](../../src/services/comfyQuery.ts) 导出原样迁入的 `assertComfyResponse`，工作流执行、资源管理及助手 JSON 读取共用 | 成功时不读正文；失败读一次，正文不可读按空内容回退，文案仍包含动作／HTTP 状态及前 200 字符。提交专用 `formatComfyPromptError` 和轮询鉴权错误不替换，短查询超时预算不变 |
+| ComfyUI 工作流文件名清洗 | [comfyUIWindowService.ts](../../src/services/comfyUIWindowService.ts) 导出原清洗函数，[comfyAgentService.ts](../../src/services/comfyAgentService.ts) 导入复用 | 非法字符、空白、默认名及 `.json` 后缀处理不变；窗口回传校验、会话／项目保存凭证、服务器绑定和原生写入授权仍留在各自调用方 |
+| 视频元素资源释放 | [canvasVideoPreviewCache.ts](../../src/components/nodes/shared/video/canvasVideoPreviewCache.ts) 的既有 `releaseCanvasVideo` 接口委托 [viewportVideoResource.ts](../../src/components/shared/viewportVideoResource.ts) | 原 HTMLVideoElement／null 签名不变，仍依次暂停、移除 src、调用 load；封面调度、取消、Blob 与媒体资源租约不变 |
+| 字节数组相等判断 | [projectFiles.ts](../../src/services/fs/projectFiles.ts) 导出原 `bytesEqual`，[directorSceneService.ts](../../src/services/directorSceneService.ts) 在既有导入上复用 | 只比较视图长度与逐字节内容；路径授权、不可变写入、哈希、规范序列化及场景／结果清单绑定继续由原调用方校验 |
+
+未新增模块、依赖或数据迁移，未将不同错误合同、文件权限或资源所有权合并。
+
+在现有 [comfyQuery.test.ts](../../tests/services/comfyQuery.test.ts) 新增 3 项响应读取回归，在 [canvasVideoPreviewCache.test.ts](../../tests/components/canvasVideoPreviewCache.test.ts) 新增 1 项释放顺序及 null 回归；[mediaPreviewMemoryGuard.test.ts](../../tests/components/mediaPreviewMemoryGuard.test.ts) 改为检查公共释放委托，避免要求业务文件保留重复实现。用例已编写／更新，尚未执行。
+
+本次未运行测试，待用户验收；提交时复用既有钩子对本批 11 个 TS 文件执行定向 ESLint，通过后提交。未执行类型检查、构建、真实请求或桌面实测；实现阶段仅完成调用链、迁移文本、UTF-8／原 BOM 与混合换行及差异空白静态核对。
+
+Tauri 桌面验收（准备测试项目、已有 ComfyUI 工作流及完成后的保存入口、可播放视频和导演场景副本）：
+
+1. 读取 ComfyUI 显存状态、执行工作流及取消排队任务，核对成功结果与原来一致。在可控接口返回错误／不可读正文时，核对动作、HTTP 状态、正文截断及回退文案；鉴权失败和工作流提交的专有错误仍按原类型与提示处理。
+2. 分别从 ComfyUI 独立窗口和助手保存工作流，名称包含空格、中文、路径字符及已有大小写 JSON 后缀，核对原文件名规则。过期保存凭证、切换项目／服务器、无写入授权时仍按原边界拒绝，失败不显示保存成功。
+3. 视频在紧凑预览与全屏间切换，关闭、改源、移出视口或取消封面提取后应停止旧播放并释放旧源；回归封面缓存复用、减少动态效果和性能模式，原租约与 Blob 释放行为不变。
+4. 在测试项目保存并重开导演场景及结果清单，核对场景引用保持匹配；通过测试副本或现有回归核对不可变内容冲突、错误哈希、非规范字节及场景绑定异常仍被拒绝。
+
+自动回归由用户在仓库根目录执行：
+
+- ComfyUI：`npx vitest run tests/services/comfyQuery.test.ts tests/services/comfyMemory.test.ts tests/services/comfyAgentService.test.ts tests/services/comfyWorkflowSaveBack.test.ts tests/services/comfyWorkflowAudioIO.test.ts`。
+- 视频资源：`npx vitest run tests/components/canvasVideoPreviewCache.test.ts tests/components/mediaPreviewMemoryGuard.test.ts tests/components/viewportImage.test.tsx`。
+- 项目文件及导演场景：`npx vitest run tests/services/aiAppProjectFiles.test.ts tests/services/directorSceneService.test.ts`。
+
+类型检查可执行 `npm run typecheck` 与 `npm run test:typecheck`。以上命令本批均未运行。
+
+回滚：恢复本批 8 个业务文件、3 个回归文件和审查／索引差异；无需回滚数据。
 
 ### Q10 P3 分组节点的 memo 边界不一致
 
@@ -267,19 +290,19 @@ Tauri 桌面验收（准备已有的 RelayOn／LIBAPI 测试模型配置、自�
 
 文件头处理共 936 个文件：新增 927 处职责或回归用例说明，将 9 处已有说明移到 import 前。第三方与生成文件未改。保留 UTF-8、BOM、原换行方式和脚本 shebang。
 
-最初文件头整理的静态核对确认：移除新增注释、将搬移注释放回原处后，原始文件字节摘要一致，差异空白检查通过。该批只改注释；后续 Q01～Q08 修改与验收缺口见上文。
+最初文件头整理的静态核对确认：移除新增注释、将搬移注释放回原处后，原始文件字节摘要一致，差异空白检查通过。该批只改注释；后续 Q01～Q09 修改与验收缺口见上文。
 
 以下为全仓剩余验收，未执行全仓检查或原生检查；Q01 的定向结果见上文：
 
 1. 在仓库根目录执行 `npm run check`，检查前端 lint、源码与测试类型及现有回归；若出现仓库规则记录的 ESLint 工具链错误，单独记录，不修改依赖绕过。
 2. 在 `src-tauri/` 执行 `cargo check --lib`，确认原生源码与构建脚本编译。
 3. 使用既有 Tauri 开发入口打开画布、文本／音频节点、资产库、ComfyUI 管理和插件设置；确认页面可打开、交互与原版本一致，文件头不会进入产品显示内容。
-4. Q01 继续补齐上述桌面剩余场景，Q02／Q03 按各自步骤执行尺寸、父链与布局验收，Q04 回归项目切换、公共视频播放器、RunningHub 入口与吉祥物加载态，Q05 回归音视频工具栏普通及顺序预设，Q06 回归历史面板筛选、分页及导出，Q07 回归参考媒体准备顺序、取消、失败与预算边界，Q08 回归合同比较、协议导入／编码和安全校验；不能用静态核对替代功能验收。
+4. Q01 继续补齐上述桌面剩余场景，Q02／Q03 按各自步骤执行尺寸、父链与布局验收，Q04 回归项目切换、公共视频播放器、RunningHub 入口与吉祥物加载态，Q05 回归音视频工具栏普通及顺序预设，Q06 回归历史面板筛选、分页及导出，Q07 回归参考媒体准备顺序、取消、失败与预算边界，Q08 回归合同比较、协议导入／编码和安全校验，Q09 回归 ComfyUI 响应／保存、视频释放和文件内容校验；不能用静态核对替代功能验收。
 
 ## 建议实施批次
 
 1. **默认模型与几何行为收敛**：Q01 自动回归与部分桌面交互已验证，真实生成等场景仍待验收；Q02 与 Q03 运行时保护已实现、尚未运行测试；归档坏父链的入口策略仍待独立处理，保留源码与测试的独立回退点。
-2. **闲置入口与局部重复清理**：Q04 闲置模块与专属样式清理、Q05 音视频工具栏预设执行合并、Q06 历史筛选共享、Q07 参考媒体串行准备共享、Q08 协议基础逻辑收口已实现，尚未运行测试；Q09 待实施，每批保持同一业务领域。
+2. **闲置入口与局部重复清理**：Q04 闲置模块与专属样式清理、Q05 音视频工具栏预设执行合并、Q06 历史筛选共享、Q07 参考媒体串行准备共享、Q08 协议基础逻辑收口及 Q09 四组局部重复合并已实现，尚未运行测试。
 3. **低收益统一与热点重构**：处理 Q10、Q11；大模块只有在具体维护需求或性能证据出现时再按职责拆分。
 
-除已明确实施的 Q01、Q02、Q03 运行时保护、Q04 闲置模块清理、Q05 预设执行合并、Q06 历史筛选共享、Q07 参考媒体串行准备共享与 Q08 协议基础逻辑收口外，其余均为建议，不构成架构改动、删除文件、新增依赖或运行测试的授权。
+除已明确实施的 Q01、Q02、Q03 运行时保护、Q04 闲置模块清理、Q05 预设执行合并、Q06 历史筛选共享、Q07 参考媒体串行准备共享、Q08 协议基础逻辑收口及 Q09 局部重复合并外，其余均为建议，不构成架构改动、删除文件、新增依赖或运行测试的授权。

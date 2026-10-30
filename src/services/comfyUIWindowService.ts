@@ -65,7 +65,7 @@ function isEditableWorkflow(value: unknown): boolean {
   return isRecord(value) && Array.isArray(value.nodes);
 }
 
-function sanitizeWorkflowFileName(name: string): string {
+export function sanitizeWorkflowFileName(name: string): string {
   const base = name.trim().replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, '_') || 'comfyui-workflow';
   return `${base.replace(/\.json$/i, '')}.json`;
 }

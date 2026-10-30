@@ -23,7 +23,7 @@ import {
   updatePendingTask,
 } from './pollManager';
 import { ComfyPendingError, ComfyQueryAuthorizationError, comfyFetch, pollComfyHistory } from './comfyPolling';
-import { withComfyQueryTimeout } from './comfyQuery';
+import { assertComfyResponse, withComfyQueryTimeout } from './comfyQuery';
 import { corsSafeFetch } from './ai/httpTransport';
 import { resolveComfyOutputUrl } from './comfyOutputs';
 import { createComfyProgressSession, type ComfyProgressSession } from './comfyProgress';
@@ -53,12 +53,6 @@ async function applyConfiguredComfyMemoryPolicy(baseUrl: string): Promise<void> 
 function queueContainsPrompt(queue: unknown, promptId: string): boolean {
   return Array.isArray(queue)
     && queue.some((item) => Array.isArray(item) && item[1] === promptId);
-}
-
-async function assertComfyResponse(response: Response, action: string): Promise<void> {
-  if (response.ok) return;
-  const detail = await response.text().catch(() => '');
-  throw new Error(`${action}失败（HTTP ${response.status}）${detail ? `：${detail.slice(0, 200)}` : ''}`);
 }
 
 /**

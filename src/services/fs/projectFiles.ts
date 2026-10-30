@@ -93,7 +93,8 @@ async function sha256OwnedBytes(bytes: Uint8Array<ArrayBuffer>): Promise<string>
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
-function bytesEqual(left: Uint8Array, right: Uint8Array): boolean {
+/** 按字节视图比较内容，不包含文件访问、哈希或场景绑定。 */
+export function bytesEqual(left: Uint8Array, right: Uint8Array): boolean {
   if (left.byteLength !== right.byteLength) return false;
   for (let index = 0; index < left.byteLength; index += 1) {
     if (left[index] !== right[index]) return false;

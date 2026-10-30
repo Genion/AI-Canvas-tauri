@@ -1,5 +1,12 @@
-/** 状态类短查询的完整读取预算；生成提交、上传和长流不使用此入口。 */
+/** ComfyUI 响应校验与短查询预算；超时不用于生成提交、上传和长流。 */
 export const COMFY_QUERY_TIMEOUT_MS = 15_000;
+
+/** 普通操作的 HTTP 检查；轮询鉴权错误继续由轮询器单独处理。 */
+export async function assertComfyResponse(response: Response, action: string): Promise<void> {
+  if (response.ok) return;
+  const detail = await response.text().catch(() => '');
+  throw new Error(`${action}失败（HTTP ${response.status}）${detail ? `：${detail.slice(0, 200)}` : ''}`);
+}
 
 export function withComfyQueryTimeout<T>(
   query: (signal: AbortSignal) => Promise<T>,

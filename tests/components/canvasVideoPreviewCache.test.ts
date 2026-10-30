@@ -114,6 +114,18 @@ afterEach(async () => {
 });
 
 describe('canvas video poster scheduling and ownership', () => {
+  it('释放接口按顺序暂停、清空 src 并重置视频，空引用直接结束', () => {
+    const calls: string[] = [];
+    const video = {
+      pause: () => { calls.push('pause'); },
+      removeAttribute: (name: string) => { calls.push(`remove:${name}`); },
+      load: () => { calls.push('load'); },
+    };
+    cache.releaseCanvasVideo(video as unknown as HTMLVideoElement);
+    cache.releaseCanvasVideo(null);
+    expect(calls).toEqual(['pause', 'remove:src', 'load']);
+  });
+
   it('uses the native Comfy range source and releases it after extracting the poster', async () => {
     const release = vi.fn();
     media.acquire.mockResolvedValueOnce({ src: 'http://comfy-media.localhost/opaque', release });

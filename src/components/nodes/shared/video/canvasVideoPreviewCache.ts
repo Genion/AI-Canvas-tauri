@@ -2,6 +2,7 @@
  * canvasVideoPreviewCache — 管理画布视频就绪状态、封面与资源租约。
  */
 import { afterVideoFramePresented } from '../../../../utils/videoSeek';
+import { releaseViewportVideoElement } from '../../../shared/viewportVideoResource';
 import { getPerformanceModeBudget, subscribePerformanceMode } from '../../../../services/performanceModeRuntime';
 import { acquireComfyMediaSource, type ComfyMediaSourceLease } from '../../../../services/comfyMediaSource';
 
@@ -43,10 +44,7 @@ function releaseModeSubscriptionIfEmpty(): void {
 }
 
 export function releaseCanvasVideo(video: HTMLVideoElement | null): void {
-  if (!video) return;
-  video.pause();
-  video.removeAttribute('src');
-  video.load();
+  releaseViewportVideoElement(video);
 }
 
 function waitForMedia(
