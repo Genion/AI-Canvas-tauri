@@ -1398,6 +1398,7 @@ export const createProjectSlice: StateCreator<AppState, [], [], ProjectSlice> = 
   },
   importProject: async (session, preview, choices = {}, options = { appendChat: false, appendMemories: false }) => {
     let result: Awaited<ReturnType<typeof importProjectArchive>>;
+    let committed = false, lockedCanvas = false;
     const affected = preview ? get().projects.filter((item) => item.id === preview.targetId || item.parentId === preview.targetId).map((item) => item.id) : [];
     try {
       if (preview) {
@@ -1411,8 +1412,10 @@ export const createProjectSlice: StateCreator<AppState, [], [], ProjectSlice> = 
         affected.forEach((id) => projectImportsApplying.add(id));
         await Promise.all(affected.map(waitForProjectSaveQueue)); guard();
         affected.forEach(cancelProjectCanvasDerivations);
+        if (affected.includes(get().currentProjectId ?? '')) { lockedCanvas = true; set({ projectLoadStatus: 'loading' }); }
       }
       result = session ? await applyProjectImport(session, preview ?? null, choices, options, preview ? importPreviewGuards.get(preview) : undefined) : await importProjectArchive();
+      committed = !!result;
     } catch (error) {
       console.error('[项目导入] 失败:', error);
       get().showToast(error instanceof Error ? t('项目导入失败：{reason}', { reason: error.message }) : '项目导入失败', 'error');
@@ -1420,6 +1423,7 @@ export const createProjectSlice: StateCreator<AppState, [], [], ProjectSlice> = 
       return undefined;
     } finally {
       affected.forEach((id) => projectImportsApplying.delete(id));
+      if (lockedCanvas && !committed) set({ projectLoadStatus: 'ready' });
     }
     if (!result) return undefined;
 
@@ -1436,8 +1440,9 @@ export const createProjectSlice: StateCreator<AppState, [], [], ProjectSlice> = 
     fileService.registerProjectFolders([project, ...result.episodes]);
     let projects: Awaited<ReturnType<typeof fileService.loadProjectsList>>;
     try { projects = await fileService.loadProjectsList(); }
-    catch { get().showToast('项目已写入，但项目列表刷新失败，请重启后打开', 'error'); return result.projectId; }
+    catch { if (lockedCanvas) set({ projectLoadStatus: 'error' }); get().showToast('项目已写入，但项目列表刷新失败，请重启后打开', 'error'); return result.projectId; }
     if (!projects.some((item) => item.id === result.projectId)) {
+      if (lockedCanvas) set({ projectLoadStatus: 'error' });
       get().showToast('项目已写入，但项目列表刷新失败，请重启后打开', 'error'); return result.projectId;
     }
     const replacingCurrent = preview && affected.includes(get().currentProjectId ?? '');
@@ -1475,6 +1480,7 @@ export const createProjectSlice: StateCreator<AppState, [], [], ProjectSlice> = 
       const id = get().currentProjectId; if (await get().saveCurrentProjectSilent() !== id) throw new Error('当前画布保存失败');
     }
     affected.forEach((id) => projectImportsApplying.add(id));
+    let lockedCanvas = false, committed = false, projected = false;
     try {
       await Promise.all(affected.map(waitForProjectSaveQueue));
       const before = get();
@@ -1482,16 +1488,22 @@ export const createProjectSlice: StateCreator<AppState, [], [], ProjectSlice> = 
         if (current.nodes !== before.nodes || current.edges !== before.edges || current.groups !== before.groups
           || current.projects !== before.projects || current.dramaAssets !== before.dramaAssets) throw new Error('恢复期间项目发生变化，请重试'); };
       affected.forEach(cancelProjectCanvasDerivations);
+      if (affected.includes(get().currentProjectId ?? '')) { lockedCanvas = true; set({ projectLoadStatus: 'loading' }); }
       await restoreProjectImportRecovery(ownerId, recoveryId, assertCurrent);
+      committed = true;
       const projects = await fileService.loadProjectsList();
       if (!projects.some((item) => item.id === ownerId)) throw new Error('恢复已提交，项目列表刷新失败，请重启后打开');
       if (affected.includes(get().currentProjectId ?? '')) set({ currentProjectId: null, projectLoadStatus: 'ready', projectName: '',
         nodes: [], edges: [], groups: [], history: [], historyIndex: -1, selectedNodeIds: [], activeNodeId: null, projects });
       else set({ projects });
+      projected = true;
       // 在后续切换加载之前释放屏障；空画布不会把旧内容重新保存。
       affected.forEach((id) => projectImportsApplying.delete(id));
       await get().switchProject(ownerId); get().showToast('已恢复项目，恢复前的状态也已保存为恢复点');
-    } finally { affected.forEach((id) => projectImportsApplying.delete(id)); }
+    } finally {
+      affected.forEach((id) => projectImportsApplying.delete(id));
+      if (lockedCanvas && !projected) set({ projectLoadStatus: committed ? 'error' : 'ready' });
+    }
   },
 
   deleteProject: async (id) => {
