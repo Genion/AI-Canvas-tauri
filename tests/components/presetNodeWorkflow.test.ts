@@ -32,7 +32,21 @@ it('双面部特写预设沿用原快捷指令 ID，并将横版源图切换为 
   expect(action!.filledPrompt).toContain('下排三列统一从颈根裁切至脚底');
   expect(action!.filledPrompt).toContain('背面同样不显示头部，不转头露出侧脸');
   expect(action!.filledPrompt).toContain('同一高度、距离和缩放下原地转向');
-  expect(action!.filledPrompt).toContain('以五视图布局、白色或浅灰背景、指定裁切和下排等比例对齐为准');
+  expect(action!.filledPrompt).toContain('整张图恰好只有两个可见头部，且全部位于上排');
+  expect(action!.filledPrompt).toContain('下排三格的上沿与这条分隔线重合');
+  expect(action!.filledPrompt).toContain('左下正面格：只显示颈根');
+  expect(action!.filledPrompt).toContain('中下侧面格：严格90度侧身，从颈根到脚底');
+  expect(action!.filledPrompt).toContain('右下背面格：从后颈根部到脚底');
+  expect(action!.filledPrompt).toContain('所有格子统一使用中性灰无缝摄影棚背景与同色地面');
+  expect(action!.filledPrompt).toContain("Enhance the portrait while strictly preserving the subject's identity");
+  expect(action!.filledPrompt).toContain('Sony Al +85mm f1.4');
+  expect(action!.filledPrompt).toContain('real skin texture (not plastic), and subtle film grain');
+  expect(action!.filledPrompt).toContain('多视图适配（优先于上段通用肖像要求）');
+  expect(action!.filledPrompt.indexOf('多视图适配（优先于上段通用肖像要求）'))
+    .toBeGreaterThan(action!.filledPrompt.indexOf('No over-smooth skin.'));
+  expect(action!.filledPrompt).not.toContain('clean illustration, smooth shading');
+  expect(action!.filledPrompt).not.toContain('Negative quality instructions: no noise, no grain');
+  expect(action!.filledPrompt).not.toContain('白色或浅灰');
   expect(action!.filledPrompt).not.toContain('背面保留完整头部');
   expect(action!.filledPrompt).not.toContain('下排三张只展示肩部到脚底');
   expect(action!.filledPrompt).toContain('参考人物穿棕色外套');

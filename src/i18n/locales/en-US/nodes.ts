@@ -193,7 +193,7 @@ const nodes = {
   "多宫格": "Multi-panel grid",
   "将小说一键转化为标准AI视频提示词脚本": "Convert a novel into a standard AI video prompt script",
   "将小说一键转化为标准戏剧化脚本，专为AI短剧视频量身定制": "Convert a novel into a dramatized script for AI short dramas",
-  "左侧单面部特写，右侧正侧面颈根以下、背面带头 · 16:9": "Face close-up on the left; front/side below the neck and full back view on the right · 16:9",
+  "左侧单面部特写，右侧正侧背均为颈根以下 · 16:9": "Face close-up on the left; front, side, and back below the neck on the right · 16:9",
   "影视级叙事分镜脚本": "Cinematic narrative shot script",
   "影视级叙事分镜脚本-秒级": "Cinematic narrative shot script · per second",
   "按用户秒数或默认15秒输出 Seedance 2.0 秒级视频提示词": "Generate per-second Seedance 2.0 prompts for the specified duration or 15 seconds by default",
