@@ -1,3 +1,6 @@
+/**
+ * videoEditorControlService — 校验剪辑上下文并读写受控编辑工程。
+ */
 import { VideoEditorControlError } from "../types/videoEditorControl";
 /** 当前项目的剪辑控制：共享工程模型、来源绑定、原子版本比较；不打开窗口。 */
 import { useAppStore } from '../store/useAppStore';

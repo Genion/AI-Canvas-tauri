@@ -1,3 +1,6 @@
+/**
+ * assetTextEditorRename — 回归测试：在 .%s 预览中改名并使用新路径继续保存正文。
+ */
 import type { ComponentProps, ReactElement } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 

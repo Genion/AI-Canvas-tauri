@@ -1,3 +1,6 @@
+/**
+ * canvasImagePreviewCache — 回归测试：canvas image preview cache。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 import type { CanvasImagePreviewLease } from '../../src/components/nodes/shared/image/canvasImagePreviewCache';
 

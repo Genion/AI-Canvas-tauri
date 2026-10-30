@@ -1,3 +1,6 @@
+/**
+ * canvasEdgePointer — 回归测试：canvas edge pointer scheduling。
+ */
 import type { EdgeProps } from '@xyflow/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 

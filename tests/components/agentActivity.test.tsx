@@ -1,3 +1,6 @@
+/**
+ * agentActivity — 回归测试：Agent visible activity and recovery。
+ */
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import AgentTaskTimeline from '../../src/components/chat/AgentTaskTimeline';

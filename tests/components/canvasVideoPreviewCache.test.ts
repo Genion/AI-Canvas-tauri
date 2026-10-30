@@ -1,3 +1,6 @@
+/**
+ * canvasVideoPreviewCache — 回归测试：canvas video poster scheduling and ownership。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const media = vi.hoisted(() => ({ acquire: vi.fn() }));

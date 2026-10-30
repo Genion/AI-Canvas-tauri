@@ -1,3 +1,6 @@
+/**
+ * workflowApiAdapter — 执行声明式云工作流的请求、查询与产物解析。
+ */
 import { isRemoteMediaUrl } from '../../utils/mediaUrl';
 import type { ApiProviderConfig } from '../../types';
 import type {

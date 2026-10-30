@@ -1,3 +1,6 @@
+/**
+ * runninghubWorkflowService — 解析并校验 RunningHub 工作流定义与参数。
+ */
 import type { RunningHubParameter, RunningHubValue, RunningHubWorkflowManifest, RunningHubConnection } from '../types/runninghub';
 import { runningHubRequest } from './ai/providers/runninghubClient';
 

@@ -1,3 +1,6 @@
+/**
+ * cloudWorkflowParameterField — 回归测试：云工作流参数默认展示。
+ */
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import CloudWorkflowParameterField from '../../src/components/nodes/shared/CloudWorkflowParameterField';

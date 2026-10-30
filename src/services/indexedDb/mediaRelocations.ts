@@ -1,3 +1,6 @@
+/**
+ * mediaRelocations — 重定位持久化媒体引用并协调关联事务。
+ */
 import { openDB, STORE_METADATA } from './schema';
 import { localMediaUrlToPath } from '../../utils/mediaUrl';
 import { assertDramaAssetWriteCurrent, type DramaAssetWriteOptions } from '../../types/dramaAssets';

@@ -1,3 +1,6 @@
+/**
+ * assetImage — 定义图片资产身份、参考图与元数据的领域类型。
+ */
 import type { AssetFileEntry } from '../services/fileService';
 
 /** 图片信息独立于标签和生成历史；不持久化原图绝对路径或运行期 URL。 */

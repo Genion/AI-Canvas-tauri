@@ -1,3 +1,6 @@
+/**
+ * agentCenterPanel — 回归测试：AgentCenterPanel。
+ */
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it } from 'vitest';
 import AgentCenterPanel, {

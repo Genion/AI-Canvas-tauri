@@ -1,3 +1,6 @@
+/**
+ * episodeLayout — 派生分集分镜摘要、视频分组与画布排列结果。
+ */
 import type { Node } from '@xyflow/react';
 import type { BaseNodeData } from '../types';
 import { indexCanvasChildren } from './canvasHierarchy';

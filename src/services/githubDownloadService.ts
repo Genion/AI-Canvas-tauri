@@ -1,3 +1,6 @@
+/**
+ * githubDownloadService — 解析 GitHub 镜像地址并下载资源字节。
+ */
 import policy from '../constants/githubDownload.json';
 
 /** 只接受公开、无凭据的官方 GitHub 地址；加速源本身不再套加速。 */

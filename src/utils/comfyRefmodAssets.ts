@@ -1,3 +1,6 @@
+/**
+ * comfyRefmodAssets — 合并 RefMod 目录元数据并筛选资源。
+ */
 import type { ComfyRefmodAsset } from '../types/comfyRefmod';
 import { comfyRefmodKey } from './comfyRefmod';
 

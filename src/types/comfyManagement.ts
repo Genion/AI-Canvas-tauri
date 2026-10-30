@@ -1,3 +1,6 @@
+/**
+ * comfyManagement — 定义ComfyUI 仓库、版本与管理会话的领域类型。
+ */
 import type { AppearanceTheme } from './index';
 
 export interface ComfyManagementUiContext {

@@ -1,3 +1,6 @@
+/**
+ * pluginManifest — 校验插件清单、安装包与安装记录。
+ */
 import type { NodeType } from '../../types';
 import { assertPluginCompatibility } from './pluginHost';
 import type {

@@ -1,3 +1,6 @@
+/**
+ * canvasPreviewImage — 回归测试：canvas preview image integration。
+ */
 import type { ImgHTMLAttributes, ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DisplayImageLease } from '../../src/components/nodes/shared/image/canvasImageDisplay';

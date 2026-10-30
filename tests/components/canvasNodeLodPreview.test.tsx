@@ -1,3 +1,6 @@
+/**
+ * canvasNodeLodPreview — 回归测试：canvas lightweight media preview。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const driver = vi.hoisted(() => ({

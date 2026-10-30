@@ -1,3 +1,6 @@
+/**
+ * assetsPanelDrawer — 回归测试：项目创作资产工具条。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createStore, type StoreApi } from 'zustand/vanilla';
 import type { AppState } from '../../src/store/useAppStore';

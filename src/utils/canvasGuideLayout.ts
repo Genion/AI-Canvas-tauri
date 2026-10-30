@@ -1,3 +1,6 @@
+/**
+ * canvasGuideLayout — 计算画布引导入口与说明卡的位置。
+ */
 type Rect = Pick<DOMRect, 'left' | 'top' | 'width' | 'height'>;
 type Size = { width: number; height: number };
 type Side = 'bottom' | 'left';

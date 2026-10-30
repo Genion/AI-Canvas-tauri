@@ -1,3 +1,6 @@
+/**
+ * directorPrevis — 定义AI 镜头预演的场景、对象与摄影机的领域类型。
+ */
 import type { DirectorProjectFileReference } from './directorScene';
 
 /** Y-up / right-handed / metres. This is a previs contract, not Blender Director Scene. */

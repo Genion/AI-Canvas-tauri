@@ -1,3 +1,6 @@
+/**
+ * mcpControlService — 将 MCP 请求映射到主窗口工具、策略与审计任务。
+ */
 import { clearSkillReadTask } from '../chat/skillReadService';
 import { clearSkillCatalogTask } from '../chat/skillCatalog';
 /**

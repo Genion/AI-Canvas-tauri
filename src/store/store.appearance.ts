@@ -1,3 +1,6 @@
+/**
+ * store.appearance — 管理外观编辑、主题预设与配置持久化。
+ */
 import type { StateCreator } from 'zustand';
 import type { AppConfig, AppearanceTheme } from '../types';
 import type { AppState } from './useAppStore';

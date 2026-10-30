@@ -1,3 +1,6 @@
+/**
+ * recentAssets — 记录并读取指定范围内最近使用的资产。
+ */
 import { stat } from '@tauri-apps/plugin-fs';
 import { getAssetIndexById, getAssetIndexByPath, getRecentAssetUsage, recordRecentAssetUsage } from '../indexedDbService';
 import { getConvertFileSrc, getFileCategory, getProjectDataDir, isTauriEnv, type AssetFileEntry } from './core';

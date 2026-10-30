@@ -1,3 +1,6 @@
+/**
+ * canvasEdgePicking — 将指针映射到画布坐标并选择命中的连线。
+ */
 import type { CanvasEdgeModel, CanvasSharedEdgeModel } from '../types/canvasEdges';
 import { createCanvasEdgeClipper } from './canvasEdgeClipping';
 

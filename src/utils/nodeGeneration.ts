@@ -1,3 +1,6 @@
+/**
+ * nodeGeneration — 将源节点数据适配为本次生成所需的节点类型与输入。
+ */
 import type { BaseNodeData, NodeType } from '../types';
 
 /** 素材身份与生成能力分开：兼容原始节点，不迁移画布中的节点类型。 */

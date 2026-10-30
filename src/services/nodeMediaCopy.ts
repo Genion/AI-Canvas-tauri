@@ -1,3 +1,6 @@
+/**
+ * nodeMediaCopy — 复制节点媒体并管理复制产物的清理。
+ */
 import type { BaseNodeData } from '../types';
 import * as files from './fileService';
 import { isTauriEnv } from './fs/core';

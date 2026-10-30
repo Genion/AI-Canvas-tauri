@@ -1,3 +1,6 @@
+/**
+ * aiAppNode — 回归测试：AI app node and dialog。
+ */
 import { isValidElement, type ReactElement } from 'react';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import type { BaseNodeData } from '../../src/types';

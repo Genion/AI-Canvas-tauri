@@ -1,3 +1,6 @@
+/**
+ * canvasGridCreation — 回归测试：canvas grid creation。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { Node } from '@xyflow/react';

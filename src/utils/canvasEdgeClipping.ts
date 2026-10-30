@@ -1,3 +1,6 @@
+/**
+ * canvasEdgeClipping — 解析并裁剪画布连线的直线与曲线路径。
+ */
 export interface CanvasEdgeClipRect { left: number; top: number; right: number; bottom: number }
 
 interface Point { x: number; y: number }

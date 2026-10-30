@@ -1,3 +1,6 @@
+/**
+ * CharacterDock — 回归测试：CharacterDock 指针交互。
+ */
 import type { ReactElement } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DramaCharacter } from '../../src/types/dramaAssets';

@@ -1,3 +1,6 @@
+/**
+ * canvasAudioPreview — 回归测试：canvas audio navigation。
+ */
 vi.mock('../../src/hooks/useComfyMediaSource', () => ({ useComfyMediaSource: (source?: string) => source }));
 vi.mock('../../src/hooks/useComfyImageSource', () => ({ useComfyImageSource: (source?: string) => source }));
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';

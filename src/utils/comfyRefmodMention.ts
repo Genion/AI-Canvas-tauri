@@ -1,3 +1,6 @@
+/**
+ * comfyRefmodMention — 构造、解析并合并提示词中的 RefMod 引用。
+ */
 import type { ComfyRefmodSelection } from '../types/comfyRefmod';
 import { comfyRefmodKey, isComfyRefmodControlCharacter, normalizeComfyRefmodSelections } from './comfyRefmod';
 

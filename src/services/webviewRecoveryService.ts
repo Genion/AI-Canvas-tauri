@@ -1,3 +1,6 @@
+/**
+ * webviewRecoveryService — 识别 WebView 异常恢复并重新加载项目状态。
+ */
 import { invoke } from '@tauri-apps/api/core';
 import { useAppStore } from '../store/useAppStore';
 import { getLastActiveProjectId } from './indexedDbService';

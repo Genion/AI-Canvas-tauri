@@ -1,3 +1,6 @@
+/**
+ * assetFileContextMenu — 回归测试：资产文件右键菜单。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReactElement } from 'react';
 import type { AssetFileContextMenuProps } from '../../src/components/assets/AssetFileContextMenu';

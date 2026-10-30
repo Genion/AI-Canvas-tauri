@@ -1,3 +1,6 @@
+/**
+ * chatMessages — 回归测试：ChatMessages。
+ */
 import {
   Children,
   isValidElement,

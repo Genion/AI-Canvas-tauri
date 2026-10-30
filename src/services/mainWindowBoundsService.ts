@@ -1,3 +1,6 @@
+/**
+ * mainWindowBoundsService — 按显示器工作区计算并应用主窗口大小。
+ */
 import type { Monitor, Window } from '@tauri-apps/api/window';
 
 export const MAIN_WINDOW_MIN_WIDTH = 1000;

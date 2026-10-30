@@ -1,3 +1,6 @@
+/**
+ * comfyRefmodMentionOptions — 将 RefMod 模型目录转为引用选择器条目。
+ */
 import type { ComfyRefmodAsset, ComfyRefmodCatalog, ComfyRefmodLoaderSchema } from '../types/comfyRefmod';
 import type { DramaCharacter } from '../types/dramaAssets';
 import { comfyRefmodKey } from './comfyRefmod';

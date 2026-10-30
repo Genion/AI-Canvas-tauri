@@ -1,3 +1,6 @@
+/**
+ * themeAssets — 校验、保存并解析外观主题图片。
+ */
 import { convertFileSrc, invoke } from '@tauri-apps/api/core';
 import { isTauriEnv } from './core';
 

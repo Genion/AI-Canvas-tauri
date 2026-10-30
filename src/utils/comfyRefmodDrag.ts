@@ -1,3 +1,6 @@
+/**
+ * comfyRefmodDrag — 读取并校验拖放中的 RefMod 引用负载。
+ */
 import type { ComfyRefmodSelection } from '../types/comfyRefmod';
 import { normalizeCharacterRefmods, normalizeComfyRefmodSelections } from './comfyRefmod';
 

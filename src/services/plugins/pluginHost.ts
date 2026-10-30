@@ -1,3 +1,6 @@
+/**
+ * pluginHost — 声明宿主版本并校验插件兼容范围。
+ */
 import contract from '../../../plugin-host.json';
 import { version } from '../../../package.json';
 import type { PluginHostInfo, PluginManifest } from '../../types/plugin';

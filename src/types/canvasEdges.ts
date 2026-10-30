@@ -1,3 +1,6 @@
+/**
+ * canvasEdges — 定义画布连线几何、模型与渲染层的领域类型。
+ */
 import type { ComponentType, ReactNode } from 'react';
 import type {
   Edge,

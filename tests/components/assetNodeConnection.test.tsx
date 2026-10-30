@@ -1,3 +1,6 @@
+/**
+ * assetNodeConnection — 回归测试：侧栏节点真实连线。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../../src/hooks/useComfyMediaSource', () => ({ useComfyMediaSource: (source?: string) => source }));
 import { createStore, type StoreApi } from 'zustand/vanilla';

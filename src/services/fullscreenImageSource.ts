@@ -1,3 +1,6 @@
+/**
+ * fullscreenImageSource — 在资源预算约束内获取全屏图片来源。
+ */
 import { readNativeComfyImageBlob, shouldLoadNativeComfyImage } from './comfyImageSource';
 import type { ComfyMediaSourceLease } from './comfyMediaSource';
 import { ImageSourceReadError, MAX_IMAGE_SOURCE_BYTES, readImageSourceBlob } from './fs/imageSourceBlob';

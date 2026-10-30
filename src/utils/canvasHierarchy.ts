@@ -1,3 +1,6 @@
+/**
+ * canvasHierarchy — 索引画布父子层级并收集节点及其后代。
+ */
 interface HierarchyNode {
   id: string;
   parentId?: string;

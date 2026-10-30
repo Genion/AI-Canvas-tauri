@@ -1,3 +1,6 @@
+/**
+ * Timeline — 回归测试：shared Timeline。
+ */
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TimelineProps } from '../../src/components/shared/Timeline';

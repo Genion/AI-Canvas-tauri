@@ -1,3 +1,6 @@
+/**
+ * videoBatchRunner — 执行视频批次并恢复中断后的任务状态。
+ */
 import type { VideoBatch, VideoBatchItem, VideoPreflightItem } from '../types/videoBatch';
 
 export interface VideoBatchRunnerPorts {

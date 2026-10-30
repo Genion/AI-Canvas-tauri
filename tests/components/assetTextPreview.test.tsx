@@ -1,3 +1,6 @@
+/**
+ * assetTextPreview — 回归测试：AssetThumb - 文本预览 (Text Preview)。
+ */
 import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 

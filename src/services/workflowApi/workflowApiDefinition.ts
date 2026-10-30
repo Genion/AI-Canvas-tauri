@@ -1,3 +1,6 @@
+/**
+ * workflowApiDefinition — 校验声明式云工作流参数并构建可编辑定义。
+ */
 import type { ProtocolJsonValue } from '../../types/aiTypes';
 import type { DeclarativeWorkflowApiManifest, WorkflowApiDraft, WorkflowApiInputValues, WorkflowApiManifest, WorkflowApiParameter } from '../../types/workflowApi';
 import { parseModelExecutionProtocol } from '../ai/modelProtocol';

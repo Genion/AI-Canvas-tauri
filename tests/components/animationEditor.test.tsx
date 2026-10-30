@@ -1,3 +1,6 @@
+/**
+ * animationEditor — 回归测试：animation editor interactions。
+ */
 vi.mock('../../src/hooks/useComfyImageSource', () => ({ useComfyImageSource: (source?: string) => source }));
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BaseNodeData } from '../../src/types';

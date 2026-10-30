@@ -1,3 +1,6 @@
+/**
+ * videoEditorExportService — 管理受控剪辑预览、后台导出与取消。
+ */
 import { VideoEditorControlError } from "../types/videoEditorControl";
 /** 有界后台合成任务；完成后只向仍匹配的项目画布提交一次结果。 */
 import { AudioBufferSink, type Input } from 'mediabunny';

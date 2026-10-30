@@ -1,3 +1,6 @@
+/**
+ * referencePreviewService — 按引用种类解析预览内容与媒体来源。
+ */
 import { useAppStore } from '../store/useAppStore';
 import { GENERAL_MODEL_CATEGORY_LABELS, getNodeTypeConfig } from '../types';
 import type { ReferencePreviewContent, ReferencePreviewSource } from '../types/referencePreview';

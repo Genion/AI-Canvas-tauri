@@ -1,3 +1,6 @@
+/**
+ * canvasViewportPreferences — 规范化画布视口模式、缩放范围与比例预设。
+ */
 import type { FitViewOptions } from '@xyflow/react';
 import type { AppConfig, CanvasViewportMode } from '../types';
 

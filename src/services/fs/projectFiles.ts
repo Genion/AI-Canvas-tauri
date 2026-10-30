@@ -1,3 +1,6 @@
+/**
+ * projectFiles — 校验项目相对引用并读写不可变项目文件。
+ */
 import {
   exists,
   lstat,

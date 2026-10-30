@@ -1,3 +1,6 @@
+/**
+ * promptSubmitShortcut — 规范化提示词提交快捷键并解析回车行为。
+ */
 import type { PromptSubmitShortcut } from '../types';
 import { t } from '../i18n';
 

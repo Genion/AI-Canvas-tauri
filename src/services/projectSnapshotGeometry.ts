@@ -1,3 +1,6 @@
+/**
+ * projectSnapshotGeometry — 计算项目快照的节点几何与视口范围。
+ */
 import type { Edge, Node } from '@xyflow/react';
 import type { BaseNodeData } from '../types';
 import { resolveShotlistColumns, SHOTLIST_COLUMN_LABELS, type ShotlistColumnKey } from '../types/shotlist';

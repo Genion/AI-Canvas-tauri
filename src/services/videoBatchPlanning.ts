@@ -1,3 +1,6 @@
+/**
+ * videoBatchPlanning — 计算视频输入指纹并预检节点与服务。
+ */
 import type { Node } from '@xyflow/react';
 import type { BaseNodeData } from '../types';
 import type { AppState } from '../store/useAppStore';

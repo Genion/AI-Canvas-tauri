@@ -1,3 +1,6 @@
+/**
+ * canvasImageDisplay — 回归测试：canvas image preparation。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createCanvasDisplayScheduler } from '../../src/services/canvasDisplayScheduler';
 import { canvasImageTier, createCanvasImageDisplay, prepareCanvasImage, type DisplayImageLease } from '../../src/components/nodes/shared/image/canvasImageDisplay';

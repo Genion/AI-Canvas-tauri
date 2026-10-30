@@ -1,3 +1,6 @@
+/**
+ * pluginRuntime — 执行插件工具、节点与宿主能力并管理版本租约。
+ */
 import { invoke } from '@tauri-apps/api/core';
 import { isLocalMediaUrl as isLocalMediaReference, isRemoteMediaUrl } from '../../utils/mediaUrl';
 import { getLocale } from '../../i18n';

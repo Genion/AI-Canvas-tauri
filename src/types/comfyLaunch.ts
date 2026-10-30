@@ -1,3 +1,6 @@
+/**
+ * comfyLaunch — 定义ComfyUI 启动与 H3 显存选项的领域类型。
+ */
 export type ComfyMemorySwitch = 'auto' | 'enabled' | 'disabled';
 export type ComfyH3MemoryPreset = 'off' | 'safe12' | 'custom';
 export type ComfyH3MemoryOverride = 'inherit' | 'off' | 'safe12';

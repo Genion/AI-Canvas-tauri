@@ -1,3 +1,6 @@
+/**
+ * imageLosslessCompression — 编排图片节点无损压缩与结果回写。
+ */
 import type { Node } from '@xyflow/react';
 import type { BaseNodeData } from '../types';
 import { useAppStore } from '../store/useAppStore';

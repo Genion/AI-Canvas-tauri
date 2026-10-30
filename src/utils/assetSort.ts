@@ -1,3 +1,6 @@
+/**
+ * assetSort — 按名称、类型或时间对资产文件生成排序副本。
+ */
 import type { AssetFileEntry } from '../services/fileService';
 import type { AssetSortBy, AssetSortOrder } from '../types';
 

@@ -1,3 +1,6 @@
+/**
+ * videoEditorRenderBitmap — 在内存预算内创建剪辑渲染位图。
+ */
 import { readRasterImageDimensions } from "./rasterImageDimensions";
 import type { VideoEditorCanvasSize } from "../types/videoEditor";
 

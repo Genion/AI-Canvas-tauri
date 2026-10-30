@@ -1,3 +1,6 @@
+/**
+ * cinematography — 处理摄影设置、器材兼容提示与生成提示词。
+ */
 import type { CameraAperture, CameraGenerationSettings, CameraLens, CameraShutterEffect } from '../types';
 import type { CinemaCamera, CinemaFormat, CinemaLens, CinematographySettings } from '../types/cinematography';
 import { CINEMA_CAMERAS, CINEMA_EFFECTS, CINEMA_FILM_STOCKS, CINEMA_LENSES } from '../data/cinematography';

@@ -1,3 +1,6 @@
+/**
+ * canvasEdgePath — 复用 React Flow 路径计算并判断连线描边兼容性。
+ */
 import { getBezierPath, getSmoothStepPath, type EdgeProps } from '@xyflow/react';
 import type { CanvasEdgePath, CanvasEdgePosition, CanvasSharedEdgeModel } from '../types/canvasEdges';
 

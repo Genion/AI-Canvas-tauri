@@ -1,3 +1,6 @@
+/**
+ * projectSummary — 将项目记录转换为列表用摘要。
+ */
 import type { EpisodeCreativeInfo, ProjectSeriesInfo, ProjectSettings } from '../../types';
 import { normalizeEpisodeAssetRoster, type EpisodeAssetRoster } from '../../types/episodeAssets';
 

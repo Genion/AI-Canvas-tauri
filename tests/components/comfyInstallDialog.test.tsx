@@ -1,3 +1,6 @@
+/**
+ * comfyInstallDialog — 回归测试：安装弹窗首屏就包含目录表单，不等待原生检测成功，也不默认开始安装。
+ */
 import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, expect, it, vi } from 'vitest';

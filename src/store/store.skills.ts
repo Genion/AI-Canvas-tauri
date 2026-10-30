@@ -1,3 +1,6 @@
+/**
+ * store.skills — 管理 Skill 的加载、导入、删除与配置。
+ */
 import { t } from '../i18n';
 /**
  * Skill slice — uploaded read-only prompt skills.

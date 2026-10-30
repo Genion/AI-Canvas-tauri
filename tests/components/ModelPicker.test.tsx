@@ -1,3 +1,6 @@
+/**
+ * ModelPicker — 回归测试：公共 ModelMenu。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ModelMenuProps, ModelPickerGroup, ModelPickerProps } from '../../src/components/shared/ModelPicker';
 

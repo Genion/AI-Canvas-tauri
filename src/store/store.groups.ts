@@ -1,7 +1,8 @@
-import { t } from '../i18n';
 /**
  * Group slice — visual node grouping on canvas
  */
+import { t } from '../i18n';
+
 import type { StateCreator } from 'zustand';
 import type { AppState } from './useAppStore';
 import type { NodeGroup } from '../types';

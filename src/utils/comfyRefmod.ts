@@ -1,3 +1,6 @@
+/**
+ * comfyRefmod — 规范化 RefMod 文件身份、引用与角色模型绑定。
+ */
 import type {
   ComfyRefmodAsset,
   ComfyRefmodFileRef,

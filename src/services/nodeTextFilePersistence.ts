@@ -1,3 +1,6 @@
+/**
+ * nodeTextFilePersistence — 为尚未落盘的节点文本补齐项目文件。
+ */
 import type { AppState } from '../store/useAppStore';
 import { buildNodeFileName, saveBinaryToProjectData } from './fileService';
 import { isTauriEnv } from './fs/core';

@@ -1,3 +1,6 @@
+/**
+ * character-library — 角色库与短剧资产的样式定义。
+ */
 .character-library-panel {
   width: min(1200px, calc(100vw - 152px));
   height: min(760px, calc(100vh - 80px));

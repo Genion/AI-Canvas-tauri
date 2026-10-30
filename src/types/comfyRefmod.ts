@@ -1,3 +1,6 @@
+/**
+ * comfyRefmod — 定义ComfyUI RefMod 文件、槽位与引用的领域类型。
+ */
 import type { WorkflowDefinition } from './index';
 
 /** RefMod 引用只保存服务身份和插件返回的相对文件名，不保存地址或本地路径。 */

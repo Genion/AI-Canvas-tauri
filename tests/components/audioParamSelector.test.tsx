@@ -1,3 +1,6 @@
+/**
+ * audioParamSelector — 回归测试：LibAPI 音频参数控件。
+ */
 import type { ComponentProps } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 

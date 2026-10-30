@@ -1,3 +1,6 @@
+/**
+ * thumbnailCache — 准备并读取项目媒体缩略图缓存。
+ */
 import { invoke } from '@tauri-apps/api/core';
 import { localMediaUrlToPath } from '../../utils/mediaUrl';
 import { getProjectDataDir, isTauriEnv } from './core';

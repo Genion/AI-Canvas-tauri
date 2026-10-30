@@ -1,3 +1,6 @@
+/**
+ * cinematography — 定义摄影器材、效果与镜头设置的领域类型。
+ */
 import type { CameraShutterEffect } from './index';
 
 export type CinemaFormat = 's16' | 's35' | 'ff' | 'lf' | 'vv';

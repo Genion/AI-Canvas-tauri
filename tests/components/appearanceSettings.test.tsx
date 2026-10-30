@@ -1,3 +1,6 @@
+/**
+ * appearanceSettings — 回归测试：appearance settings rendering。
+ */
 import { describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { AppState } from '../../src/store/useAppStore';

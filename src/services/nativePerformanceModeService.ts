@@ -1,3 +1,6 @@
+/**
+ * nativePerformanceModeService — 同步原生性能模式并处理重启请求。
+ */
 import { invoke } from '@tauri-apps/api/core';
 import { useAppStore } from '../store/useAppStore';
 import { prepareSettingsClose, resumeSettingsPersistence } from './configPersistenceQueue';

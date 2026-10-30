@@ -1,3 +1,6 @@
+/**
+ * aiApp — 定义AI 应用定义、动作、资源与界面会话的领域类型。
+ */
 import type { AgentToolSchema } from '../services/chat/agentToolSchemas';
 
 export type AiAppJson = null | boolean | number | string | AiAppJson[] | { [key: string]: AiAppJson };

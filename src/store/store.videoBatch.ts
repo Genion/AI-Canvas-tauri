@@ -1,3 +1,6 @@
+/**
+ * store.videoBatch — 管理视频批次预检、提交、取消与恢复状态。
+ */
 import type { StateCreator } from 'zustand';
 import type { AppState } from './useAppStore';
 import type { VideoBatch, VideoBatchItem, VideoPreflightItem } from '../types/videoBatch';

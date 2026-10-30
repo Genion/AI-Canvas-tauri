@@ -1,3 +1,6 @@
+/**
+ * apiKeyDeletionPersistence — 回归测试：连接卡片快捷切换站点。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createStore } from 'zustand/vanilla';
 import { createHash } from 'node:crypto';

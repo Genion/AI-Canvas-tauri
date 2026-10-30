@@ -1,3 +1,6 @@
+/**
+ * workflowApiConfig — 保存云工作流草稿与模板并解析参数字段。
+ */
 import { useAppStore } from '../../store/useAppStore';
 import type { WorkflowApiDraft, WorkflowApiInputValues, WorkflowApiManifest } from '../../types/workflowApi';
 import { AUTODL_H3_WORKFLOW, createAutodlH3WorkflowManifest, resolveWorkflowApiInputValues } from './autodlWorkflowManifest';

@@ -1,3 +1,6 @@
+/**
+ * ExpandableSearch — 回归测试：ExpandableSearch 焦点与选择边界。
+ */
 import type { EffectCallback, KeyboardEvent } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ExpandableSearchProps } from '../../src/components/shared/ExpandableSearch';

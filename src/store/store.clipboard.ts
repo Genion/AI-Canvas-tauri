@@ -1,7 +1,8 @@
-import { t } from '../i18n';
 /**
  * Clipboard slice — copy / paste nodes including external content from OS clipboard
  */
+import { t } from '../i18n';
+
 import type { Node } from '@xyflow/react';
 import type { StateCreator } from 'zustand';
 import type { AppState } from './useAppStore';

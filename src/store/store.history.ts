@@ -1,7 +1,8 @@
-import { t } from '../i18n';
 /**
  * History slice — undo / redo with capped history stack
  */
+import { t } from '../i18n';
+
 import type { Node, Edge } from '@xyflow/react';
 import type { StateCreator } from 'zustand';
 import type { AppState } from './useAppStore';

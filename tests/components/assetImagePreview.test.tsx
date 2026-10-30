@@ -1,3 +1,6 @@
+/**
+ * assetImagePreview — 回归测试：asset image fullscreen preview。
+ */
 import type { ComponentProps, ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { HistoryRecord } from '../../src/services/indexedDbService';

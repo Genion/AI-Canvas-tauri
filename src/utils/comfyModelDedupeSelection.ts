@@ -1,3 +1,6 @@
+/**
+ * comfyModelDedupeSelection — 选择 ComfyUI 重复模型的保留项与去重目标。
+ */
 import type { ComfyDuplicateModelGroup, ComfyModelDedupeGroupRequest, ComfyModelDedupeGroupSelection } from '../types/comfyModelDedupe';
 
 export const MAX_COMFY_MODEL_DEDUPE_TARGETS = 256;

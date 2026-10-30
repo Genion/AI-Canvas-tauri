@@ -1,3 +1,6 @@
+/**
+ * presetParameterPresentation — 转换预设参数的用途、显示名称与编辑选项。
+ */
 import type { PresetAdvancedConfig, PresetParameterDefinition } from '../types';
 import type { t } from '../i18n';
 

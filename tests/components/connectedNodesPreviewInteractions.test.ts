@@ -1,3 +1,6 @@
+/**
+ * connectedNodesPreviewInteractions — 回归测试：ConnectedNodesPreview 交互。
+ */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   calculateDockOffset,

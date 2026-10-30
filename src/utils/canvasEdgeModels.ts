@@ -1,3 +1,6 @@
+/**
+ * canvasEdgeModels — 构建连线几何模型选择器与渲染快照读取器。
+ */
 import type { Edge, EdgeProps, InternalNode, ReactFlowState } from '@xyflow/react';
 import type {
   CanvasEdgeGeometry,

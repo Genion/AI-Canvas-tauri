@@ -1,3 +1,6 @@
+/**
+ * videoBatch — 定义视频批次、预检与执行状态的领域类型。
+ */
 export type VideoBatchScope = 'episode' | 'selected' | 'pending';
 export type VideoBatchItemStatus = 'waiting' | 'running' | 'success' | 'error' | 'cancelled' | 'unknown';
 

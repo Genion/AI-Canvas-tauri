@@ -1,3 +1,6 @@
+/**
+ * store.plugins — 编排插件安装、持久化、启停与原生版本激活。
+ */
 import { t } from '../i18n';
 /** 用户代码插件：安装记录、启停与 IndexedDB 持久化。 */
 import { invoke } from '@tauri-apps/api/core';

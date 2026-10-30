@@ -1,3 +1,6 @@
+/**
+ * CharacterReferenceGallery — 回归测试：角色参考图指针排序。
+ */
 import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CharacterReferenceImage } from '../../src/types/dramaAssets';

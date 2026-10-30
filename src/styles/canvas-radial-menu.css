@@ -1,3 +1,6 @@
+/**
+ * canvas-radial-menu — 画布径向菜单的样式定义。
+ */
 .canvas-radial-hold-indicator {
   position: fixed;
   z-index: 88;

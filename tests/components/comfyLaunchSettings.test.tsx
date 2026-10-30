@@ -1,3 +1,6 @@
+/**
+ * comfyLaunchSettings — 回归测试：默认保留安装版本行为和智能显存，不自动启用 H3 修改。
+ */
 import type { ReactElement } from 'react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { DEFAULT_COMFY_LAUNCH_SETTINGS } from '../../src/types/comfyLaunch';

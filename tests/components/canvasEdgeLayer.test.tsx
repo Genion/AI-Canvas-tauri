@@ -1,3 +1,6 @@
+/**
+ * canvasEdgeLayer — 回归测试：central canvas edge rendering。
+ */
 import type { ReactNode } from 'react';
 import type { Edge, InternalNode, Position, ReactFlowState } from '@xyflow/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';

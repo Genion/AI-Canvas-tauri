@@ -1,3 +1,6 @@
+/**
+ * pluginMarketplace — 解析插件市场目录与 GitHub 插件下载信息。
+ */
 import type { PluginManifest, PluginPackageResourcePayload } from '../../types/plugin';
 import { downloadGithubBytes } from '../githubDownloadService';
 import {

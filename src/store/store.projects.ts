@@ -1,3 +1,6 @@
+/**
+ * store.projects — 管理项目保存、切换、恢复与项目域数据装配。
+ */
 import { t } from '../i18n';
 /**
  * Project slice — multi-project management, save/load/init via IndexedDB

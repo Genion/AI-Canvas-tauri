@@ -1,3 +1,6 @@
+/**
+ * referencePreviewEvents — 识别真实引用胶囊并分发引用预览请求。
+ */
 import type { ReferencePreviewSource } from '../types/referencePreview';
 import { serializeDOM } from '../components/nodes/shared/mentionEditorDom';
 

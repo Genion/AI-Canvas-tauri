@@ -1,3 +1,6 @@
+/**
+ * videoBatchRepository — 按项目保存并读取视频批次记录。
+ */
 import { openDB, STORE_METADATA } from './indexedDb/schema';
 import type { VideoBatch } from '../types/videoBatch';
 

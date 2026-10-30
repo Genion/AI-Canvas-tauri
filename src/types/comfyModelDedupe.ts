@@ -1,3 +1,6 @@
+/**
+ * comfyModelDedupe — 定义ComfyUI 模型扫描、去重与历史的领域类型。
+ */
 export type ComfyModelScanScope = 'models' | 'modelsAndPlugins' | 'folder' | 'disk';
 export type ComfyModelScanRootKind = 'folder' | 'disk';
 export type ComfyModelLinkType = 'hardlink' | 'symlink';

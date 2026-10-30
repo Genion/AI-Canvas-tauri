@@ -1,3 +1,6 @@
+/**
+ * workflowExecutionService — 统一云工作流的执行分流与产物保存入口。
+ */
 import type { ApiProviderConfig, WorkflowDefinition } from '../types';
 import type { RunningHubConnectionId, RunningHubSiteId } from '../types/runninghub';
 import type { CloudWorkflowOutput } from '../types/workflowApi';

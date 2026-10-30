@@ -1,3 +1,6 @@
+/**
+ * comfyManagementWindow — 回归测试：模型去重首次打开才挂载，切控制台后保留同一页面并移出焦点与可访问树。
+ */
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { ComfyManagementSnapshot } from '../../src/types/comfyManagement';
 

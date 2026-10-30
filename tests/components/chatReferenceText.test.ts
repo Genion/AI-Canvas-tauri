@@ -1,3 +1,6 @@
+/**
+ * chatReferenceText — 回归测试：selectNodeDisplayIds。
+ */
 import type { Node } from '@xyflow/react';
 import { describe, expect, it } from 'vitest';
 import { selectNodeDisplayIds } from '../../src/components/chat/ChatReferenceText';

@@ -1,3 +1,6 @@
+/**
+ * groupChildImageKey — 维护分组子节点图片封面的索引与缓存键。
+ */
 import type { Node } from '@xyflow/react';
 import type { BaseNodeData } from '../types';
 

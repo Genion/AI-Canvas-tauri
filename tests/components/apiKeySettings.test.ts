@@ -1,3 +1,6 @@
+/**
+ * apiKeySettings — 回归测试：API Key 设置连接列表。
+ */
 import { describe, expect, it } from 'vitest';
 import { getCustomConnectionReadiness, shouldListProviderConnection } from '../../src/components/settings/apiKeySettingsUtils';
 

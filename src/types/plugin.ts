@@ -1,3 +1,6 @@
+/**
+ * plugin — 定义插件清单、权限、执行输入输出与界面协议的领域类型。
+ */
 import type { GeneralModelCategory, NodeType } from './index';
 import type { Locale } from '../i18n';
 import type { VideoModelCapability } from './aiTypes';

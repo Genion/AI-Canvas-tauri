@@ -1,3 +1,6 @@
+/**
+ * cccGroupConnection — 回归测试：CCC simultaneous group settings。
+ */
 import type { ComponentProps, ReactElement } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 

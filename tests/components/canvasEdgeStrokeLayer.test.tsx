@@ -1,3 +1,6 @@
+/**
+ * canvasEdgeStrokeLayer — 回归测试：viewport Canvas edge strokes。
+ */
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CanvasSharedEdgeModel } from '../../src/types/canvasEdges';

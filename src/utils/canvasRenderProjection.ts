@@ -1,3 +1,6 @@
+/**
+ * canvasRenderProjection — 维护画布节点索引与节点、连线的渲染投影。
+ */
 import type { Edge, Node, NodeChange } from '@xyflow/react';
 import type { BaseNodeData } from '../types';
 import { withCanvasEdgeLayer, withCanvasNodeLayer } from './canvasElementLayering';

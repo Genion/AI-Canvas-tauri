@@ -1,3 +1,6 @@
+/**
+ * comfyUISettings — 回归测试：ComfyUISettings memory controls。
+ */
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it } from 'vitest';
 import ComfyUISettings from '../../src/components/settings/ComfyUISettings';

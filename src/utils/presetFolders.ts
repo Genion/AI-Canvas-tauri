@@ -1,3 +1,6 @@
+/**
+ * presetFolders — 规范化预设文件夹并处理未分组与孤立引用。
+ */
 import type { NodeType, PresetFolder, UserPreset } from '../types';
 
 export const UNGROUPED_PRESET_FOLDER_ID = '__ungrouped__';

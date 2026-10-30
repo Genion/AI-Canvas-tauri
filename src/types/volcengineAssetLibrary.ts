@@ -1,3 +1,6 @@
+/**
+ * volcengineAssetLibrary — 定义方舟素材分组、素材与缓存的领域类型。
+ */
 export type VolcengineAssetStatus = 'Creating' | 'Active' | 'Failed' | 'Deleting' | string;
 
 export interface VolcengineAssetGroup {
