@@ -1584,8 +1584,18 @@ describe('critical canvas node interactions', () => {
         persistMediaUrlToProjectData: vi.fn(async (url: string) => ({ mediaUrl: url, sourceUrl: url, filePath: 'result.png' })),
       }));
       vi.doMock('../../src/services/ai/mediaModelCapabilities', () => ({
-        resolveImageParameterCapability: (model: string) => ['general/model-b', 'general/model-c'].includes(model)
+        resolveImageParameterCapability: (model: string) => model === 'general/model-compatible'
+          ? { resolutions: ['1K', '2k', '4K'], defaultResolution: '1K', ratios: ['1:1', '16:9', '9:16', 'auto'], defaultRatio: '1:1',
+            qualities: ['auto', 'low', 'medium', 'high', 'xhigh', 'max'], defaultQuality: 'auto',
+            backgrounds: ['auto', 'opaque', 'transparent'], defaultBackground: 'opaque' }
+          : model === 'general/model-restricted'
           ? { resolutions: ['1K'], defaultResolution: '1K', ratios: ['1:1'], defaultRatio: '1:1',
+            qualities: ['low', 'medium', 'high'], defaultQuality: 'medium', backgrounds: ['auto', 'opaque'], defaultBackground: 'opaque' }
+          : model === 'general/model-fixed'
+          ? { resolutions: ['2K'], defaultResolution: '2K', ratios: ['16:9'], defaultRatio: '16:9',
+            qualities: ['high'], defaultQuality: 'high', backgrounds: ['transparent'], defaultBackground: 'transparent', backgroundIsFixed: true }
+          : ['general/model-b', 'general/model-c'].includes(model)
+          ? { resolutions: ['1K'], defaultResolution: '1K', ratios: ['1:1', '16:9', '9:16'], defaultRatio: '1:1',
             qualities: ['low', 'medium', 'high'], defaultQuality: 'medium', backgrounds: ['auto', 'opaque', 'transparent'],
             defaultBackground: model === 'general/model-c' ? 'opaque' : undefined }
           : undefined,
@@ -1608,7 +1618,7 @@ describe('critical canvas node interactions', () => {
       return { store, panel, generateImage, generateImagesBatch, applyImageBatchResults };
     }
 
-    it('preserves user ratio and dimensions while quality follows model changes, and still permits manual ratio edits', async () => {
+    it('adjusts only incompatible quality while retaining compatible background, ratio and dimensions', async () => {
       const { store, panel } = await setupImageQualityDialog();
       const select = (value: string) => (panel().props.onModelSelect as (model: Record<string, unknown>) => void)({ value, provider: 'general' });
       select('general/model-a');
@@ -1616,7 +1626,7 @@ describe('critical canvas node interactions', () => {
       expect(store.nodes[0].data.imageBackground).toBe('transparent');
       select('general/model-b');
       expect(store.nodes[0].data.imageQuality).toBe('medium');
-      expect(store.nodes[0].data.imageBackground).toBeUndefined();
+      expect(store.nodes[0].data.imageBackground).toBe('transparent');
       (panel().props.onChangeImageBackground as (background: string) => void)('transparent');
       expect(store.nodes[0].data).toMatchObject({ aspectRatio: '16:9', nodeWidth: 280, nodeHeight: 158 });
       (panel().props.onChangeAspectRatio as (ratio: string) => void)('9:16');
@@ -1638,6 +1648,72 @@ describe('critical canvas node interactions', () => {
       (panel().props.onClearModel as () => void)();
       expect(store.nodes[0].data.imageQuality).toBeUndefined();
       expect(store.nodes[0].data.imageBackground).toBeUndefined();
+    });
+
+    it.each([
+      { imageSize: '2K', imageQuality: 'xhigh', imageBackground: 'transparent', aspectRatio: '16:9' },
+      { imageSize: '4K', imageQuality: 'max', imageBackground: '', aspectRatio: '9:16' },
+      { imageSize: '2k', imageQuality: 'high', imageBackground: 'opaque', aspectRatio: '自适应' },
+    ])('keeps compatible image parameters through the real menu callback sequence: $imageQuality / $imageBackground', async (parameters) => {
+      const { store, panel } = await setupImageQualityDialog();
+      Object.assign(store.nodes[0].data, parameters);
+      const dimensions = { nodeWidth: store.nodes[0].data.nodeWidth, nodeHeight: store.nodes[0].data.nodeHeight };
+      const callbacks = panel().props;
+      (callbacks.onModelSelect as (model: Record<string, unknown>) => void)({ value: 'general/model-compatible', provider: 'general' });
+      (callbacks.onWorkflowSelect as (id: string | undefined) => void)(undefined);
+      expect(store.nodes[0].data).toMatchObject({ ...parameters, ...dimensions, model: 'general/model-compatible' });
+      expect(store.updateNodeData).toHaveBeenCalledTimes(1);
+      // 重选同一型号并再次通知清空工作流，也不能覆盖已选参数。
+      (panel().props.onModelSelect as (model: Record<string, unknown>) => void)({ value: 'general/model-compatible', provider: 'general' });
+      (panel().props.onWorkflowSelect as (id: string | undefined) => void)(undefined);
+      expect(store.nodes[0].data).toMatchObject({ ...parameters, ...dimensions });
+    });
+
+    it('falls back only unsupported values and updates dimensions only for an incompatible ratio', async () => {
+      const { store, panel } = await setupImageQualityDialog();
+      (panel().props.onModelSelect as (model: Record<string, unknown>) => void)({ value: 'general/model-restricted', provider: 'general' });
+      (panel().props.onWorkflowSelect as (id: string | undefined) => void)(undefined);
+      expect(store.nodes[0].data).toMatchObject({ imageSize: '1K', imageQuality: 'medium', imageBackground: 'opaque',
+        aspectRatio: '1:1', nodeWidth: 280, nodeHeight: 280 });
+    });
+
+    it('clears workflow execution fields once without resetting compatible image parameters', async () => {
+      const { store, panel } = await setupImageQualityDialog();
+      Object.assign(store.nodes[0].data, { workflowId: 'previous-workflow', workflowInputs: { prompt: 'old workflow input' },
+        workflowApiOutputs: [{ url: 'https://example.com/old.png', kind: 'image' }], workflowApiStage: '已完成', comfyRefmods: [] });
+      const callbacks = panel().props;
+      (callbacks.onModelSelect as (model: Record<string, unknown>) => void)({ value: 'general/model-compatible', provider: 'general' });
+      (callbacks.onWorkflowSelect as (id: string | undefined) => void)(undefined);
+      expect(store.nodes[0].data).toMatchObject({ workflowId: undefined, workflowInputs: undefined,
+        workflowApiOutputs: undefined, workflowApiStage: undefined, comfyRefmods: undefined,
+        imageSize: '2K', imageQuality: 'max', imageBackground: 'transparent', aspectRatio: '16:9', nodeWidth: 280, nodeHeight: 158 });
+      expect(store.updateNodeData).toHaveBeenCalledTimes(1);
+    });
+
+    it('honors a fixed background contract while retaining the compatible resolution and ratio', async () => {
+      const { store, panel } = await setupImageQualityDialog();
+      store.nodes[0].data.imageBackground = '';
+      (panel().props.onModelSelect as (model: Record<string, unknown>) => void)({ value: 'general/model-fixed', provider: 'general' });
+      (panel().props.onWorkflowSelect as (id: string | undefined) => void)(undefined);
+      expect(store.nodes[0].data).toMatchObject({ imageSize: '2K', imageQuality: 'high', imageBackground: 'transparent',
+        aspectRatio: '16:9', nodeWidth: 280, nodeHeight: 158 });
+    });
+
+    it('does not initialize an unset ratio or discard explicit API-default background on a model change', async () => {
+      const { store, panel } = await setupImageQualityDialog();
+      Object.assign(store.nodes[0].data, { aspectRatio: undefined, imageBackground: '' });
+      (panel().props.onModelSelect as (model: Record<string, unknown>) => void)({ value: 'general/model-compatible', provider: 'general' });
+      (panel().props.onWorkflowSelect as (id: string | undefined) => void)(undefined);
+      expect(store.nodes[0].data).toMatchObject({ imageSize: '2K', imageQuality: 'max', imageBackground: '',
+        aspectRatio: undefined, nodeWidth: 280, nodeHeight: 158 });
+    });
+
+    it('keeps a compatible Dreamina resolution when selecting an OAuth image model', async () => {
+      const { store, panel } = await setupImageQualityDialog();
+      (panel().props.onModelSelect as (model: Record<string, unknown>) => void)({ value: 'dreamina/3.0', provider: 'dreamina' });
+      (panel().props.onWorkflowSelect as (id: string | undefined) => void)(undefined);
+      expect(store.nodes[0].data).toMatchObject({ imageSize: '2K', imageQuality: undefined, imageBackground: undefined,
+        aspectRatio: '16:9', nodeWidth: 280, nodeHeight: 158 });
     });
 
     it.each([
@@ -1675,7 +1751,7 @@ describe('critical canvas node interactions', () => {
       const { store, panel, generateImage, generateImagesBatch, applyImageBatchResults } = await setupImageQualityDialog(count);
       const currentPanel = panel();
       (currentPanel.props.onModelSelect as (model: Record<string, unknown>) => void)({ value: 'general/model-c', provider: 'general' });
-      expect(store.nodes[0].data.imageBackground).toBe('opaque');
+      expect(store.nodes[0].data.imageBackground).toBe('transparent');
       (currentPanel.props.onChangeImageBackground as (value: string | undefined) => void)(background);
       const effective = background === '' ? undefined : background ?? 'opaque';
       const requested = background === '' ? '' : effective;

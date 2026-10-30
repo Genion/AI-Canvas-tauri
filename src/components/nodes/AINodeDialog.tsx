@@ -51,6 +51,7 @@ import {
   resolveAnimationSheetAspectRatio,
 } from '../../services/ai/animationPrompt';
 import { resolveImageParameterCapability } from '../../services/ai/mediaModelCapabilities';
+import { DREAMINA_IMAGE_RATIOS, getDreaminaImageModel } from '../../services/ai/dreaminaModels';
 import { getLibapiAudioCapability, usesLibapiModelProtocol } from '../../services/ai/providers/libapiModelManifest';
 import { resolveConfiguredImageBackground, resolveConfiguredImageQuality } from '../../services/ai/modelCapabilityValidation';
 import { buildGenerationCameraPrompt } from './shared/image/cameraStudio';
@@ -914,6 +915,18 @@ function AINodeDialog() {
       const modelChanged = current.model !== model.value || current.provider !== model.provider || !!current.workflowId;
       const imageCapability = nodeType === 'ai-image' && modelChanged
         ? resolveImageParameterCapability(model.value, model.provider, state.config) : undefined;
+      const dreaminaImage = nodeType === 'ai-image' && modelChanged && model.provider === 'dreamina'
+        ? getDreaminaImageModel(model.value) : undefined;
+      const imageResolutions = dreaminaImage?.resolutions ?? imageCapability?.resolutions;
+      const imageRatios = dreaminaImage ? DREAMINA_IMAGE_RATIOS : imageCapability?.ratios;
+      const keepSupportedImageValue = (value: string | undefined, choices: readonly string[] | undefined, fallback?: string) => (
+        value !== undefined && choices?.some((choice) => choice.toLowerCase() === value.toLowerCase()) ? value : fallback
+      );
+      const currentRatio = current.aspectRatio === '自适应' ? 'auto' : current.aspectRatio;
+      const fallbackRatio = imageCapability?.defaultRatio ?? imageRatios?.[0];
+      const imageRatio = currentRatio && imageRatios?.length
+        && !imageRatios.some((ratio) => ratio.toLowerCase() === currentRatio.toLowerCase())
+        ? fallbackRatio === 'auto' ? '自适应' : fallbackRatio : current.aspectRatio;
       const audioModel = nodeType === 'ai-audio' && model.provider === 'general'
         ? state.config.generalModels?.find((item) => item.id === model.value.replace(/^general\//, '')) : undefined;
       const audioConnection = audioModel ? state.config.providers[audioModel.providerConfigId] : undefined;
@@ -925,18 +938,26 @@ function AINodeDialog() {
       const validSpeed = audioCapability?.speed && typeof currentSpeed === 'number'
         && currentSpeed >= audioCapability.speed.min && currentSpeed <= audioCapability.speed.max
         && (!audioCapability.speed.options || audioCapability.speed.options.includes(currentSpeed));
-      // 视频保留用户参数，模型能力变化由参数控件和提交前校验处理。
+      // 图片按项检查兼容性；视频保留用户参数，由参数控件和提交前校验处理。
       updateNodeData(activeNodeId!, {
         model: model.value,
         provider: model.provider,
         ...(nodeType === 'ai-director' ? { directorPrevisModel: model.value, directorPrevisProvider: model.provider } : {}),
         audioPurpose: audioCapability?.kind ?? model.audioPurpose,
-        runninghubModelParameters: undefined, runninghubOutputs: undefined, runninghubStage: undefined, workflowId: undefined,
+        runninghubModelParameters: undefined, runninghubOutputs: undefined, runninghubStage: undefined,
+        workflowId: undefined, workflowInputs: undefined, workflowApiOutputs: undefined, workflowApiStage: undefined,
         ...(modelChanged ? { comfyRefmods: undefined } : {}),
         ...(nodeType === 'ai-image' && modelChanged ? {
-          imageSize: imageCapability?.defaultResolution || '2K',
-          imageQuality: imageCapability?.defaultQuality,
-          imageBackground: imageCapability?.defaultBackground,
+          imageSize: imageResolutions?.length
+            ? keepSupportedImageValue(current.imageSize, imageResolutions, imageCapability?.defaultResolution
+              ?? imageResolutions.find((value) => value.toLowerCase() === '2k') ?? imageResolutions[0])
+            : current.imageSize ?? imageCapability?.defaultResolution ?? '2K',
+          imageQuality: keepSupportedImageValue(current.imageQuality, imageCapability?.qualities, imageCapability?.defaultQuality),
+          imageBackground: imageCapability?.backgroundIsFixed && imageCapability.defaultBackground !== undefined
+            ? imageCapability.defaultBackground : current.imageBackground === '' ? ''
+              : keepSupportedImageValue(current.imageBackground, imageCapability?.backgrounds, imageCapability?.defaultBackground),
+          ...(imageRatio !== current.aspectRatio && imageRatio ? { aspectRatio: imageRatio,
+            ...(getImageNodeDimensionsForAspectRatio(imageRatio) ?? {}) } : {}),
         } : {}),
         ...(modelChanged && audioCapability ? {
           audioVoice: audioCapability.kind === 'speech' && audioCapability.voices?.includes(current.audioVoice ?? '')
@@ -961,6 +982,8 @@ function AINodeDialog() {
       const state = useAppStore.getState();
       const workflow = state.workflows.find((item) => item.id === workflowId);
       const previousWorkflowId = state.nodes.find((item) => item.id === activeNodeId)?.data.workflowId;
+      // 模型菜单选中后还会通知清空工作流；此时 onModelSelect 已完成清理，不能再重置参数。
+      if (workflowId === undefined && previousWorkflowId === undefined) return;
       updateNodeData(activeNodeId!, {
         workflowId,
         ...(previousWorkflowId !== workflowId ? { comfyRefmods: undefined } : {}),
