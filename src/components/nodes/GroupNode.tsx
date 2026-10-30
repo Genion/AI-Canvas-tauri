@@ -78,6 +78,7 @@ export default function GroupNode({ id, data, selected }: NodeProps) {
   const toggleGroupCollapsed = useAppStore((s) => s.toggleGroupCollapsed);
   const setGroupColor = useAppStore((s) => s.setGroupColor);
   const commitToHistory = useAppStore((s) => s.commitToHistory);
+  const settleGroupMembersOnResizeEnd = useAppStore((s) => s.settleGroupMembersOnResizeEnd);
   const childCount = useAppStore((s) => getGroupChildCount(s.nodes, id));
   // 锁定的分组同样禁止缩放
   const isNodeLocked = useNodeLocked(id);
@@ -86,6 +87,9 @@ export default function GroupNode({ id, data, selected }: NodeProps) {
   const [showColors, setShowColors] = useState(false);
   const colorButtonRef = useRef<HTMLButtonElement>(null);
   const colorPaletteRef = useRef<HTMLDivElement>(null);
+  const handleResizeEnd = useCallback(() => {
+    settleGroupMembersOnResizeEnd(id);
+  }, [id, settleGroupMembersOnResizeEnd]);
 
   useEffect(() => {
     if (!showColors) return;
@@ -227,7 +231,7 @@ export default function GroupNode({ id, data, selected }: NodeProps) {
         minWidth={200}
         minHeight={120}
         onResizeStart={commitToHistory}
-        onResizeEnd={commitToHistory}
+        onResizeEnd={handleResizeEnd}
         handleStyle={{
           width: 10,
           height: 10,

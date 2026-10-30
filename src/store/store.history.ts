@@ -163,6 +163,7 @@ function getStructuralSnapshot(entry: HistoryEntry, includeLayout = true): unkno
         position: node.position,
         layoutData: getNodeDataFields(node.data, LAYOUT_NODE_DATA_KEYS),
         styleDimensions: getNodeStyleDimensions(node),
+        ...(node.type === 'group' ? { dimensions: { width: node.width, height: node.height } } : {}),
       } : {}),
     })),
     edges: entry.edges.map((edge) => ({
@@ -275,6 +276,11 @@ function restoreStructuralNode(
     expandParent: target.expandParent,
     position: restoreLayout || parentChanged ? { ...target.position } : { ...current.position },
     style: restoreLayout ? restoreNodeStyleDimensions(target, current) : current.style,
+    ...(restoreLayout && target.type === 'group' ? {
+      width: target.width,
+      height: target.height,
+      measured: target.measured ? { ...target.measured } : undefined,
+    } : {}),
     data,
   };
 }
@@ -286,11 +292,31 @@ function restoreStructuralSnapshot(
   const currentNodes = new Map(current.nodes.map((node) => [node.id, node]));
   const currentEdges = new Map(current.edges.map((edge) => [edge.id, edge]));
   const restoreLayout = isSameStructureIgnoringLayout(target, current);
+  const targetMembers = new Map(target.groups.map((group) => [group.id, group.nodeIds]));
+  const currentMembers = new Map(current.groups.map((group) => [group.id, group.nodeIds]));
+  const layoutGroups = new Set<string>();
+  const relocatedGroups = new Set<string>();
+  for (const node of target.nodes) {
+    if (node.type !== 'group') continue;
+    const groupId = node.data.groupId;
+    // 只把成员变化的容器与归属一起还原，其他分组仍保留独立布局。
+    const membersChanged = groupId !== undefined
+      && !isDeepEqual(targetMembers.get(groupId), currentMembers.get(groupId));
+    if (!restoreLayout && !membersChanged) continue;
+    layoutGroups.add(node.id);
+    const previous = currentNodes.get(node.id);
+    if (previous
+      && (node.position.x !== previous.position.x || node.position.y !== previous.position.y)) {
+      relocatedGroups.add(node.id);
+    }
+  }
   return {
     nodes: target.nodes.map((node) => restoreStructuralNode(
       node,
       currentNodes.get(node.id),
-      restoreLayout,
+      // 左／上边缩放会反向调整已有子节点坐标，须随父框一起还原。
+      restoreLayout || layoutGroups.has(node.id)
+        || (node.parentId !== undefined && relocatedGroups.has(node.parentId)),
     )),
     edges: target.edges.map((edge) => {
       const currentEdge = currentEdges.get(edge.id);

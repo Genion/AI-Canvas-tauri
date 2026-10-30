@@ -52,6 +52,7 @@ interface TestStore {
   renameGroup: ReturnType<typeof vi.fn>;
   toggleGroupCollapsed: ReturnType<typeof vi.fn>;
   setGroupColor: ReturnType<typeof vi.fn>;
+  settleGroupMembersOnResizeEnd: ReturnType<typeof vi.fn<(groupId: string) => void>>;
   closeNodeDialog: ReturnType<typeof vi.fn>;
   mergeDramaExtract: ReturnType<typeof vi.fn>;
   openNodeDialog: ReturnType<typeof vi.fn>;
@@ -162,6 +163,7 @@ function createStore(nodes: TestNode[], getRevision: () => number): TestStore {
     renameGroup: vi.fn(),
     toggleGroupCollapsed: vi.fn(),
     setGroupColor: vi.fn(),
+    settleGroupMembersOnResizeEnd: vi.fn<(groupId: string) => void>(() => { store.commitToHistory(); }),
     closeNodeDialog: vi.fn(),
     mergeDramaExtract: vi.fn(),
     openNodeDialog: vi.fn(),
@@ -1466,6 +1468,7 @@ describe('critical canvas node interactions', () => {
     await (batchButton.props.onClick as () => Promise<void>)();
 
     expect(store.commitToHistory).toHaveBeenCalledTimes(2);
+    expect(store.settleGroupMembersOnResizeEnd).toHaveBeenCalledWith('group-a');
     expect(batchExecuteNodes).toHaveBeenCalledWith(
       ['direct'],
       store.nodes,

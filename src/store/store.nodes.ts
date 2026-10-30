@@ -821,6 +821,8 @@ export interface NodeSlice {
   onEdgesChange: (changes: EdgeChange[]) => void;
   clearGroupedSelection: () => void;
   settleNodeGroupingOnDragStop: (node: Node<BaseNodeData>) => void;
+  /** 缩放结束后批量同步入组／脱组并提交结束快照；调用方须在手势开始时提交历史。 */
+  settleGroupMembersOnResizeEnd: (groupId: string) => void;
   /** 把一个图像节点拖入宫格分镜的某格：该格显示此图，源节点被消耗移除 */
   fillStoryboardCell: (storyboardId: string, cellIdx: number, sourceNodeId: string) => void;
   /** 把一个图像/视频节点拖入分镜表的画面格：建立引用，源节点留在画布上 */
@@ -1778,6 +1780,52 @@ export const createNodeSlice: StateCreator<AppState, [], [], NodeSlice> = (set, 
       });
       return changed ? { nodes } : {};
     });
+  },
+
+  settleGroupMembersOnResizeEnd: (groupId) => {
+    const state = get();
+    const group = state.nodes.find((node) => node.id === groupId && node.type === 'group');
+    if (!group || group.hidden || group.draggable === false || group.data.groupCollapsed || group.data.hiddenByCharacterLibrary
+      || !state.groups.some((record) => record.id === group.data.groupId)) return;
+
+    const position = absoluteNodePosition(group, state.nodes);
+    const capturedIds = new Set(state.nodes.filter((node) => (
+      node.type !== 'group' && !node.parentId && !node.hidden && node.draggable !== false
+      && !node.data.hiddenByCharacterLibrary
+      && groupContainsPoint(group, nodeCenter(node, state.nodes), state.nodes)
+    )).map((node) => node.id));
+    // 脱组前按完整父链换算画布坐标，解除绑定时不移动节点；空分组继续保留。
+    const releasedPositions = new Map(state.nodes.filter((node) => (
+      node.parentId === group.id
+      && !groupContainsPoint(group, nodeCenter(node, state.nodes), state.nodes)
+    )).map((node) => [node.id, absoluteNodePosition(node, state.nodes)] as const));
+
+    if (capturedIds.size > 0 || releasedPositions.size > 0) {
+      const nodes = state.nodes.map((node) => {
+        const releasedPosition = releasedPositions.get(node.id);
+        if (releasedPosition) return {
+          ...node,
+          parentId: undefined,
+          position: releasedPosition,
+          extent: node.extent === 'parent' ? undefined : node.extent,
+          expandParent: undefined,
+        };
+        return capturedIds.has(node.id) ? {
+          ...node,
+          parentId: group.id,
+          position: { x: node.position.x - position.x, y: node.position.y - position.y },
+        } : node;
+      });
+      set({
+        // 与拖入分组一致，保证父分组排在新加入的子节点前面。
+        nodes: [...nodes.filter((node) => node.type === 'group'), ...nodes.filter((node) => node.type !== 'group')],
+        groups: state.groups.map((record) => record.id === group.data.groupId
+          ? { ...record, nodeIds: [...new Set([
+            ...record.nodeIds.filter((id) => !releasedPositions.has(id)), ...capturedIds,
+          ])] } : record),
+      });
+    }
+    get().commitToHistory();
   },
 
   settleNodeGroupingOnDragStop: (node) => {

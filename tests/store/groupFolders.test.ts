@@ -221,6 +221,258 @@ describe('展开分组内创建和拖入空节点', () => {
   });
 });
 
+describe('缩放分组后同步成员归属', () => {
+  function setup() {
+    const group: Node<BaseNodeData> = {
+      id: 'resize-group', type: 'group', position: { x: 100, y: 100 },
+      width: 400, height: 200, measured: { width: 400, height: 200 }, style: { width: 400, height: 200 },
+      data: { type: 'comment', label: '缩放分组', groupId: 'resize-record' },
+    };
+    const inside = { ...node('inside'), parentId: group.id, position: { x: 20, y: 30 } };
+    const audio: Node<BaseNodeData> = {
+      id: 'new-audio', type: 'ai-audio', position: { x: 600, y: 400 }, measured: { width: 280, height: 88 },
+      data: { type: 'ai-audio', label: '组外音频', status: 'success', audioUrl: 'asset://audio.wav',
+        filePath: `${PROJECT_DIR}/audio.wav`, nodeWidth: 1600, nodeHeight: 900 },
+    };
+    useAppStore.setState({
+      nodes: [audio, group, inside],
+      edges: [{ id: 'audio-edge', source: 'inside', target: audio.id }],
+      groups: [{ id: 'resize-record', name: '缩放分组', nodeIds: ['inside'], color: '#888888', createdAt: 0 }],
+    });
+    return { group, inside, audio };
+  }
+
+  function resize(width: number, height: number) {
+    const state = useAppStore.getState();
+    state.commitToHistory();
+    state.onNodesChange([{ id: 'resize-group', type: 'dimensions', dimensions: { width, height },
+      setAttributes: true, resizing: true }]);
+    state.settleGroupMembersOnResizeEnd('resize-group');
+  }
+
+  it('扩大后按实测中心吸纳音频，保留绝对位置、连线和资产，尺寸与成员一次撤销重做', async () => {
+    const { group, audio, inside } = setup();
+    const edges = useAppStore.getState().edges;
+    resize(1000, 700);
+    let state = useAppStore.getState();
+    expect(state.nodes.find((item) => item.id === audio.id)).toMatchObject({
+      parentId: group.id, position: { x: 500, y: 300 }, data: audio.data,
+    });
+    expect(state.nodes.find((item) => item.id === inside.id)?.position).toEqual(inside.position);
+    expect(state.groups[0].nodeIds).toEqual(['inside', audio.id]);
+    expect(state.edges).toBe(edges);
+    expect(state.nodes.findIndex((item) => item.id === group.id))
+      .toBeLessThan(state.nodes.findIndex((item) => item.id === audio.id));
+    expect(state.history).toHaveLength(2);
+
+    await state.undo();
+    state = useAppStore.getState();
+    expect(state.nodes.find((item) => item.id === group.id)).toMatchObject({
+      position: group.position, width: 400, height: 200, measured: { width: 400, height: 200 },
+    });
+    expect(state.nodes.find((item) => item.id === audio.id)).toMatchObject({ position: audio.position, data: audio.data });
+    expect(state.nodes.find((item) => item.id === audio.id)?.parentId).toBeUndefined();
+    expect(state.groups[0].nodeIds).toEqual(['inside']);
+
+    await state.redo();
+    state = useAppStore.getState();
+    expect(state.nodes.find((item) => item.id === group.id)).toMatchObject({ width: 1000, height: 700 });
+    expect(state.nodes.find((item) => item.id === audio.id)).toMatchObject({ parentId: group.id, position: { x: 500, y: 300 } });
+    expect(state.groups[0].nodeIds).toEqual(['inside', audio.id]);
+    state.settleGroupMembersOnResizeEnd(group.id);
+    expect(useAppStore.getState().history).toHaveLength(2);
+    expect(useAppStore.getState().groups[0].nodeIds).toEqual(['inside', audio.id]);
+  });
+
+  it('不吸纳隐藏、锁定、其他分组及已有父级节点，也不重复登记已有成员', () => {
+    const { group } = setup();
+    const ignored = [
+      { ...node('hidden'), hidden: true },
+      { ...node('library'), data: { ...node('library').data, hiddenByCharacterLibrary: true } },
+      { ...node('locked'), draggable: false },
+      { ...node('owned'), parentId: 'other-group' },
+      { ...node('other-group'), type: 'group' },
+    ].map((item) => ({ ...item, position: { x: 200, y: 200 } }));
+    useAppStore.setState({ nodes: [...useAppStore.getState().nodes, ...ignored] });
+    resize(1000, 700);
+    const state = useAppStore.getState();
+    for (const original of ignored) {
+      expect(state.nodes.find((item) => item.id === original.id)).toEqual(original);
+    }
+    expect(state.groups[0].nodeIds).toEqual(['inside', 'new-audio']);
+    expect(state.nodes.filter((item) => item.parentId === group.id)).toHaveLength(2);
+  });
+
+  it('从左上角扩大时保留新旧节点的绝对位置，撤销还原父框及旧子节点的相对位置', async () => {
+    const { group, inside, audio } = setup();
+    const state = useAppStore.getState();
+    state.commitToHistory();
+    state.onNodesChange([
+      { id: group.id, type: 'position', position: { x: 40, y: 50 } },
+      { id: inside.id, type: 'position', position: { x: 80, y: 80 } },
+      { id: group.id, type: 'dimensions', dimensions: { width: 1100, height: 800 }, setAttributes: true },
+    ]);
+    state.settleGroupMembersOnResizeEnd(group.id);
+    expect(useAppStore.getState().nodes.find((item) => item.id === audio.id)?.position).toEqual({ x: 560, y: 350 });
+    expect(useAppStore.getState().nodes.find((item) => item.id === inside.id)?.position).toEqual({ x: 80, y: 80 });
+    await state.undo();
+    expect(useAppStore.getState().nodes.find((item) => item.id === group.id)).toMatchObject({
+      position: group.position, width: 400, height: 200,
+    });
+    expect(useAppStore.getState().nodes.find((item) => item.id === inside.id)?.position).toEqual(inside.position);
+    expect(useAppStore.getState().nodes.find((item) => item.id === audio.id)?.position).toEqual(audio.position);
+    await state.redo();
+    expect(useAppStore.getState().nodes.find((item) => item.id === inside.id)?.position).toEqual({ x: 80, y: 80 });
+  });
+
+  it('嵌套分组按父链绝对范围吸纳节点，相对坐标不重复累加祖先', () => {
+    const { group, audio } = setup();
+    const outer: Node<BaseNodeData> = { id: 'outer', type: 'group', position: { x: 500, y: 600 },
+      data: { type: 'comment', label: '外层' } };
+    useAppStore.setState({ nodes: [
+      outer,
+      ...useAppStore.getState().nodes.map((item) => item.id === group.id ? { ...item, parentId: outer.id }
+        : item.id === audio.id ? { ...item, position: { x: 900, y: 1100 } } : item),
+    ] });
+    resize(1000, 700);
+    expect(useAppStore.getState().nodes.find((item) => item.id === audio.id))
+      .toMatchObject({ parentId: group.id, position: { x: 300, y: 400 } });
+  });
+
+  it('撤销吸纳只恢复对应分组，不回滚其他分组的独立布局', async () => {
+    const { group } = setup();
+    const other: Node<BaseNodeData> = { id: 'unrelated-group', type: 'group', position: { x: 2000, y: 0 },
+      width: 400, height: 200, data: { type: 'comment', label: '其他分组', groupId: 'other-record' } };
+    useAppStore.setState({ nodes: [...useAppStore.getState().nodes, other], groups: [
+      ...useAppStore.getState().groups,
+      { id: 'other-record', name: '其他分组', nodeIds: [], color: '#888888', createdAt: 0 },
+    ] });
+    const state = useAppStore.getState();
+    state.commitToHistory();
+    state.onNodesChange([
+      { id: group.id, type: 'dimensions', dimensions: { width: 1000, height: 700 }, setAttributes: true },
+      { id: other.id, type: 'position', position: { x: 2500, y: 100 } },
+      { id: other.id, type: 'dimensions', dimensions: { width: 600, height: 300 }, setAttributes: true },
+    ]);
+    state.settleGroupMembersOnResizeEnd(group.id);
+    await state.undo();
+    expect(useAppStore.getState().nodes.find((item) => item.id === group.id)).toMatchObject({ width: 400, height: 200 });
+    expect(useAppStore.getState().nodes.find((item) => item.id === other.id))
+      .toMatchObject({ position: { x: 2500, y: 100 }, width: 600, height: 300 });
+  });
+
+  it('缩小后范围外成员脱组并清理父级约束，位置保持且尺寸与归属可一起撤销重做', async () => {
+    const { group, inside } = setup();
+    useAppStore.setState({ nodes: useAppStore.getState().nodes.map((item) => item.id === inside.id
+      ? { ...item, position: { x: 200, y: 80 }, measured: { width: 100, height: 80 },
+        extent: 'parent' as const, expandParent: true } : item) });
+    resize(200, 120);
+    let state = useAppStore.getState();
+    const released = state.nodes.find((item) => item.id === inside.id)!;
+    expect(released.parentId).toBeUndefined();
+    expect(released.extent).toBeUndefined();
+    expect(released.expandParent).toBeUndefined();
+    expect(released.position).toEqual({ x: 300, y: 180 });
+    expect(state.groups[0].nodeIds).toEqual([]);
+    expect(state.nodes.some((item) => item.id === group.id)).toBe(true);
+    expect(useAppStore.getState().nodes.find((item) => item.id === 'new-audio')?.parentId).toBeUndefined();
+    await state.undo();
+    state = useAppStore.getState();
+    expect(state.nodes.find((item) => item.id === group.id)).toMatchObject({ width: 400, height: 200 });
+    expect(state.nodes.find((item) => item.id === inside.id)).toMatchObject({
+      parentId: group.id, position: { x: 200, y: 80 }, extent: 'parent', expandParent: true,
+    });
+    expect(state.groups[0].nodeIds).toEqual(['inside']);
+    await state.redo();
+    state = useAppStore.getState();
+    expect(state.nodes.find((item) => item.id === group.id)).toMatchObject({ width: 200, height: 120 });
+    expect(state.nodes.find((item) => item.id === inside.id)?.parentId).toBeUndefined();
+    expect(state.nodes.find((item) => item.id === inside.id)?.position).toEqual({ x: 300, y: 180 });
+    expect(state.groups[0].nodeIds).toEqual([]);
+  });
+
+  it.each([{ width: 250, remains: true }, { width: 249, remains: false }])(
+    '中心位于边界时保留，超过边界才脱组（宽度 $width）', ({ width, remains }) => {
+      const { group, inside } = setup();
+      useAppStore.setState({ nodes: useAppStore.getState().nodes.map((item) => item.id === inside.id
+        ? { ...item, position: { x: 200, y: 80 }, measured: { width: 100, height: 80 } } : item) });
+      resize(width, 120);
+      expect(useAppStore.getState().nodes.find((item) => item.id === inside.id)?.parentId)
+        .toBe(remains ? group.id : undefined);
+    },
+  );
+
+  it('同一次调整可以加入新成员并移出旧成员，松手后只保留最终范围内的归属', async () => {
+    const { group, inside, audio } = setup();
+    const state = useAppStore.getState();
+    state.commitToHistory();
+    state.onNodesChange([
+      { id: group.id, type: 'position', position: { x: 300, y: 100 } },
+      { id: inside.id, type: 'position', position: { x: -180, y: 30 } },
+      { id: group.id, type: 'dimensions', dimensions: { width: 800, height: 600 }, setAttributes: true },
+    ]);
+    state.settleGroupMembersOnResizeEnd(group.id);
+    expect(useAppStore.getState().groups[0].nodeIds).toEqual([audio.id]);
+    expect(useAppStore.getState().nodes.find((item) => item.id === inside.id)?.parentId).toBeUndefined();
+    expect(useAppStore.getState().nodes.find((item) => item.id === inside.id)?.position).toEqual({ x: 120, y: 130 });
+    expect(useAppStore.getState().nodes.find((item) => item.id === audio.id))
+      .toMatchObject({ parentId: group.id, position: { x: 300, y: 300 }, data: audio.data });
+    await state.undo();
+    expect(useAppStore.getState().groups[0].nodeIds).toEqual([inside.id]);
+    expect(useAppStore.getState().nodes.find((item) => item.id === group.id))
+      .toMatchObject({ position: group.position, width: 400, height: 200 });
+    expect(useAppStore.getState().nodes.find((item) => item.id === inside.id))
+      .toMatchObject({ parentId: group.id, position: inside.position });
+    expect(useAppStore.getState().nodes.find((item) => item.id === audio.id)?.parentId).toBeUndefined();
+    await state.redo();
+    expect(useAppStore.getState().groups[0].nodeIds).toEqual([audio.id]);
+    expect(useAppStore.getState().nodes.find((item) => item.id === inside.id)?.parentId).toBeUndefined();
+  });
+
+  it('嵌套分组移出成员时转换到完整画布坐标，不自动转移到外层组', () => {
+    const { group, inside } = setup();
+    const outer: Node<BaseNodeData> = { id: 'outer', type: 'group', position: { x: 500, y: 600 },
+      data: { type: 'comment', label: '外层' } };
+    useAppStore.setState({ nodes: [outer, ...useAppStore.getState().nodes.map((item) => item.id === group.id
+      ? { ...item, parentId: outer.id }
+      : item.id === inside.id ? { ...item, position: { x: 200, y: 80 }, measured: { width: 100, height: 80 } } : item)] });
+    resize(200, 120);
+    expect(useAppStore.getState().nodes.find((item) => item.id === inside.id)?.parentId).toBeUndefined();
+    expect(useAppStore.getState().nodes.find((item) => item.id === inside.id)?.position).toEqual({ x: 800, y: 780 });
+    expect(useAppStore.getState().groups[0].nodeIds).toEqual([]);
+  });
+
+  it('位于范围外的子分组整体脱离，子分组自己的成员与相对位置保持不变', () => {
+    const { group } = setup();
+    const nested: Node<BaseNodeData> = { id: 'nested', type: 'group', parentId: group.id, position: { x: 200, y: 80 },
+      measured: { width: 100, height: 80 }, data: { type: 'comment', label: '子分组', groupId: 'nested-record' } };
+    const leaf = { ...node('nested-leaf'), parentId: nested.id, position: { x: 10, y: 10 } };
+    useAppStore.setState({
+      nodes: [...useAppStore.getState().nodes, nested, leaf],
+      groups: [{ ...useAppStore.getState().groups[0], nodeIds: ['inside', nested.id] },
+        { id: 'nested-record', name: '子分组', nodeIds: [leaf.id], color: '#888888', createdAt: 0 }],
+    });
+    resize(200, 120);
+    const state = useAppStore.getState();
+    expect(state.nodes.find((item) => item.id === nested.id)?.parentId).toBeUndefined();
+    expect(state.nodes.find((item) => item.id === nested.id)?.position).toEqual({ x: 300, y: 180 });
+    expect(state.nodes.find((item) => item.id === leaf.id)).toEqual(leaf);
+    expect(state.groups.find((record) => record.id === 'resize-record')?.nodeIds).toEqual(['inside']);
+    expect(state.groups.find((record) => record.id === 'nested-record')?.nodeIds).toEqual([leaf.id]);
+  });
+
+  it.each(['collapsed', 'hidden', 'locked', 'missing'] as const)('%s 目标分组不吸纳节点', (kind) => {
+    const { group, audio } = setup();
+    useAppStore.setState({ nodes: kind === 'missing' ? [audio] : useAppStore.getState().nodes.map((item) => item.id === group.id
+      ? { ...item, width: 1000, height: 700, measured: { width: 1000, height: 700 },
+        hidden: kind === 'hidden', draggable: kind !== 'locked',
+        data: { ...item.data, groupCollapsed: kind === 'collapsed' } } : item) });
+    useAppStore.getState().settleGroupMembersOnResizeEnd(group.id);
+    expect(useAppStore.getState().nodes.find((item) => item.id === audio.id)?.parentId).toBeUndefined();
+    expect(useAppStore.getState().groups[0].nodeIds).toEqual(['inside']);
+  });
+});
+
 describe('分组与本地文件夹同步', () => {
   it('MCP 导入的深层图片入组后提交路径迁移并放入分组目录', async () => {
     const path = `${PROJECT_DIR}/images/EP000/portrait.png`;
