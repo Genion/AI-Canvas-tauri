@@ -59,8 +59,10 @@ import { useT } from '../../i18n';
 import ViewportImage from '../shared/ViewportImage';
 import { hasShotlistTimeline, openVideoEditorForShotlist, resolveShotlistTimelineRows, resolveShotlistVoiceoverNodes } from '../../services/videoEditorService';
 import { completeCanvasDerivation, isCanvasDerivationFresh, registerCanvasDerivation } from '../../services/canvasDerivationGuard';
+import { buildGenerationCameraPrompt, cinematographySummary, resolveCinematography } from '../../utils/cinematography';
 
 const ShotlistFieldEditor = lazy(() => import('./ShotlistFieldEditor'));
+const ShotlistCinematographyDialog = lazy(() => import('./ShotlistCinematographyDialog'));
 
 /** 画面格实时解析出的素材 */
 interface ResolvedFrame {
@@ -95,7 +97,7 @@ const FIXED_COLUMN_WIDTHS: Partial<Record<ShotlistColumnKey, number>> = {
 const FIXED_TABLE_WIDTH = 26 + 106 + Object.values(FIXED_COLUMN_WIDTHS).reduce((sum, width) => sum + (width ?? 0), 0);
 const DEFAULT_COLUMN_WIDTHS: Record<ShotlistColumnKey, number> = {
   shotNo: 48, frame: MEDIA_COLUMN_WIDTH, video: MEDIA_COLUMN_WIDTH, shotSize: 68, camera: 68, content: 240,
-  dialogue: 240, audio: 96, transition: 68, duration: 84, note: 96,
+  cinematography: 180, dialogue: 240, audio: 96, transition: 68, duration: 84, note: 96,
 };
 const FLEXIBLE_COLUMNS = SHOTLIST_COLUMN_ORDER.filter((column) => FIXED_COLUMN_WIDTHS[column] === undefined);
 const DEFAULT_WEIGHT_TOTAL = FLEXIBLE_COLUMNS.reduce((sum, column) => sum + DEFAULT_COLUMN_WIDTHS[column], 0);
@@ -227,9 +229,17 @@ function ShotlistNode({ id, data, selected }: { id: string; data: BaseNodeData; 
   const [timelineBusy, setTimelineBusy] = useState(false);
   const [customOptionCells, setCustomOptionCells] = useState<string[]>([]);
   const [fieldEditor, setFieldEditor] = useState<{ rowId: string; field: 'content' | 'dialogue'; projectId: string | undefined } | null>(null);
+  const [cinematographyEditor, setCinematographyEditor] = useState<{ rowId?: string; projectId: string | undefined } | null>(null);
   if (fieldEditor && fieldEditor.projectId !== currentProjectId) setFieldEditor(null);
-  useCanvasNodeLodProtection(id, isFullscreen || !!fieldEditor);
+  if (cinematographyEditor && cinematographyEditor.projectId !== currentProjectId) setCinematographyEditor(null);
+  useCanvasNodeLodProtection(id, isFullscreen || !!fieldEditor || !!cinematographyEditor);
   const closeFieldEditor = useCallback(() => setFieldEditor(null), []);
+  const closeCinematographyEditor = useCallback(() => setCinematographyEditor(null), []);
+  const openCinematography = (rowId?: string) => {
+    const state = useAppStore.getState();
+    if ((state.currentProjectId ?? undefined) !== currentProjectId) return;
+    setCinematographyEditor({ rowId, projectId: currentProjectId });
+  };
   const numberScrubbingRef = useRef(false);
   const timelineRunning = useRef(false);
   const episodeScript = useAppStore((state) => state.projects.find((project) => project.id === data.shotlistScriptSource?.episodeId)?.episodeScript);
@@ -452,7 +462,7 @@ function ShotlistNode({ id, data, selected }: { id: string; data: BaseNodeData; 
     const { nodes, edges, currentProjectId } = useAppStore.getState();
     const rect = anchor.getBoundingClientRect();
     const row = rows.find((item) => item.id === rowId);
-    setAiPrompt(row ? buildShotFramePrompt(row) : '');
+    setAiPrompt(row ? buildShotFramePrompt({ ...row, cinematography: undefined }) : '');
     setPicker({
       rowId,
       target,
@@ -638,6 +648,17 @@ function ShotlistNode({ id, data, selected }: { id: string; data: BaseNodeData; 
   }, [picker]);
 
   const renderCell = (row: ShotRow, column: ShotlistColumnKey, rowIndex: number) => {
+    if (column === 'cinematography') {
+      const settings = resolveCinematography(data.shotlistCinematography, row.cinematography);
+      const summary = cinematographySummary(settings, t) || (buildGenerationCameraPrompt(undefined, settings) ? t('已设置摄影效果') : t('自动'));
+      return <button type="button" className="ui-btn ui-btn--ghost h-auto min-h-12 w-full min-w-0 flex-col items-start gap-1 py-2 text-left nodrag nowheel"
+        disabled={generating} aria-label={`${t('摄影设置')} · ${t('镜头 {number}', { number: row.shotNo })}`}
+        title={summary} onMouseDown={(event) => event.stopPropagation()}
+        onClick={(event) => { event.stopPropagation(); openCinematography(row.id); }}>
+        <span className="line-clamp-2 break-words whitespace-normal text-xs leading-relaxed">{summary}</span>
+        <span className="text-xs text-canvas-text-muted">{t(row.cinematography ? '单镜覆盖' : '跟随整表')}</span>
+      </button>;
+    }
     if (column === 'video') {
       const video = resolvedVideos.get(row.id);
       if (!row.video) return <button type="button" className="shot-frame shot-frame--empty nodrag"
@@ -863,6 +884,8 @@ function ShotlistNode({ id, data, selected }: { id: string; data: BaseNodeData; 
               onClick={() => setRevisionOpen(true)}>{t(scriptChanged ? '剧本已修改' : '剧本改动复核')}</button>}
             <button type="button" className="ui-btn ui-btn--sm" disabled={generating || !rows.length}
               onClick={() => setProduction({})}>{t('镜头制作准备')}</button>
+            <button type="button" className="ui-btn ui-btn--sm" disabled={generating}
+              onClick={() => openCinematography()}><Icon icon="lucide:camera" width={13} aria-hidden="true" />{t('整表摄影')}</button>
             {frameProgress ? (
               <button type="button" className="ui-btn ui-btn--sm" onClick={() => frameController.current?.abort()}>
                 {t('取消补图')} {frameProgress.completed}/{frameProgress.total}
@@ -1064,6 +1087,10 @@ function ShotlistNode({ id, data, selected }: { id: string; data: BaseNodeData; 
       {fieldEditor && fieldEditor.projectId === currentProjectId && <Suspense fallback={null}>
         <ShotlistFieldEditor key={`${fieldEditor.projectId}:${id}:${fieldEditor.rowId}:${fieldEditor.field}`} nodeId={id}
           rowId={fieldEditor.rowId} field={fieldEditor.field} projectId={fieldEditor.projectId} onClose={closeFieldEditor} />
+      </Suspense>}
+      {cinematographyEditor && cinematographyEditor.projectId === currentProjectId && <Suspense fallback={null}>
+        <ShotlistCinematographyDialog key={`${cinematographyEditor.projectId}:${id}:${cinematographyEditor.rowId ?? 'defaults'}`}
+          nodeId={id} rowId={cinematographyEditor.rowId} projectId={cinematographyEditor.projectId} onClose={closeCinematographyEditor} />
       </Suspense>}
       <div className={`node shotlist-node ${selected ? 'selected' : ''}`} style={{ height: nodeHeight }}
         onDoubleClick={(event) => {

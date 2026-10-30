@@ -52,6 +52,7 @@ describe('本集与镜头行操作', () => {
     const current = useAppStore.getState();
     const source = current.nodes.find((node) => node.id === result.sourceNodeId)!;
     const sheet = current.nodes.find((node) => node.id === result.shotlistId)!;
+    expect(sheet.data).toMatchObject({ nodeWidth: 1920, nodeHeight: 640 });
     expect(source.data.output).toBe('林夏在站台等列车。');
     expect(sheet.data.prompt).toContain(`@{${source.id}:`);
     expect(sheet.data.prompt).toContain('90 秒');

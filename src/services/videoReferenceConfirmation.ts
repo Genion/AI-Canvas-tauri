@@ -2,13 +2,12 @@
 import { t } from '../i18n';
 import { useAppStore } from '../store/useAppStore';
 import { resolveGenerationNodeData } from '../utils/nodeGeneration';
-import { buildGenerationCameraPrompt } from '../components/nodes/shared/image/cameraStudio';
 import { confirmAction } from './confirmDialog';
 import { hasVideoReferenceContent } from './ai/generateVideo';
 import { resolveVideoSubmissionControls } from './ai/videoRequestResolver';
 import { parseProjectModelRef, resolveProjectGenerationPrompt } from './projectSettingsService';
 import { videoInputFingerprint } from './videoBatchPlanning';
-import { expandShotlistRowMentions } from './shotlistPromptService';
+import { applyGenerationCameraPrompt } from './shotlistPromptService';
 import { isCloudWorkflow } from './workflowExecutionService';
 
 const pendingConfirmations = new Set<string>();
@@ -66,9 +65,7 @@ export async function confirmVideoReferencesBeforeGeneration(nodeId: string, ove
   try {
     const controls = resolveVideoSubmissionControls({ ...data, provider, workflowId });
     let prompt = resolveProjectGenerationPrompt({ prompt: rawPrompt, data, settings, customStyles: initial.customStyles });
-    const camera = buildGenerationCameraPrompt(data.cameraSettings);
-    if (camera) prompt += `\n\nCamera settings: ${camera}.`;
-    prompt = expandShotlistRowMentions(prompt, initial.nodes, { durationSeconds: controls.seedanceDuration });
+    prompt = applyGenerationCameraPrompt(prompt, initial.nodes, data.cameraSettings, controls.seedanceDuration);
     // Load cold global cards before capturing their reference fingerprint. This
     // mirrors executeGeneration and does not upload any media.
     if (`${prompt}\n${JSON.stringify(data.workflowInputs ?? {})}`.includes('@drama{global/')) {

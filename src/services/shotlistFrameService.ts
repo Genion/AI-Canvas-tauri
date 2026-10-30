@@ -11,6 +11,7 @@ import { persistMediaUrlToProjectData } from './fileService';
 import { resolveProjectGenerationPrompt } from './projectSettingsService';
 import { completeCanvasDerivation, isCanvasDerivationFresh, registerCanvasDerivation } from './canvasDerivationGuard';
 import { getShotlist, type ShotlistScope } from './shotlistService';
+import { buildGenerationCameraPrompt, resolveCinematography } from '../utils/cinematography';
 import { beginComfyNodeDelivery, completeComfyNodeTask, pauseComfyNodeDelivery } from './pollManager';
 
 export const MAX_SHOTLIST_FRAME_BATCH = 12;
@@ -18,7 +19,7 @@ const activeBatches = new Set<string>();
 
 function frameRequestFingerprint(data?: BaseNodeData): string {
   return JSON.stringify([data?.prompt, data?.model, data?.provider, data?.workflowId,
-    data?.workflowInputs, data?.imageSize, data?.aspectRatio]);
+    data?.workflowInputs, data?.imageSize, data?.aspectRatio, data?.cameraSettings]);
 }
 
 /** 下游可能不能及时中止；停止本地等待后不再消费其迟到结果。 */
@@ -68,12 +69,15 @@ export async function generateShotlistFrames(input: ShotFrameBatchInput): Promis
   });
   const results: ShotFrameResult[] = [];
   const settings = state.projects.find((project) => project.id === input.projectId)?.settings;
+  const photographyFingerprint = JSON.stringify(sheet.data.shotlistCinematography);
   const targets = selected.flatMap((row) => {
-    const prompt = (input.prompts?.[row.id] ?? buildShotFramePrompt(row)).trim();
-    if ((row.frame && !input.replaceExisting) || !prompt) {
+    const basePrompt = (input.prompts?.[row.id] ?? buildShotFramePrompt({ ...row, cinematography: undefined })).trim();
+    if ((row.frame && !input.replaceExisting) || !basePrompt) {
       results.push({ rowId: row.id, status: 'skipped' });
       return [];
     }
+    const photography = buildGenerationCameraPrompt(undefined, resolveCinematography(sheet.data.shotlistCinematography, row.cinematography));
+    const prompt = photography ? `${basePrompt}\n摄影设定：${photography}` : basePrompt;
     const rowIndex = rows.findIndex((item) => item.id === row.id);
     const image: Node<BaseNodeData> = {
       id: `node-${generateId()}`, type: 'ai-image', parentId: sheet.parentId,
@@ -112,7 +116,11 @@ export async function generateShotlistFrames(input: ShotFrameBatchInput): Promis
       frameRequestFingerprint(useAppStore.getState().nodes.find((node) => node.id === image.id)?.data)]));
     guard = registerCanvasDerivation(useAppStore.getState(), sheet.id, { onCancel: cancel });
     if (!guard) throw new Error('分镜上下文已失效');
-    const fresh = () => !!guard && isCanvasDerivationFresh(guard, useAppStore.getState());
+    const fresh = () => {
+      const current = useAppStore.getState();
+      return !!guard && isCanvasDerivationFresh(guard, current)
+        && JSON.stringify(current.nodes.find((node) => node.id === sheet.id)?.data.shotlistCinematography) === photographyFingerprint;
+    };
     for (const target of targets) {
       const { row, image, fingerprint } = target;
       if (controller.signal.aborted || !fresh()) {

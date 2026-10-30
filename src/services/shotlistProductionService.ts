@@ -56,7 +56,7 @@ export function prepareShotlistProduction(scope: ShotlistScope, nodeId: string, 
       const briefId = `node-${generateId()}`;
       nodes.push({ id: briefId, type: 'source-text', parentId: sheet.parentId, position: { ...position }, data: {
         type: 'source-text', role: 'source', label: `${label} 镜头说明`, status: 'success',
-        output: [formatShotRowBrief(row), row.note?.trim()].filter(Boolean).join('\n'), nodeWidth: 320, nodeHeight: 220,
+        output: [formatShotRowBrief(row, sheet.data.shotlistCinematography), row.note?.trim()].filter(Boolean).join('\n'), nodeWidth: 320, nodeHeight: 220,
       } });
       position.x += 400;
       connect(briefId, targetId);

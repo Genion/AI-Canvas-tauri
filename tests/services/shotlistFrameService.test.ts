@@ -38,6 +38,33 @@ beforeEach(() => {
 });
 
 describe('补空镜', () => {
+  it('默认摄影与单镜覆盖同时用于补图，自定义正文也保留摄影设定', async () => {
+    const sheet = useAppStore.getState().nodes[0];
+    useAppStore.setState({ nodes: [{ ...sheet, data: { ...sheet.data,
+      shotlistCinematography: { cameraId: 'arri-alexa-35', lensId: 'cooke-s4', focalLengthMm: 35 },
+      shotlistRows: rows().map((row) => row.id === 'r1' ? { ...row, cinematography: { focalLengthMm: 50 } } : row),
+    } }] });
+    await generateShotlistFrames({ ...input, rowIds: ['r1'], prompts: { r1: '自定义画面正文' } });
+    const prompt = mocks.generate.mock.calls[0][0].prompt;
+    expect(prompt).toContain('自定义画面正文');
+    expect(prompt).toContain('ARRI ALEXA 35');
+    expect(prompt).toContain('50mm focal length');
+    expect(prompt.match(/摄影设定：/g)).toHaveLength(1);
+  });
+
+  it('补图期间修改整表摄影后，旧响应不持久化或回填', async () => {
+    let resolve!: (value: { url: string }) => void;
+    mocks.generate.mockImplementationOnce(() => new Promise((done) => { resolve = done; }));
+    const pending = generateShotlistFrames({ ...input, rowIds: ['r1'] });
+    const state = useAppStore.getState();
+    state.updateNodeDataTransient('sheet', { shotlistCinematography: { cameraId: 'sony-venice-2' } });
+    resolve({ url: 'old-camera-result' });
+    const result = await pending;
+    expect(result[0].status).toBe('stale');
+    expect(mocks.persist).not.toHaveBeenCalled();
+    expect(rows()[1].frame).toBeNull();
+  });
+
   it('跳过已绑画面，按项目参数生成并批量创建真实节点，一次历史且不自动重试', async () => {
     const commit = vi.fn(useAppStore.getState().commitToHistory);
     useAppStore.setState({ commitToHistory: commit });

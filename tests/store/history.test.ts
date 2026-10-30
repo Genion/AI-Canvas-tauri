@@ -128,6 +128,30 @@ beforeEach(() => {
   useAppStore.setState(useAppStore.getInitialState(), true);
 });
 
+describe('shotlist photography history', () => {
+  it('整表默认与单镜覆盖独立撤销和重做，序列化保留设置与媒体绑定', async () => {
+    const frame = { nodeId: 'image', kind: 'image' as const, url: 'image-url' };
+    const original: ShotRow = { id: 'one', shotNo: '1', content: '原内容', dialogue: '原台词', frame };
+    useAppStore.setState({ nodes: [node('shots', { type: 'ai-shotlist', shotlistRows: [original] })] });
+    const state = useAppStore.getState();
+    state.commitToHistory();
+    state.updateNodeData('shots', { shotlistCinematography: { cameraId: 'arri-alexa-35', focalLengthMm: 35 } });
+    state.commitToHistory();
+    state.updateNodeData('shots', { shotlistRows: [{ ...original, cinematography: { focalLengthMm: 50, apertureT: null } }] });
+    state.commitToHistory();
+    await useAppStore.getState().undo();
+    expect(useAppStore.getState().nodes[0].data.shotlistCinematography?.focalLengthMm).toBe(35);
+    expect(useAppStore.getState().nodes[0].data.shotlistRows?.[0]).toEqual(original);
+    await useAppStore.getState().undo();
+    expect(useAppStore.getState().nodes[0].data.shotlistCinematography).toBeUndefined();
+    await useAppStore.getState().redo();
+    await useAppStore.getState().redo();
+    const saved = JSON.parse(JSON.stringify(useAppStore.getState().nodes))[0].data;
+    expect(saved.shotlistCinematography).toEqual({ cameraId: 'arri-alexa-35', focalLengthMm: 35 });
+    expect(saved.shotlistRows[0]).toEqual({ ...original, cinematography: { focalLengthMm: 50, apertureT: null } });
+  });
+});
+
 describe('shotlist column width history', () => {
   it('undoes conversion from pixel widths to ratios and redoes the responsive layout', async () => {
     useAppStore.setState({ nodes: [node('shots', { type: 'ai-shotlist', shotlistColumnWidths: { content: 320 } })] });

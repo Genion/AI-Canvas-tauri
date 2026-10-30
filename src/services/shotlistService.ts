@@ -142,7 +142,7 @@ export function createEpisodeShotlist(scope: ShotlistScope, episodeId: string) {
     } },
     { id: shotlistId, type: 'ai-shotlist', position: { x: x + 400, y: 80 }, data: {
       type: 'ai-shotlist', label: `${episode.name} 分镜表`, role: 'generator', prompt, status: 'idle',
-      shotlistRows: [], shotlistColumns: resolveShotlistColumns(undefined), nodeWidth: 1280, nodeHeight: 640,
+      shotlistRows: [], shotlistColumns: resolveShotlistColumns(undefined), nodeWidth: 1920, nodeHeight: 640,
       shotlistScriptSource: { episodeId, nodeId: sourceNodeId },
     } },
   ];

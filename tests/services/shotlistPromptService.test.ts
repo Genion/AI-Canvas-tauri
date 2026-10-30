@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { BaseNodeData } from '../../src/types';
 import { buildShotlistRowMentionId, parseShotlistRowMentionId } from '../../src/types/shotlist';
-import { expandShotlistRowMentions, resolveSingleShotlistRowReference } from '../../src/services/shotlistPromptService';
+import { applyGenerationCameraPrompt, expandShotlistRowMentions, resolveSingleShotlistRowReference } from '../../src/services/shotlistPromptService';
 import { useAppStore } from '../../src/store/useAppStore';
-import { resolvePromptToChatContent, resolvePromptWithMediaRefs } from '../../src/services/ai/promptResolver';
+import { resolvePromptToChatContent, resolvePromptWithImageRefs, resolvePromptWithMediaRefs } from '../../src/services/ai/promptResolver';
 import { resolveNodeReferences } from '../../src/services/nodeReferenceService';
 
 const sheet = (): { id: string; data: BaseNodeData } => ({ id: 'sheet', data: {
@@ -20,6 +20,44 @@ const frame: { id: string; data: BaseNodeData } = { id: 'frame', data: {
 const mention = '@{sheet/shot/stable-row:本集分镜·第1镜}';
 
 describe('分镜表精确镜头提示词', () => {
+  it('整表的图片和视频引用逐镜合并摄影覆盖，保留原有解析入口', async () => {
+    const node = sheet();
+    node.data.shotlistCinematography = { cameraId: 'arri-alexa-35', lensId: 'cooke-s4', focalLengthMm: 35, apertureT: 2.8 };
+    node.data.shotlistRows = node.data.shotlistRows!.map((row) => ({ ...row, content: '保留画面', frame: null,
+      cinematography: row.id === 'stable-row' ? { focalLengthMm: 50 } : undefined }));
+    useAppStore.setState(useAppStore.getInitialState(), true);
+    useAppStore.setState({ nodes: [{ ...node, type: 'ai-shotlist', position: { x: 0, y: 0 } }] });
+    const cameraSettings = { lens: '85mm' as const, aperture: 'f/8' as const };
+    const raw = applyGenerationCameraPrompt('@{sheet:整表} 保留附加要求', [node], cameraSettings);
+    const video = await resolvePromptWithMediaRefs(raw, { cameraSettings });
+    const image = await resolvePromptWithImageRefs(raw, { cameraSettings });
+    for (const prompt of [video.prompt, image.prompt]) {
+      expect(prompt.match(/85mm portrait lens/g)).toHaveLength(2);
+      expect(prompt).toContain('保留附加要求');
+      expect(prompt).toContain('ARRI ALEXA 35');
+      expect(prompt).not.toMatch(/working aperture T|50mm focal length|35mm focal length|Camera settings:/);
+    }
+  });
+
+  it('读取最新整表摄影和单镜覆盖，生成节点显式参数只合并一次', () => {
+    const node = sheet();
+    node.data.shotlistCinematography = { cameraId: 'arri-alexa-35', lensId: 'cooke-s4', focalLengthMm: 35, apertureT: 2.8 };
+    node.data.shotlistRows![0].cinematography = { focalLengthMm: 50 };
+    const initial = applyGenerationCameraPrompt(mention, [node, frame]);
+    expect(initial).toContain('ARRI ALEXA 35');
+    expect(initial).toContain('50mm focal length');
+    node.data.shotlistCinematography.cameraId = 'sony-venice-2';
+    const overridden = applyGenerationCameraPrompt(`${mention}\n保留补充`, [node, frame], { lens: '85mm', aperture: 'f/8' }, 12);
+    expect(overridden).toContain('SONY VENICE 2');
+    expect(overridden).toContain('85mm portrait lens');
+    expect(overridden).toContain('f/8 aperture');
+    expect(overridden).toContain('镜头时长：12秒');
+    expect(overridden).toContain('保留补充');
+    expect(overridden.match(/摄影设定：/g)).toHaveLength(1);
+    expect(overridden).not.toMatch(/50mm focal length|working aperture T|Camera settings:/);
+    expect(applyGenerationCameraPrompt('普通提示词', [], { lens: '35mm' })).toBe('普通提示词\n\nCamera settings: 35mm cinematic lens.');
+  });
+
   it('只融合所选镜头并保留额外要求和真实素材引用，不复制路径或整表', () => {
     const result = expandShotlistRowMentions(`${mention}\n补充：保持暖光`, [sheet(), frame]);
     for (const value of ['景别：近景', '运镜：缓慢推近', '她放下杯子', '小绘：先别删。', '杯子轻响', '镜头时长：4秒', '保持同一空间', '补充：保持暖光']) {

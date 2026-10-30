@@ -31,8 +31,7 @@ import { registerCanvasDerivation, isCanvasDerivationFresh, completeCanvasDeriva
 import { videoInputFingerprint } from './videoBatchPlanning';
 import { beginComfyNodeDelivery, cancelNodePolling, completeComfyNodeTask, completeMediaNodeTask, pauseComfyNodeDelivery, pauseMediaNodeTask, pauseMediaTask, prepareMediaNodeGeneration, registerMediaNodeOperation, isMediaTaskPausedError } from './pollManager';
 import { resolveGenerationNodeData } from '../utils/nodeGeneration';
-import { expandShotlistRowMentions } from './shotlistPromptService';
-import { buildGenerationCameraPrompt } from '../components/nodes/shared/image/cameraStudio';
+import { applyGenerationCameraPrompt } from './shotlistPromptService';
 import { resolveImageParameterCapability } from './ai/mediaModelCapabilities';
 import { resolveConfiguredImageBackground, resolveConfiguredImageQuality } from './ai/modelCapabilityValidation';
 
@@ -313,16 +312,10 @@ export async function executeGeneration(
     }
     return runSequentialImageBatch(nodeId, sequentialCount, { ...data, provider: nodeProvider, model: nodeModel, workflowId }, rawPrompt, lease);
   }
-  if (nodeType === 'ai-image') {
-    const cameraPrompt = buildGenerationCameraPrompt(data.cameraSettings);
-    if (cameraPrompt) effectivePrompt += `\n\nCamera settings: ${cameraPrompt}.`;
-  }
-  if (nodeType === 'ai-video') {
-    const cameraPrompt = buildGenerationCameraPrompt(data.cameraSettings);
-    if (cameraPrompt) effectivePrompt += `\n\nCamera settings: ${cameraPrompt}.`;
+  if (nodeType === 'ai-image' || nodeType === 'ai-video') {
     try {
-      const controls = resolveVideoSubmissionControls({ ...data, provider: nodeProvider, workflowId });
-      effectivePrompt = expandShotlistRowMentions(effectivePrompt, store.nodes, { durationSeconds: controls.seedanceDuration });
+      const duration = nodeType === 'ai-video' ? resolveVideoSubmissionControls({ ...data, provider: nodeProvider, workflowId }).seedanceDuration : undefined;
+      effectivePrompt = applyGenerationCameraPrompt(effectivePrompt, store.nodes, data.cameraSettings, duration);
     } catch (error) {
       const message = error instanceof Error ? error.message : '镜头引用无效';
       store.showToast(message, 'error');

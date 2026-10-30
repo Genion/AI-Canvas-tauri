@@ -8,6 +8,43 @@
 首批范围不包含原著章节索引、跨版本改稿传播、音轨字幕装配、导演台或宫格自动拆图。后续按下列独立阶段接续，每阶段检查后提交。
 
 ## 接续阶段
+### 摄影设定、器材用途与提示词（2026-10-30）
+
+状态：已实现，待用户验收；本次未运行测试、类型检查、构建或桌面验收。
+
+目标：分镜表提供整表摄影默认与单镜逐项覆盖；摄影机、镜头下拉展示常用题材/场景，效果、焦段、光圈等转为可预览的生成提示词。器材卡口、画幅窗口与镜头覆盖给出推荐提示；实际模型分辨率、比例和帧率沿用原参数。
+
+实施顺序：先补纯数据目录、领域类型与摄影提示词编译，再接整表/单镜编辑和历史；随后接补图、精确镜头/整表引用、图片/视频生成及批次指纹，最后补回归用例、多语言与桌面步骤。复用 UI Kit Select/ModalOverlay；无新增依赖，无原生权限改动。
+
+本阶段文件清单（均属已确认方案）：
+- 新增：`src/types/cinematography.ts`、`src/data/cinematography.ts`、`src/utils/cinematography.ts`、`src/components/nodes/ShotlistCinematographyDialog.tsx`。
+- 分镜/摄影数据与界面：`src/types/index.ts`、`src/types/shotlist.ts`、`src/components/nodes/ShotlistNode.tsx`、`src/components/nodes/shared/image/cameraStudio.ts`、`src/store/store.history.ts`。
+- 提示词与生成：`src/services/shotlistPromptService.ts`、`src/services/shotlistFrameService.ts`、`src/services/shotlistProductionService.ts`、`src/services/ai/promptResolver.ts`、`src/services/referencePreviewService.ts`、`src/components/nodes/shared/connectedNodesPreviewInteractions.ts`、`src/services/generationService.ts`、`src/components/nodes/AINodeDialog.tsx`、`src/services/videoReferenceConfirmation.ts`、`src/services/ai/generateVideo.ts`、`src/services/ai/generateImage.ts`、`src/services/videoBatchPlanning.ts`。
+- 多语言：`src/i18n/locales/en-US/nodes.ts`、`src/i18n/locales/ja-JP/nodes.ts`、`src/i18n/locales/ko-KR/nodes.ts`。
+- 回归：新增 `tests/utils/cinematography.test.ts`、`tests/components/shotlistCinematographyDialog.test.tsx`；扩展 `tests/services/shotlistPromptService.test.ts`、`tests/services/shotlistFrameService.test.ts`、`tests/store/history.test.ts`、`tests/components/nodeCriticalInteractions.test.tsx`；`tests/services/imageSingleRequestBatch.test.ts` 的摄影 mock 跟随纯工具函数入口。
+- 文档：本专项与 `doc/画布与项目模块.md`。
+
+验收重点：整表继承/单镜覆盖/逐项清除与恢复继承；下拉用途、键盘、防裁剪与深浅主题；普通/整表全屏；摄影预览与补图/精确镜头视频/整表引用一致；现有生成节点显式焦段和光圈优先且不重复；换器材、重排行、删除、切项目、在途旧结果；撤销/重做、保存重开与导入导出。
+
+行为与边界：
+- `shotlistCinematography` 保存整表默认，`ShotRow.cinematography` 保存逐项覆盖；缺省字段继承，`null` 明确设为自动。选择效果预设一次填入器材及作用，换镜头校正不属于该系列的焦段和超出最大光圈的设置；恢复整表只清除本镜覆盖。每次选择经 Store Action 写入并提交历史，不改正文、台词或媒体绑定。
+- 摄影列可在「列」中显隐；新表默认显示。旧表已保存列配置时可手动开启，隐藏列仍保留摄影设置。整表摄影入口不依赖表中是否有镜头。
+- 目录含 11 款机身、18 个镜头/版本与 6 个效果预设。器材下拉展示常用题材/场景、画幅与卡口；按当前机身优先显示可参考搭配。用途和光学风格是创作参考，转接、裁切及 LF/VV 像场仍提示具体记录窗口复核，不把大类匹配当作实拍保证。目录来源保存在数据项，生成不联网查询。
+- 摄影提示词由共用纯函数产生；补图、单镜/整表引用、图片和视频编译使用同一描述。已有生成节点显式焦段、光圈、快门覆盖同类分镜参数；不属于具体镜头系列的焦段改用通用镜头描述。精确镜头在生成时读取最新默认与覆盖，整表引用保留原素材解析。机身型号、变形倍率及效果预设均不修改真实模型的比例、分辨率或帧率。
+- 整表摄影纳入结构化历史；单镜摄影随原行保存。补图期间默认摄影变化拒绝迟到结果，视频批次指纹包含有效摄影设定；编辑回写检查项目、稳定行 ID、生成中及加载/切换状态。
+
+Tauri 桌面验收步骤（待用户执行）：
+1. 准备至少两行有正文、台词和媒体绑定的分镜，开启摄影列。进入「整表摄影」选自然剧情；下拉应有摄影机/镜头用途说明，摄影单元格显示继承摘要，侧栏预览出现器材及可见效果。
+2. 只修改一镜的焦段或镜头，再改变整表机身；该镜保持自己的覆盖，其余字段与另一镜继续跟随。某字段选自动应从该镜摄影提示词中去掉该项，选跟随整表应恢复；恢复整表摄影应保留正文、台词、画面与成片绑定。
+3. 选择 Pro2be、Proteus、Argus、普通 Supreme 与 Radiance，核对可用焦段、T 值、变形描述和用途；更换机身/记录画幅应更新推荐顺序与转接/裁切提示。克制耀光不添加蓝色横向光带。清除整表摄影后，无覆盖的镜头恢复自动。
+4. 普通/整表全屏中分别打开设置，检查窄窗、深浅主题、长型号、下拉防裁剪和键盘选择。关闭后撤销/重做，再保存重开或导出导入，默认与覆盖应一致。
+5. 用既有补图及精确镜头引用准备图片/视频，核对摄影预览和引用预览；分别给生成节点显式设焦段、光圈、快门，最终描述应只采用一套同类参数。整表引用同样逐镜合并。实际生成需用户自行选择已配置模型验收，不能用器材型号推断实际输出规格。
+6. 回归重排行后仍编辑原镜、删除目标行/切项目后拒绝旧回写；在补图或批次排队期间改变摄影默认，旧物料应失效或拒绝回填。仅填摄影设置的空白行不得因此提交补图。
+
+定向命令（仓库根目录，用户手动运行）：`npx vitest run tests/utils/cinematography.test.ts tests/components/shotlistCinematographyDialog.test.tsx tests/services/shotlistPromptService.test.ts tests/services/shotlistFrameService.test.ts tests/services/imageSingleRequestBatch.test.ts tests/store/history.test.ts tests/components/nodeCriticalInteractions.test.tsx`。图片/视频真实输出与器材风格的模型遵循程度仍待桌面实测。
+
+回滚：撤销本阶段增量即可恢复旧 UI/编译；可选摄影字段由普通项目 JSON 保存，旧表缺省时采用自动。
+
 ### 生成视频回填与时间轴来源分离（2026-10-23）
 
 状态：代码与回归用例已随 `335d706f` 提交，提交钩子的定向 ESLint 通过；未运行测试、类型检查、构建或桌面验收，待用户验收。

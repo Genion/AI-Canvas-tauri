@@ -20,7 +20,7 @@ import {
 } from '../dramaAssetPrompt';
 import type { CharacterVoiceKind, DramaAsset } from '../../types/dramaAssets';
 import { formatShotRowBrief, isShotRowBlank, readShotFrameSource } from '../../types';
-import type { BaseNodeData, ImageAnnotationLayer, ShotRow, StoryboardCellOverride } from '../../types';
+import type { BaseNodeData, CameraGenerationSettings, ImageAnnotationLayer, ShotRow, StoryboardCellOverride } from '../../types';
 import type { MediaReference } from '../../types/aiTypes';
 import { mergeMediaReferences, toLegacyReferenceMedia, getMediaReferenceUrls } from './connectedReferenceMedia';
 import { parseChatImageReferences, readChatImageReference } from '../chat/chatImageReferenceService';
@@ -130,12 +130,13 @@ export function resolveShotlistMention(
   nodes: Array<{ id: string; type?: string; data: BaseNodeData }>,
   addImage: (key: string, entry: PromptImageEntry) => number,
   imageLabel: (index: number) => string = (index) => `图片${index}`,
+  cameraSettings?: CameraGenerationSettings,
 ): string {
   const rows = (shotlistData.shotlistRows as ShotRow[] | undefined) ?? [];
   const lines: string[] = [];
   for (const row of rows) {
     if (isShotRowBlank(row)) continue;
-    let line = formatShotRowBrief(row);
+    let line = formatShotRowBrief(row, shotlistData.shotlistCinematography, cameraSettings);
     for (const [label, value] of [['音效/音乐', row.audio], ['转场', row.transition], ['备注', row.note]]) {
       if (value?.trim()) line += ` · ${label}：${value.trim()}`;
     }
@@ -523,10 +524,11 @@ async function resolvePromptReferences(
   extractMediaReferences: boolean,
   preserveBindings = false,
   preferLocalImages = false,
+  cameraSettings?: CameraGenerationSettings,
 ): Promise<PromptMediaReferences> {
   const store = useAppStore.getState();
   const { nodes } = store;
-  rawPrompt = expandShotlistRowMentions(rawPrompt, nodes);
+  rawPrompt = expandShotlistRowMentions(rawPrompt, nodes, { cameraSettings });
   assertNoComfyRefmodMentions(rawPrompt);
   const globalAssets = await loadGlobalDramaAssetsForPrompt(rawPrompt, store);
   const imageEntries: PromptImageEntry[] = [];
@@ -755,7 +757,7 @@ async function resolvePromptReferences(
     const nodeType = (node.data.type as string) || '';
 
     if (nodeType === 'ai-shotlist') {
-      return resolveShotlistMention(node.data as BaseNodeData, nodes, addImage, (index) => mediaLabel('image', index));
+      return resolveShotlistMention(node.data as BaseNodeData, nodes, addImage, (index) => mediaLabel('image', index), cameraSettings);
     }
 
     if (
@@ -931,14 +933,14 @@ async function resolvePromptReferences(
 /** 图片生成兼容入口：图片 URL 独立提取，视频/音频仍按旧行为内联到 prompt。 */
 export async function resolvePromptWithImageRefs(
   rawPrompt: string,
-  options: { preferLocalImages?: boolean } = {},
+  options: { preferLocalImages?: boolean; cameraSettings?: CameraGenerationSettings } = {},
 ): Promise<{ prompt: string; imageUrls: string[] }> {
-  const result = await resolvePromptReferences(rawPrompt, false, false, options.preferLocalImages);
+  const result = await resolvePromptReferences(rawPrompt, false, false, options.preferLocalImages, options.cameraSettings);
   return { prompt: result.prompt, imageUrls: options.preferLocalImages
     ? getMediaReferenceUrls(result.references, 'image', 'local') : result.imageUrls };
 }
 
 /** 视频生成入口：提取图片、视频和音频引用。 */
-export async function resolvePromptWithMediaRefs(rawPrompt: string, options: { preserveBindings?: boolean } = {}): Promise<PromptMediaReferences> {
-  return resolvePromptReferences(rawPrompt, true, options.preserveBindings);
+export async function resolvePromptWithMediaRefs(rawPrompt: string, options: { preserveBindings?: boolean; cameraSettings?: CameraGenerationSettings } = {}): Promise<PromptMediaReferences> {
+  return resolvePromptReferences(rawPrompt, true, options.preserveBindings, false, options.cameraSettings);
 }

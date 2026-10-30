@@ -250,7 +250,8 @@ async function resolveVideoReferenceInput(
   explicitReferences: readonly MediaReference[] = [],
   options: { promptFirst?: boolean; preserveDeclaredRoles?: boolean; sortKeyframes?: boolean; target?: 'remote' | 'local'; apimartModel?: string; legacyPrompt?: string; provider?: string; suppressWarning?: boolean } = {},
 ): Promise<VideoGenerationReferenceInput> {
-  const promptInput = await resolvePromptWithMediaRefs(rawPrompt, { preserveBindings: true });
+  const cameraSettings = useAppStore.getState().nodes.find((node) => node.id === nodeId)?.data.cameraSettings;
+  const promptInput = await resolvePromptWithMediaRefs(rawPrompt, { preserveBindings: true, cameraSettings });
   const connected = collectConnectedReferenceMedia(nodeId);
   const nodeItems = resolveVideoNodeReferences(nodeId);
   // RH 先按来源节点归一本地副本，再去重，避免共享原图的其他节点提前被删掉。
@@ -316,7 +317,7 @@ async function resolveVideoReferenceInput(
 /** Read-only preflight: resolve real inputs without uploading or submitting a task. */
 export async function hasVideoReferenceContent(params: AIVideoGenParams): Promise<boolean> {
   const state = useAppStore.getState();
-  const options = { durationSeconds: params.seedanceDuration };
+  const options = { durationSeconds: params.seedanceDuration, cameraSettings: state.nodes.find((node) => node.id === params.nodeId)?.data.cameraSettings };
   const expandedInputs = params.workflowInputs && Object.fromEntries(Object.entries(params.workflowInputs)
     .map(([key, value]) => [key, expandShotlistRowMentions(value, state.nodes, options)]));
   const input = resolveComfyRefmodMentionInputs({
@@ -583,10 +584,12 @@ export async function generateVideo(
   }
   const { model, provider } = params;
   // 镜头行与所有 IO 文本先展开，再统一提取本地模型引用，避免 token 进入媒体上传或其他厂商。
-  const expandedPrompt = expandShotlistRowMentions(params.prompt, useAppStore.getState().nodes, { durationSeconds: params.seedanceDuration });
+  const cameraState = useAppStore.getState();
+  const shotOptions = { durationSeconds: params.seedanceDuration, cameraSettings: cameraState.nodes.find((node) => node.id === params.nodeId)?.data.cameraSettings };
+  const expandedPrompt = expandShotlistRowMentions(params.prompt, cameraState.nodes, shotOptions);
   const expandedInputs = params.workflowInputs && Object.fromEntries(Object.entries(params.workflowInputs)
     .map(([key, value]) => [key, typeof value === 'string'
-      ? expandShotlistRowMentions(value, useAppStore.getState().nodes, { durationSeconds: params.seedanceDuration }) : value]));
+      ? expandShotlistRowMentions(value, cameraState.nodes, shotOptions) : value]));
   const refmodInputs = resolveComfyRefmodMentionInputs({ prompt: expandedPrompt, workflowInputs: expandedInputs, manual: params.comfyRefmods });
   const rawPrompt = refmodInputs.prompt;
   params = { ...params, prompt: rawPrompt,

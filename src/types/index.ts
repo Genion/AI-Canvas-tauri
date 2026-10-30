@@ -6,6 +6,7 @@ import type { AudioGenerationPurpose } from './media';
 import type { ImageAnnotationLayer } from '@tenney95/xiaoluo-image-editor';
 import type { CanvasNoteData } from './canvasNote';
 import type { DirectorPrevisReference } from './directorPrevis';
+import type { CinematographySettings } from './cinematography';
 import type {
   DirectorResultManifestReference,
   DirectorRuntimeKind,
@@ -325,6 +326,7 @@ export interface BaseNodeData {
   storyboardOverrides?: (StoryboardCellOverride | null)[]; // 各格被拖入的图片（覆盖源图裁片显示）
   // ── 分镜表（ai-shotlist）──
   shotlistRows?: ShotRow[];                 // 逐行镜头
+  shotlistCinematography?: CinematographySettings; // 整表摄影默认；镜头逐项覆盖
   shotlistColumns?: ShotlistColumnKey[];    // 当前显示的列（常驻列恒在其中）
   shotlistColumnWidths?: Partial<Record<ShotlistColumnKey, number>>; // 自定义列宽（px），普通与全屏共用
   shotlistColumnRatios?: Partial<Record<ShotlistColumnKey, number>>; // 弹性列的相对权重；兼容旧像素列宽，镜号 48px、时长 84px 固定

@@ -37,7 +37,7 @@ function referencedInput(data: BaseNodeData, state: Workspace, nodeId: string) {
   let error: string | undefined;
   try {
     const controls = resolveVideoSubmissionControls({ ...data, provider: data.provider || '', workflowId: data.workflowId });
-    const options = { durationSeconds: controls.seedanceDuration };
+    const options = { durationSeconds: controls.seedanceDuration, cameraSettings: data.cameraSettings };
     const prompt = expandShotlistRowMentions(data.prompt || '', state.nodes, options);
     // 与提交入口逐字段展开一致，IO 的精确镜头不能消除主提示词的整表输入。
     const inputs = Object.fromEntries(Object.entries(data.workflowInputs || {}).map(([key, value]) => [key,
@@ -59,7 +59,7 @@ export function videoInputFingerprint(node: Node<BaseNodeData>, state: Workspace
     const cell = /^(.*)\/cell\/(\d+)$/.exec(id);
     const r = state.nodes.find((n) => n.id === (cell?.[1] ?? id))?.data;
     // 精确镜头的来源边不等于整表输入，其他行的编辑不使该镜头失效。
-    if (r?.type === 'ai-shotlist') return [id, input.mentionedIds.includes(id) ? r.shotlistRows : undefined];
+    if (r?.type === 'ai-shotlist') return [id, input.mentionedIds.includes(id) ? [r.shotlistRows, r.shotlistCinematography] : undefined];
     return [id, r?.imageUrl || r?.thumbnailUrl, r?.videoUrl, r?.audioUrl, r?.output, r?.mediaVersion,
       cell ? [r?.storyboardRows, r?.storyboardCols, r?.storyboardRowPositions, r?.storyboardColPositions,
         r?.storyboardOverrides?.[Number(cell[2])]] : undefined];

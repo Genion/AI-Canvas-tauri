@@ -31,7 +31,9 @@ vi.mock('../../src/services/ai/providers/runninghubWorkflow', () => ({ completeR
 vi.mock('../../src/services/videoBatchPlanning', () => ({ videoInputFingerprint: vi.fn() }));
 vi.mock('../../src/services/ai/mediaModelCapabilities', () => ({ resolveImageParameterCapability: mocks.capability }));
 vi.mock('../../src/services/ai/modelCapabilityValidation', () => ({ resolveConfiguredImageQuality: () => undefined, resolveConfiguredImageBackground: () => undefined }));
-vi.mock('../../src/components/nodes/shared/image/cameraStudio', () => ({ buildGenerationCameraPrompt: mocks.camera }));
+vi.mock('../../src/utils/cinematography', async (original) => ({
+  ...await original<typeof import('../../src/utils/cinematography')>(), buildGenerationCameraPrompt: mocks.camera,
+}));
 vi.mock('../../src/services/pollManager', () => ({
   prepareMediaNodeGeneration: mocks.prepare,
   registerMediaNodeOperation: () => vi.fn(), completeMediaNodeTask: mocks.completeMedia,

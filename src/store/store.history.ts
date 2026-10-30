@@ -26,6 +26,7 @@ const STRUCTURAL_NODE_DATA_KEYS = [
   'storyboardExtracted',
   'storyboardOverrides',
   'shotlistRows',
+  'shotlistCinematography',
   'shotlistColumns',
   'shotlistColumnWidths',
   'shotlistColumnRatios',

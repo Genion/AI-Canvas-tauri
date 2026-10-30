@@ -7,6 +7,9 @@
  */
 import type { VideoEditorTransitionKind } from './videoEditor';
 import type { VideoFrameAnalysisData } from './index';
+import type { CameraGenerationSettings } from './index';
+import type { CinematographySettings } from './cinematography';
+import { buildGenerationCameraPrompt, resolveCinematography } from '../utils/cinematography';
 
 /** 分镜最初使用的本集正文快照；引用节点，避免再次复制正文。 */
 export interface ShotlistScriptSource {
@@ -37,6 +40,7 @@ export type ShotlistColumnKey =
   | 'video'
   | 'shotSize'
   | 'camera'
+  | 'cinematography'
   | 'content'
   | 'dialogue'
   | 'audio'
@@ -51,12 +55,12 @@ export const SHOTLIST_PINNED_COLUMNS: ShotlistColumnKey[] = [
 
 /** 可选列：由节点头部的「列」菜单勾选显隐 */
 export const SHOTLIST_OPTIONAL_COLUMNS: ShotlistColumnKey[] = [
-  'camera', 'dialogue', 'audio', 'transition', 'note',
+  'camera', 'cinematography', 'dialogue', 'audio', 'transition', 'note',
 ];
 
 /** 列的固定排布顺序，与传统分镜表从左到右一致 */
 export const SHOTLIST_COLUMN_ORDER: ShotlistColumnKey[] = [
-  'shotNo', 'frame', 'video', 'shotSize', 'camera', 'content',
+  'shotNo', 'frame', 'video', 'shotSize', 'camera', 'cinematography', 'content',
   'dialogue', 'audio', 'transition', 'duration', 'note',
 ];
 
@@ -66,6 +70,7 @@ export const SHOTLIST_COLUMN_LABELS: Record<ShotlistColumnKey, string> = {
   video: '生成视频',
   shotSize: '景别',
   camera: '运镜',
+  cinematography: '摄影',
   content: '内容',
   dialogue: '台词',
   audio: '音效/音乐',
@@ -76,7 +81,7 @@ export const SHOTLIST_COLUMN_LABELS: Record<ShotlistColumnKey, string> = {
 
 /** 新建分镜表时默认展开的可选列 */
 export const SHOTLIST_DEFAULT_COLUMNS: ShotlistColumnKey[] = [
-  ...SHOTLIST_PINNED_COLUMNS, 'camera', 'dialogue',
+  ...SHOTLIST_PINNED_COLUMNS, 'camera', 'cinematography', 'dialogue',
 ];
 
 /** 景别候选值；下拉给建议，仍允许自由输入 */
@@ -136,6 +141,7 @@ export interface ShotRow {
   video?: ShotVideoBinding | null;
   shotSize?: string;
   camera?: string;
+  cinematography?: CinematographySettings;
   content?: string;
   dialogue?: string;
   audio?: string;
@@ -201,10 +207,13 @@ export function collectShotFrameCandidates(
 }
 
 /** 这一行默认拿去生成画面的提示词：景别/运镜当修饰，内容当主体 */
-export function buildShotFramePrompt(row: ShotRow): string {
-  return [row.shotSize?.trim(), row.camera?.trim(), row.content?.trim()]
+export function buildShotFramePrompt(row: ShotRow, defaults?: CinematographySettings): string {
+  const content = [row.shotSize?.trim(), row.camera?.trim(), row.content?.trim()]
     .filter(Boolean)
     .join('，');
+  if (!content) return '';
+  const camera = buildGenerationCameraPrompt(undefined, resolveCinematography(defaults, row.cinematography));
+  return camera ? `${content}\n摄影设定：${camera}` : content;
 }
 
 /** 精确镜头引用以稳定行 ID 定位，镜号只用于显示。 */
@@ -222,11 +231,13 @@ export function parseShotlistRowMentionId(referenceId: string): { nodeId: string
 }
 
 /** 单镜视频描述保留字段语义和对白原文，交给各模型的既有编译入口。 */
-export function formatShotVideoPrompt(row: ShotRow): string {
+export function formatShotVideoPrompt(row: ShotRow, defaults?: CinematographySettings, overrides?: CameraGenerationSettings): string {
+  const camera = buildGenerationCameraPrompt(overrides, resolveCinematography(defaults, row.cinematography));
   return [
     row.shotNo?.trim() ? `镜头：${row.shotNo.trim()}` : '',
     row.shotSize?.trim() ? `景别：${row.shotSize.trim()}` : '',
     row.camera?.trim() ? `运镜：${row.camera.trim()}` : '',
+    camera ? `摄影设定：${camera}` : '',
     row.content?.trim() ? `画面与动作：\n${row.content.trim()}` : '',
     row.dialogue?.trim() ? `角色对白（按说话人顺序演绎，保留原文，与画面动作配合）：\n${row.dialogue.trim()}` : '',
     row.audio?.trim() ? `音效/音乐：${row.audio.trim()}` : '',
@@ -263,11 +274,12 @@ export function buildShotPlaceholderText(row: ShotRow): string {
  * 单行拼成一句话：`镜号 · 景别 · 运镜 · 内容 / 台词 · N″`。
  * @ 引用整张表时逐行拼给模型，空字段直接略过，不留下「· ·」这种空档。
  */
-export function formatShotRowBrief(row: ShotRow): string {
+export function formatShotRowBrief(row: ShotRow, defaults?: CinematographySettings, overrides?: CameraGenerationSettings): string {
   const body = [row.content?.trim(), row.dialogue?.trim()].filter(Boolean).join(' / ');
   const head = [row.shotNo?.trim(), row.shotSize?.trim(), row.camera?.trim(), body].filter(Boolean).join(' · ');
   const duration = Number(resolveShotDuration(row).toFixed(1));
-  return head ? `${head} · ${duration}″` : `${duration}″`;
+  const camera = buildGenerationCameraPrompt(overrides, resolveCinematography(defaults, row.cinematography));
+  return `${head ? `${head} · ${duration}″` : `${duration}″`}${camera ? ` · 摄影设定：${camera}` : ''}`;
 }
 
 /** 转场文案 → 编辑器转场类型；无法识别的写法按硬切处理 */

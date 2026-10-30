@@ -211,7 +211,7 @@ async function previewNode(source: ReferencePreviewSource, state: PreviewState, 
     const row = sheet?.data.shotlistRows?.find((item) => item.id === shot.rowId);
     if (!sheet || !row) return unavailable(source.label, '该分镜表或镜头已删除');
     return { kind: 'markdown', title: `${nodeTitle(sheet, source.label)} · 第${row.shotNo || sheet.data.shotlistRows!.indexOf(row) + 1}镜`,
-      text: formatShotVideoPrompt(row) || '此镜头尚未填写内容' };
+      text: formatShotVideoPrompt(row, sheet.data.shotlistCinematography) || '此镜头尚未填写内容' };
   }
   // 无效虚拟 ID 不能误回落到整表或宫格原图。
   if (source.id.includes('/shot/')) return unavailable(source.label, '镜头引用格式无效');
@@ -242,7 +242,7 @@ async function previewNode(source: ReferencePreviewSource, state: PreviewState, 
   }
   if (source.id.includes('/cell/')) return unavailable(source.label, '宫格引用格式无效', 'image');
   if (type === 'ai-shotlist') {
-    const text = data.shotlistRows?.map((row) => formatShotVideoPrompt(row)).filter(Boolean).join('\n\n---\n\n');
+    const text = data.shotlistRows?.map((row) => formatShotVideoPrompt(row, data.shotlistCinematography)).filter(Boolean).join('\n\n---\n\n');
     return { kind: 'markdown', title, text: text || data.output || data.prompt || '分镜表尚未填写内容' };
   }
   const extra = { prompt: data.prompt };

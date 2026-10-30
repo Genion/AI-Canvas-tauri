@@ -506,13 +506,13 @@ describe('canvas agent tools', () => {
     expect(result.status).toBe('success');
     const created = useAppStore.getState().nodes.slice(2);
     for (const sheet of created.filter((item) => item.type === 'ai-shotlist')) {
-      expect(sheet.data).toMatchObject({ nodeWidth: 1280, nodeHeight: 640 });
+      expect(sheet.data).toMatchObject({ nodeWidth: 1920, nodeHeight: 640 });
     }
     const read = await getAgentTool('canvas_query')!.execute(context(), {
       nodeIds: created.map((item) => item.id), detail: true,
     });
     const reported = JSON.parse(read.modelContent).nodes;
-    expect(reported[0].size).toEqual({ width: 1280, height: 640 });
+    expect(reported[0].size).toEqual({ width: 1920, height: 640 });
     for (const [index, item] of created.entries()) {
       for (const other of created.slice(index + 1)) {
         const separated = item.position.x + item.data.nodeWidth! <= other.position.x
@@ -545,8 +545,9 @@ describe('canvas agent tools', () => {
     expect(created[6].position.y - (created[3].position.y + created[3].data.nodeHeight!)).toBe(40);
     const right = Math.max(...created.map((item) => item.position.x + item.data.nodeWidth!));
     const left = Math.min(...created.map((item) => item.position.x));
-    expect(right - left).toBeLessThan(2000);
-    expect(created[3].data).toMatchObject({ nodeWidth: 1280, nodeHeight: 640 });
+    // 分镜表加宽 640，其他普通列仍保持紧凑，不能全部跟随大表宽度。
+    expect(right - left).toBeLessThan(2640);
+    expect(created[3].data).toMatchObject({ nodeWidth: 1920, nodeHeight: 640 });
   });
 
   it.each(['assistant', 'mcp'] as const)('anchors %s creation beside actual prompt dependencies instead of distant unrelated nodes', async (channel) => {

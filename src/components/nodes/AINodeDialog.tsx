@@ -54,7 +54,7 @@ import { resolveImageParameterCapability } from '../../services/ai/mediaModelCap
 import { DREAMINA_IMAGE_RATIOS, getDreaminaImageModel } from '../../services/ai/dreaminaModels';
 import { getLibapiAudioCapability, usesLibapiModelProtocol } from '../../services/ai/providers/libapiModelManifest';
 import { resolveConfiguredImageBackground, resolveConfiguredImageQuality } from '../../services/ai/modelCapabilityValidation';
-import { buildGenerationCameraPrompt } from './shared/image/cameraStudio';
+import { applyGenerationCameraPrompt } from '../../services/shotlistPromptService';
 import { cancelComfyUINodeTask } from '../../services/comfyWorkflowService';
 import { getComfyQueryAuthorizationMessage } from '../../services/comfyPolling';
 import { beginComfyNodeDelivery, completeComfyNodeTask, completeMediaNodeTask, getPendingTasksForProject, isComfyNodeDeliveryActive, isMediaTaskPausedError, pauseComfyNodeDelivery, pauseMediaTask, prepareMediaNodeGeneration, registerMediaNodeOperation, resumeComfyUINodeTask, resumeRunningHubNodeTask, subscribeComfyDeliveries, updatePendingTask, removePendingTask } from '../../services/pollManager';
@@ -448,10 +448,11 @@ function AINodeDialog() {
       settings: projectSettings,
       customStyles: store.customStyles,
     });
-    const cameraPrompt = buildGenerationCameraPrompt(latestData.cameraSettings);
-    let effectivePrompt = cameraPrompt && nodeType === 'ai-image'
-      ? `${projectPrompt}\n\nCamera settings: ${cameraPrompt}.`
-      : projectPrompt;
+    let effectivePrompt = projectPrompt;
+    if (nodeType === 'ai-image') {
+      try { effectivePrompt = applyGenerationCameraPrompt(projectPrompt, store.nodes, latestData.cameraSettings); }
+      catch (error) { showToast(error instanceof Error ? error.message : t('镜头引用无效'), 'error'); return; }
+    }
     const nodeModel = latestData?.model;
     const nodeProvider = latestData?.provider;
     const nodeLabel = latestData?.label ?? '';

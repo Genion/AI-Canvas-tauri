@@ -225,12 +225,13 @@ export async function generateImagesBatch(
   const selectedWorkflow = params.workflowId ? useAppStore.getState().workflows.find((item) => item.id === params.workflowId) : undefined;
   const isComfyWorkflow = Boolean(params.workflowId && (!selectedWorkflow?.adapterType || selectedWorkflow.adapterType === 'comfyui'));
   const isRunningHub = params.workflowId ? isRunningHubWorkflow(selectedWorkflow) : provider === 'runninghub';
-  const comfyMedia = isComfyWorkflow ? await resolvePromptWithMediaRefs(rawPrompt) : undefined;
-  const runninghubMedia = isRunningHub ? await resolvePromptWithMediaRefs(rawPrompt, { preserveBindings: true }) : undefined;
+  const cameraSettings = useAppStore.getState().nodes.find((node) => node.id === params.nodeId)?.data.cameraSettings;
+  const comfyMedia = isComfyWorkflow ? await resolvePromptWithMediaRefs(rawPrompt, { cameraSettings }) : undefined;
+  const runninghubMedia = isRunningHub ? await resolvePromptWithMediaRefs(rawPrompt, { preserveBindings: true, cameraSettings }) : undefined;
   const localMedia = runninghubMedia ?? comfyMedia;
   const { prompt: resolvedPrompt, imageUrls } = localMedia
     ? { prompt: localMedia.prompt, imageUrls: getMediaReferenceUrls(localMedia.references, 'image', 'local') }
-    : await resolvePromptWithImageRefs(rawPrompt, { preferLocalImages: usesImageMultipart || usesCustomImageFiles || usesImageDataUrls || providerDefinition?.id === 'toapis' || isLibapi });
+    : await resolvePromptWithImageRefs(rawPrompt, { preferLocalImages: usesImageMultipart || usesCustomImageFiles || usesImageDataUrls || providerDefinition?.id === 'toapis' || isLibapi, cameraSettings });
   if (signal?.aborted) throw new DOMException('请求已取消', 'AbortError');
 
   // 仅归一同一节点的来源别名；裸 URL 或其他节点仍可能明确需要未标注的原图。

@@ -534,7 +534,7 @@ describe('image fullscreen save barrier', () => {
 
 function visibleShotRatio(store: TestStore, column: string) {
   const ratios = store.nodes[0].data.shotlistColumnRatios as Record<string, number>;
-  const total = ['shotSize', 'camera', 'content', 'dialogue']
+  const total = ['shotSize', 'camera', 'cinematography', 'content', 'dialogue']
     .reduce((sum, key) => sum + ratios[key], 0);
   return ratios[column] / total * 100;
 }
@@ -881,6 +881,19 @@ describe('critical canvas node interactions', () => {
     }]);
   });
 
+  it('opens table defaults and stable-row photography from the shared table, without writing on open', async () => {
+    const { tree, store, setters } = await setupShotlistWidths(undefined, [{ id: 'row-1', shotNo: '1', content: '原内容' }]);
+    const defaults = findElement(tree, (element) => element.type === 'button' && Array.isArray(element.props.children)
+      && element.props.children.includes('整表摄影'));
+    (defaults.props.onClick as () => void)();
+    expect(setters.some((setter) => setter.mock.calls.some(([value]) => value?.projectId === 'project-a' && value?.rowId === undefined))).toBe(true);
+    const shot = findElement(tree, (element) => element.type === 'button' && element.props['aria-label'] === '摄影设置 · 镜头 1');
+    (shot.props.onClick as (event: unknown) => void)({ stopPropagation: vi.fn() });
+    expect(setters.some((setter) => setter.mock.calls.some(([value]) => value?.projectId === 'project-a' && value?.rowId === 'row-1'))).toBe(true);
+    expect(store.updateNodeDataTransient).not.toHaveBeenCalled();
+    expect(store.commitToHistory).not.toHaveBeenCalled();
+  });
+
   it('keeps custom shotlist options editable and stores real values when selecting UI Kit presets', async () => {
     const { tree, store } = await setupShotlistWidths(undefined, [{
       id: 'row-1', shotNo: '1', shotSize: '特写', camera: '手持跟拍并轻微晃动', duration: 3,
@@ -949,7 +962,7 @@ describe('critical canvas node interactions', () => {
   it('converts legacy widths to percentages, redistributes space and resets the layout', async () => {
     const { tree, table, store } = await setupShotlistWidths({ content: 320, dialogue: 180 });
     const input = findElement(tree, (element) => componentName(element) === 'NumberStepper' && element.props['aria-label'] === '内容列宽');
-    expect(input.props.value).toBeCloseTo(320 / (68 + 68 + 320 + 180) * 100);
+    expect(input.props.value).toBeCloseTo(320 / (68 + 68 + 180 + 320 + 180) * 100);
     expect(input.props.unit).toBe('%');
     expect((table.props.style as Record<string, string>)['--shotlist-columns']).toContain('minmax(0,');
     expect((table.props.style as Record<string, string>).width).toBeUndefined();
@@ -965,7 +978,7 @@ describe('critical canvas node interactions', () => {
 
   it('supports keyboard resizing with a bounded width', async () => {
     const { handle, store } = await setupShotlistWidths(undefined, [], undefined, {
-      shotlistColumnRatios: { shotNo: 1, frame: 1, video: 1, shotSize: 2, camera: 2, dialogue: 2, content: 94 },
+      shotlistColumnRatios: { shotNo: 1, frame: 1, video: 1, shotSize: 2, camera: 2, cinematography: 2, dialogue: 2, content: 94 },
     });
     (handle.props.onKeyDown as (event: unknown) => void)({
       key: 'ArrowRight', shiftKey: true, preventDefault: vi.fn(), stopPropagation: vi.fn(),
@@ -993,12 +1006,12 @@ describe('critical canvas node interactions', () => {
 
   it('restores persisted ratios while keeping hidden column preferences', async () => {
     const { tree, store } = await setupShotlistWidths(undefined, [], undefined, {
-      shotlistColumnRatios: { shotNo: 5, frame: 10, shotSize: 10, camera: 15, content: 30, dialogue: 30, note: 20 },
+      shotlistColumnRatios: { shotNo: 5, frame: 10, shotSize: 10, camera: 15, cinematography: 20, content: 30, dialogue: 30, note: 20 },
     });
     const stepper = findElement(tree, (element) => componentName(element) === 'NumberStepper'
       && element.props['aria-label'] === '内容列宽');
     // 画面和生成视频固定后，剩余列只按自己的旧比例重新分配空间。
-    expect(stepper.props.value).toBeCloseTo(30 / (10 + 15 + 30 + 30) * 100);
+    expect(stepper.props.value).toBeCloseTo(30 / (10 + 15 + 20 + 30 + 30) * 100);
     (stepper.props.onChange as (value: number) => void)(40);
     expect(visibleShotRatio(store, 'content')).toBeCloseTo(40);
     expect((store.nodes[0].data.shotlistColumnRatios as Record<string, number>).note).toBe(20);
