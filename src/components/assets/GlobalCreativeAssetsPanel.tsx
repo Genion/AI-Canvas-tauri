@@ -1,3 +1,6 @@
+/**
+ * GlobalCreativeAssetsPanel — 提供全局创作资产界面与交互。
+ */
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Download, Plus, Search, Upload } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';

@@ -1,3 +1,6 @@
+/**
+ * NodeGenerationProgress — 提供节点生成进度界面与交互。
+ */
 import { useEffect, useState } from 'react';
 import { useAppStore } from '../../../store/useAppStore';
 import { getGenerationNodeType } from '../../../utils/nodeGeneration';

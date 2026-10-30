@@ -1,3 +1,6 @@
+/**
+ * AppearanceComponentPreview — 提供外观组件预览界面与交互。
+ */
 import { useState } from 'react';
 import { useT } from '../../i18n';
 import NumberStepper from '../shared/NumberStepper';

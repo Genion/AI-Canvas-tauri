@@ -1,3 +1,6 @@
+/**
+ * window-bootstrap — 初始化原生插件窗口与宿主之间的会话通信。
+ */
 (() => {
   'use strict';
 

@@ -1,3 +1,6 @@
+/**
+ * AppearanceLayoutPreview — 提供外观布局预览界面与交互。
+ */
 import { useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react';
 import { Icon } from '@iconify/react';
 import type { AppearanceCanvasPanelId, AppearanceTheme } from '../../types';

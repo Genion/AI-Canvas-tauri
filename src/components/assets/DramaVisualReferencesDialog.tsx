@@ -1,3 +1,6 @@
+/**
+ * DramaVisualReferencesDialog — 提供短剧资产视觉参考界面与交互。
+ */
 import { useEffect, useRef, useState } from 'react';
 import { ImagePlus, Star, Trash2, X } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';

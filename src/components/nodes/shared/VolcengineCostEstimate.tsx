@@ -1,3 +1,6 @@
+/**
+ * VolcengineCostEstimate — 提供方舟费用估算界面与交互。
+ */
 import { Icon } from '@iconify/react';
 import type { BaseNodeData } from '../../../types';
 import { mapImageDimensions } from '../../../services/aiDimensions';

@@ -1,3 +1,6 @@
+/**
+ * shortcutPresentation — 生成内置快捷入口与用户预设的展示信息。
+ */
 import { t } from '../../../i18n';
 import { PRESET_NODE_TYPES, PRESET_NODE_TYPE_LABELS } from '../../../types';
 import type { NodeType, UserPreset } from '../../../types';

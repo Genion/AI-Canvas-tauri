@@ -1,3 +1,6 @@
+/**
+ * CharacterWeaponDialog — 提供角色武器绑定界面与交互。
+ */
 import { useEffect, useId, useRef, useState } from 'react';
 import { Icon } from '@iconify/react';
 import { Sword, Swords } from 'lucide-react';

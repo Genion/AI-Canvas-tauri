@@ -1,3 +1,6 @@
+/**
+ * DirectorPrevisViewport — 提供AI 镜头预演视口界面与交互。
+ */
 import { useEffect, useRef, useState } from 'react';
 import type { DirectorPrevisScene, DirectorPrevisView } from '../../types/directorPrevis';
 import { createDirectorPrevisRenderer, type DirectorPrevisRenderer } from '../../services/directorPrevisRenderer';

@@ -1,3 +1,6 @@
+/**
+ * AppearanceSettings — 提供外观设置界面与交互。
+ */
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Icon } from '@iconify/react';
 import { useAppStore } from '../../store/useAppStore';

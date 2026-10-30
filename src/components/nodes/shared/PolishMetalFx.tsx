@@ -1,3 +1,6 @@
+/**
+ * PolishMetalFx — 提供润色按钮金属动效界面与交互。
+ */
 import { useLayoutEffect, useRef } from 'react';
 import {
   MetalFx,

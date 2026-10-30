@@ -1,3 +1,6 @@
+/**
+ * ComfyH3MemoryFields — 提供ComfyUI H3 显存设置界面与交互。
+ */
 import { useT } from '../../i18n';
 import type { ComfyH3MemorySettings } from '../../types/comfyLaunch';
 import { DEFAULT_COMFY_H3_MEMORY_SETTINGS, isValidComfyH3MemorySettings } from '../../types/comfyLaunch';

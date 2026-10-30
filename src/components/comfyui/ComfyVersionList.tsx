@@ -1,3 +1,6 @@
+/**
+ * ComfyVersionList — 提供ComfyUI 版本列表界面与交互。
+ */
 import { useEffect, useMemo, useState } from 'react';
 import { Icon } from '@iconify/react';
 import { useT } from '../../i18n';

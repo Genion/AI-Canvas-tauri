@@ -1,3 +1,6 @@
+/**
+ * ai-app-bootstrap — 为 AI 应用页面提供输入快照、动作与宿主通信协议。
+ */
 (() => {
   'use strict';
 

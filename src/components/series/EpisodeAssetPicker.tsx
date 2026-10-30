@@ -1,3 +1,6 @@
+/**
+ * EpisodeAssetPicker — 提供本集资产选择界面与交互。
+ */
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import { Icon } from '@iconify/react';
 import { useShallow } from 'zustand/react/shallow';

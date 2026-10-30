@@ -1,3 +1,6 @@
+/**
+ * mentionEditorChipDrag — 识别、拖拽并提交引用胶囊的落点。
+ */
 import { ensureCaretSlotBeforeChip, serializeDOM } from './mentionEditorDom';
 
 const CHIP_SELECTOR = '[data-ref-id],[data-asset-path],[data-drama-id],[data-wf-id],[data-skill-id],[data-refmod-raw]';

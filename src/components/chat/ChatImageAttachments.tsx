@@ -1,3 +1,6 @@
+/**
+ * ChatImageAttachments — 提供聊天图片附件界面与交互。
+ */
 import { useState } from 'react';
 import { Icon } from '@iconify/react';
 import type { ChatImageReference } from '../../types/chat';

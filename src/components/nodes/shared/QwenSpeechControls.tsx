@@ -1,3 +1,6 @@
+/**
+ * QwenSpeechControls — 提供Qwen 语音参数界面与交互。
+ */
 import { useId } from 'react';
 import type { AudioSpeechParameterValue, AudioSpeechSettings, QwenSpeechControls as Controls, QwenSpeechField } from '../../../types/aiTypes';
 import { QWEN_VOICE_PRESETS, qwenFieldValue } from '../../../services/ai/qwenSpeechSettings';

@@ -1,3 +1,6 @@
+/**
+ * VideoCharacterPicker — 提供视频角色选择界面与交互。
+ */
 import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import MentionPicker, { type MentionPickerItem } from '../../shared/MentionPicker';

@@ -1,3 +1,6 @@
+/**
+ * mentionEditorPreview — 从引用胶囊解析预览来源与短剧资产。
+ */
 import { t } from '../../../i18n';
 import type { DramaAsset, DramaAssetLibrary } from '../../../types/dramaAssets';
 import { DRAMA_ASSET_KIND_LABEL, parseDramaMentionId } from '../../../types/dramaAssets';

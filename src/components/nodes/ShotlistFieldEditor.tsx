@@ -1,3 +1,6 @@
+/**
+ * ShotlistFieldEditor — 提供分镜字段编辑界面与交互。
+ */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from '@iconify/react';
 import { useAppStore } from '../../store/useAppStore';

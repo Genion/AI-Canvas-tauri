@@ -1,3 +1,6 @@
+/**
+ * McpConnectionEditor — 提供MCP 连接编辑界面与交互。
+ */
 import { useT } from '../../i18n';
 import { useEffect, useRef, useState } from 'react';
 import type { McpClientConnection, McpClientToolInfo } from '../../types/mcpClient';

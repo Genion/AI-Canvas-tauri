@@ -1,3 +1,6 @@
+/**
+ * NodePluginToolDialog — 提供节点插件工具配置界面与交互。
+ */
 import Select from '../../../shared/Select';
 import { t, useT } from '../../../../i18n';
 import { Icon } from '@iconify/react';

@@ -1,3 +1,6 @@
+/**
+ * MentionChipMenu — 提供引用胶囊菜单界面与交互。
+ */
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '@iconify/react';

@@ -1,3 +1,6 @@
+/**
+ * DirectorPrevisDialog — 提供AI 镜头预演界面与交互。
+ */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Icon } from '@iconify/react';
 import { useAppStore } from '../../store/useAppStore';

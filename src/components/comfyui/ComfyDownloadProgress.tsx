@@ -1,3 +1,6 @@
+/**
+ * ComfyDownloadProgress — 提供ComfyUI 下载进度界面与交互。
+ */
 import { useT } from '../../i18n';
 import type { ComfyDownloadProgress as Progress } from '../../types/comfyManagement';
 import DownloadProgress from '../shared/DownloadProgress';

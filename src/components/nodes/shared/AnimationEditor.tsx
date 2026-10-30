@@ -1,3 +1,6 @@
+/**
+ * AnimationEditor — 提供逐帧动画编辑界面与交互。
+ */
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { Icon } from '@iconify/react';
 import { animate, useReducedMotion } from 'framer-motion';

@@ -1,3 +1,6 @@
+/**
+ * AssetTextPreview — 提供文本资产预览界面与交互。
+ */
 import { getLocale, t, useT } from '../../i18n';
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from '@iconify/react';

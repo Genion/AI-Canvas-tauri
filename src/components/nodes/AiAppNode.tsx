@@ -1,3 +1,6 @@
+/**
+ * AiAppNode — 提供AI 应用节点界面与交互。
+ */
 import { memo, useMemo, useState } from 'react';
 import { Icon } from '@iconify/react';
 import type { BaseNodeData } from '../../types';

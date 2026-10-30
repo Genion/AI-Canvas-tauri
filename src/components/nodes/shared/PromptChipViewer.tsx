@@ -1,3 +1,6 @@
+/**
+ * PromptChipViewer — 提供提示词引用胶囊界面与交互。
+ */
 import type { ReactNode } from 'react';
 import ViewportImage from '../../shared/ViewportImage';
 import { t } from '../../../i18n';

@@ -1,3 +1,6 @@
+/**
+ * mentionEditorTextSelection — 读取并设置引用编辑器的纯文本选区。
+ */
 import { isChipEl, serializeDOM, ZWSP } from './mentionEditorDom';
 
 interface DomPoint { node: Node; offset: number }

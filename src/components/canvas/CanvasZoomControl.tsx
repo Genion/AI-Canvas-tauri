@@ -1,3 +1,6 @@
+/**
+ * CanvasZoomControl — 提供画布缩放控制界面与交互。
+ */
 import { memo } from 'react';
 import { useStore, type ReactFlowState } from '@xyflow/react';
 import { LockKeyhole, Minus, Plus, Scan, UnlockKeyhole } from 'lucide-react';

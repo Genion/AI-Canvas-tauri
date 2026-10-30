@@ -1,3 +1,6 @@
+/**
+ * ComfyRefmodBindingDialog — 提供RefMod 槽位绑定界面与交互。
+ */
 import { useState } from 'react';
 import { useT } from '../../../i18n';
 import type { ComfyRefmodAsset, ComfyRefmodBindingRequest, ComfyRefmodSelection } from '../../../types/comfyRefmod';

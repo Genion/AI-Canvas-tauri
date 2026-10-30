@@ -1,3 +1,6 @@
+/**
+ * connectedNodesPreviewInteractions — 计算引用缩略图布局并处理预览拖拽交互。
+ */
 import type { BaseNodeData } from '../../../types';
 import { resolveVideoThumbnailPoster } from '../../shared/videoThumbnailSource';
 import type { MentionChipPreview } from '../../../types/referencePreview';

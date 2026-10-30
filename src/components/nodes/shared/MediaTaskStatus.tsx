@@ -1,3 +1,6 @@
+/**
+ * MediaTaskStatus — 提供媒体任务状态界面与交互。
+ */
 import { memo, useState } from 'react';
 import { RotateCw } from 'lucide-react';
 import { useAppStore } from '../../../store/useAppStore';

@@ -1,3 +1,6 @@
+/**
+ * CanvasEdgeStrokeLayer — 提供画布连线描边层界面与交互。
+ */
 import { memo, useLayoutEffect, useRef } from 'react';
 import type { useStoreApi } from '@xyflow/react';
 import type { CanvasSharedEdgeModel } from '../../types/canvasEdges';

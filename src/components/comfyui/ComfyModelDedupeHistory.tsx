@@ -1,3 +1,6 @@
+/**
+ * ComfyModelDedupeHistory — 提供ComfyUI 模型去重历史界面与交互。
+ */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Icon } from '@iconify/react';
 import { useT } from '../../i18n';

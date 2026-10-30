@@ -1,3 +1,6 @@
+/**
+ * EpisodeWorkbench — 提供分集画布工作台界面与交互。
+ */
 import { memo, useEffect, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { CheckCircle2, LayoutGrid, ListVideo, Play } from 'lucide-react';

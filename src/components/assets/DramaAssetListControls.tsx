@@ -1,3 +1,6 @@
+/**
+ * DramaAssetListControls — 提供短剧资产列表筛选界面与交互。
+ */
 import { ArrowDownWideNarrow, ArrowUpNarrowWide, CheckSquare, Copy, Download } from 'lucide-react';
 import { useT } from '../../i18n';
 import type { DramaAssetSortBy } from '../../services/dramaAssetSearch';

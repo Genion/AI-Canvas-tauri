@@ -1,3 +1,6 @@
+/**
+ * ComfyLaunchSettings — 提供ComfyUI 启动设置界面与交互。
+ */
 import { useEffect, useState } from 'react';
 import { Icon } from '@iconify/react';
 import Select from '../shared/Select';

@@ -1,3 +1,6 @@
+/**
+ * ComfyRuntimeConsole — 提供ComfyUI 运行控制台界面与交互。
+ */
 import { memo, useEffect, useRef, useState } from 'react';
 import { Icon } from '@iconify/react';
 import { useT } from '../../i18n';

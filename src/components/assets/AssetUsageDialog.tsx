@@ -1,3 +1,6 @@
+/**
+ * AssetUsageDialog — 提供资产使用位置界面与交互。
+ */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useT } from '../../i18n';
 import type { AssetUsageReport, AssetUsageTarget } from '../../types/assetUsage';

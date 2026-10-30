@@ -1,3 +1,6 @@
+/**
+ * CanvasNodeCardContent — 提供资产卡片节点预览界面与交互。
+ */
 import { t, useT } from '../../i18n';
 import { memo, useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
 import { createPortal } from 'react-dom';

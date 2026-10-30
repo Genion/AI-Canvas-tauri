@@ -1,3 +1,6 @@
+/**
+ * WorkflowApiParameterFields — 提供云工作流参数表单界面与交互。
+ */
 import type { DeclarativeWorkflowApiManifest } from '../../../types/workflowApi';
 import { useT } from '../../../i18n';
 import Select from '../../shared/Select';

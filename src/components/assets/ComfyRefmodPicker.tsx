@@ -1,3 +1,6 @@
+/**
+ * ComfyRefmodPicker — 提供ComfyUI RefMod 选择界面与交互。
+ */
 import { t, useT } from '../../i18n';
 import type { ComfyRefmodLoaderType, ComfyRefmodSelection } from '../../types/comfyRefmod';
 import ModalOverlay from '../shared/ModalOverlay';

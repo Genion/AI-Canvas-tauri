@@ -1,3 +1,6 @@
+/**
+ * PresetImportDialog — 提供预设导入界面与交互。
+ */
 import { useCallback, useRef, useState } from 'react';
 import { Icon } from '@iconify/react';
 import { useT } from '../../../i18n';

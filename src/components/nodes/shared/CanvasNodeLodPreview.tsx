@@ -1,3 +1,6 @@
+/**
+ * CanvasNodeLodPreview — 提供画布节点远景预览界面与交互。
+ */
 import { memo, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import type { BaseNodeData } from '../../../types';

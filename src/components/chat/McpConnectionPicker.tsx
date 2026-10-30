@@ -1,3 +1,6 @@
+/**
+ * McpConnectionPicker — 提供MCP 连接选择界面与交互。
+ */
 import { useState } from 'react';
 import { useT } from '../../i18n';
 import type { McpClientOption } from '../../types/mcpClient';

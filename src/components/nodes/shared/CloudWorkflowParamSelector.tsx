@@ -1,3 +1,6 @@
+/**
+ * CloudWorkflowParamSelector — 提供云工作流参数选择界面与交互。
+ */
 import { Icon } from '@iconify/react';
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';

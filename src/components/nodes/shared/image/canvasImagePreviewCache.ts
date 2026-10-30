@@ -1,3 +1,6 @@
+/**
+ * canvasImagePreviewCache — 管理画布图片预览缓存与资源租约。
+ */
 import { readRasterImageDimensions } from '../../../../services/rasterImageDimensions';
 import { prepareProjectThumbnail } from '../../../../services/fs/thumbnailCache';
 import { assertEditorSourceBudget } from './imageResourceBudget';

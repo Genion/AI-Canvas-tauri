@@ -1,5 +1,4 @@
-﻿import { t as translate, useT } from '../i18n';
-/**
+﻿/**
  * AssetsPanel 资产管理面板 — 浏览项目文件 + 全局资产库（永久），支持：
  *  · 添加本地文件（拷贝到全局 {baseDataDir}/file）/ 文件夹（递归引用，不拷贝）
  *  · 搜索（名称 + 标签）、分类与标签筛选
@@ -7,6 +6,8 @@
  * 性能：useDeferredValue 搜索 + useMemo 过滤 + 增量渲染（IntersectionObserver）+ 图片懒加载，
  *       并移除了大列表下昂贵的逐项 layout 动画。
  */
+import { t as translate, useT } from '../i18n';
+
 import {
   lazy,
   Suspense,

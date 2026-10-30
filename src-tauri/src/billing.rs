@@ -1,3 +1,6 @@
+/**
+ * billing — 管理本地方舟用量账本、查询与 Excel 导出。
+ */
 use rusqlite::{params, params_from_iter, types::Value, Connection, OpenFlags};
 use rust_xlsxwriter::Workbook;
 use serde::{Deserialize, Serialize};

@@ -1,3 +1,6 @@
+/**
+ * ShotlistCinematographyDialog — 提供分镜摄影参数界面与交互。
+ */
 import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { Icon } from '@iconify/react';
 import { useAppStore } from '../../store/useAppStore';

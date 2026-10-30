@@ -1,3 +1,6 @@
+/**
+ * CanvasEdgeLayer — 提供画布连线渲染层界面与交互。
+ */
 import {
   Fragment,
   memo,

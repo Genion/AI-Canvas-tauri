@@ -1,3 +1,6 @@
+/**
+ * AssetFileContextMenu — 提供资产文件右键菜单界面与交互。
+ */
 import { t, useT } from '../../i18n';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';

@@ -1,3 +1,6 @@
+/**
+ * SharedProjectSyncPanel — 提供项目共享同步界面与交互。
+ */
 import { memo, useEffect, useRef, useState } from 'react';
 import { ArrowDownToLine, ArrowUpFromLine, RefreshCw, Pause, AlertTriangle } from 'lucide-react';
 import { useT } from '../../i18n';

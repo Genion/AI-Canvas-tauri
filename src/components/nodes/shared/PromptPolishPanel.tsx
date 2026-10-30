@@ -1,3 +1,6 @@
+/**
+ * PromptPolishPanel — 提供提示词润色界面与交互。
+ */
 import { useEffect, useId, useRef, useState } from 'react';
 import { LoaderCircle, Sparkles } from 'lucide-react';
 import { useAppStore } from '../../../store/useAppStore';

@@ -1,3 +1,6 @@
+/**
+ * canvasImageDisplay — 选择图片显示档位并通过显示队列准备来源。
+ */
 import { acquireCachedCanvasImagePreview, acquireCanvasImagePreview } from './canvasImagePreviewCache';
 import { getPerformanceModeBudget } from '../../../../services/performanceModeRuntime';
 import { acquireComfyImageSource, shouldLoadNativeComfyImage } from '../../../../services/comfyImageSource';

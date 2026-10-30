@@ -1,3 +1,6 @@
+/**
+ * AssetRepairDialog — 提供资产修复预览界面与交互。
+ */
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useT } from '../../i18n';
 import { useAppStore } from '../../store/useAppStore';

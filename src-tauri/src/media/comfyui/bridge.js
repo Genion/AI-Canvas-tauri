@@ -1,3 +1,6 @@
+/**
+ * bridge — 连接 ComfyUI 嵌入页面与宿主管理界面。
+ */
 (() => {
   // 来源由原生注入闭包提供，不能由远程页面自行指定；子 frame 不创建宿主桥接。
   if (typeof aiCanvasComfyOrigin !== 'string'

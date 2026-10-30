@@ -1,8 +1,9 @@
-import { t, useT } from '../i18n';
 /**
  * WorkflowPanel 工作流面板 — 管理 RunningHUB 工作流定义，支持导入 JSON、分类筛选、拖放到画布
  * 使用 framer-motion 驱动面板进出场动画
  */
+import { t, useT } from '../i18n';
+
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useShallow } from 'zustand/react/shallow';

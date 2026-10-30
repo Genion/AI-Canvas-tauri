@@ -1,3 +1,6 @@
+/**
+ * RefModAssetsPanel — 提供RefMod 资产目录界面与交互。
+ */
 import { t, useT } from '../../i18n';
 import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import { Icon } from '@iconify/react';

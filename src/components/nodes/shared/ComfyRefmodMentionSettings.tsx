@@ -1,3 +1,6 @@
+/**
+ * ComfyRefmodMentionSettings — 提供RefMod 引用设置界面与交互。
+ */
 import { useMemo, useState } from 'react';
 import type { WorkflowDefinition } from '../../../types';
 import type { ComfyRefmodAsset, ComfyRefmodCatalog, ComfyRefmodSelection } from '../../../types/comfyRefmod';

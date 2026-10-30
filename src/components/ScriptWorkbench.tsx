@@ -1,3 +1,6 @@
+/**
+ * ScriptWorkbench — 提供剧本创作工作台界面与交互。
+ */
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Icon } from '@iconify/react';
 import { useShallow } from 'zustand/react/shallow';

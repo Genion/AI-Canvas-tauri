@@ -1,3 +1,6 @@
+/**
+ * AssetExtractionPreviewDialog — 提供剧本资产提取预览界面与交互。
+ */
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Icon } from '@iconify/react';
 import { useT } from '../../i18n';

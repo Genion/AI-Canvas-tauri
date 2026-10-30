@@ -1,3 +1,6 @@
+/**
+ * SelectionConnectionNode — 提供多选节点连接界面与交互。
+ */
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { useReactFlow, useViewport } from '@xyflow/react';
 import GooeyBtn from '../nodes/shared/GooeyBtn';

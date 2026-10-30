@@ -1,3 +1,6 @@
+/**
+ * ReasoningPanel — 提供助手推理内容界面与交互。
+ */
 import { useT } from '../../i18n';
 import { Icon } from '@iconify/react';
 import { AssistantActivityMark } from './AssistantActivity';

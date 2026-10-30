@@ -1,3 +1,6 @@
+/**
+ * eslint.config — 配置 JavaScript、TypeScript 与 React 的静态检查规则。
+ */
 import js from '@eslint/js'
 import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'

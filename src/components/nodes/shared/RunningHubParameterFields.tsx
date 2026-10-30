@@ -1,3 +1,6 @@
+/**
+ * RunningHubParameterFields — 提供RunningHub 模型与工作流参数界面与交互。
+ */
 import { t, useT } from '../../../i18n';
 import type { RunningHubParameter } from '../../../types/runninghub';
 import { resolveRunningHubParameters, runningHubParameterKey } from '../../../services/runninghubWorkflowService';

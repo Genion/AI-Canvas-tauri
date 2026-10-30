@@ -1,3 +1,6 @@
+/**
+ * AssetImagePreview — 提供图片资产预览与详情界面与交互。
+ */
 import { t, useT } from '../../i18n';
 import ViewportImage from '../shared/ViewportImage';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';

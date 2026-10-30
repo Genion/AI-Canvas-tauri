@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+/**
+ * ai-canvas-mcp — 在 MCP stdio 客户端与本机控制桥之间转发请求。
+ */
 
 import net from 'node:net';
 import process from 'node:process';

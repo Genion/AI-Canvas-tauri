@@ -1,3 +1,6 @@
+/**
+ * ComfyH3MemorySelector — 提供ComfyUI H3 显存预设界面与交互。
+ */
 import { useId } from 'react';
 import { useT } from '../../../i18n';
 import { useAppStore } from '../../../store/useAppStore';

@@ -1,3 +1,6 @@
+/**
+ * AssetFolderNavigation — 提供资产文件夹导航界面与交互。
+ */
 import { t, useT } from '../../i18n';
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { createPortal } from 'react-dom';

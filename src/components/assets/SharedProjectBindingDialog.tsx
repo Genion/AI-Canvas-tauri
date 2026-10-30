@@ -1,3 +1,6 @@
+/**
+ * SharedProjectBindingDialog — 提供共享项目绑定界面与交互。
+ */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ShieldCheck } from 'lucide-react';
 import { useT } from '../../i18n';

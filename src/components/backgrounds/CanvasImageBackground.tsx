@@ -1,3 +1,6 @@
+/**
+ * CanvasImageBackground — 提供画布图片背景界面与交互。
+ */
 import type { AppearanceCanvasConfig } from '../../types';
 import { resolveThemeImageSource } from '../../services/fs/themeAssets';
 

@@ -1,3 +1,6 @@
+/**
+ * plugin-dev — 监听本地插件源码并生成开发用插件包。
+ */
 import { readFile, writeFile, mkdir, rename, stat } from 'node:fs/promises';
 import { watch } from 'node:fs';
 import { createHash } from 'node:crypto';

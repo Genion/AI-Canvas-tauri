@@ -1,3 +1,6 @@
+/**
+ * viteCanvasEdgeLayer — 在构建与测试期间适配 React Flow 连线渲染入口。
+ */
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';

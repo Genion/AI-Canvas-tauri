@@ -1,3 +1,6 @@
+/**
+ * CanvasZoomRangeSettings — 提供画布缩放范围设置界面与交互。
+ */
 import { useId } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { useT } from '../../i18n';

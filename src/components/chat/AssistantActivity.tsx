@@ -1,3 +1,6 @@
+/**
+ * AssistantActivity — 提供助手运行状态界面与交互。
+ */
 interface AssistantActivityMarkProps {
   active?: boolean;
   className?: string;

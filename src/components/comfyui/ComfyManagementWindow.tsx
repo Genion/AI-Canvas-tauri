@@ -1,3 +1,6 @@
+/**
+ * ComfyManagementWindow — 提供ComfyUI 管理窗口界面与交互。
+ */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Icon } from '@iconify/react';
 import { setLocale, useT } from '../../i18n';

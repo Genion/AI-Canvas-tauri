@@ -1,3 +1,6 @@
+/**
+ * AssetImageBatchReverseDialog — 提供图片资产批量反推界面与交互。
+ */
 import { t, useT } from '../../i18n';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { Icon } from '@iconify/react';

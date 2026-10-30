@@ -1,3 +1,6 @@
+/**
+ * build — 在 Tauri 构建前核对原生命令与权限声明的一致性。
+ */
 use std::collections::BTreeSet;
 
 // 构建期防漂移：注册命令必须显式出现在应用权限中，不能靠修改 capability 临时放行。

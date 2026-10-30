@@ -1,3 +1,6 @@
+/**
+ * bridge — 定义 ComfyUI 嵌入页面的宿主桥接界面样式。
+ */
 :root {
   --ai-canvas-titlebar-height: var(--workflow-tabs-height, 36px);
   --ai-canvas-menu-height: var(--ai-canvas-titlebar-height);

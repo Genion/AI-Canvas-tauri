@@ -1,3 +1,6 @@
+/**
+ * ShotlistStoryboardDialog — 提供分镜宫格生成界面与交互。
+ */
 import { useEffect, useRef, useState } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { bindStoryboardCellToShot, describeStoryboardGrid } from '../../services/shotlistStoryboardService';

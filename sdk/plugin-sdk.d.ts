@@ -1,3 +1,6 @@
+/**
+ * plugin-sdk.d — 声明插件开发环境与宿主交互的类型。
+ */
 import type {
   NodePluginInvocationInput,
   NodePluginExecutionResult,

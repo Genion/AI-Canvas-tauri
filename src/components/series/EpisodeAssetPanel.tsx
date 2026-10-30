@@ -1,3 +1,6 @@
+/**
+ * EpisodeAssetPanel — 提供本集角色与道具清单界面与交互。
+ */
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Icon } from '@iconify/react';
 import { useShallow } from 'zustand/react/shallow';

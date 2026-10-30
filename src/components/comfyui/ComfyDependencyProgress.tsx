@@ -1,3 +1,6 @@
+/**
+ * ComfyDependencyProgress — 提供ComfyUI 依赖安装进度界面与交互。
+ */
 import { useT } from '../../i18n';
 import type { ComfyDependencyProgress as Progress } from '../../types/comfyManagement';
 

@@ -1,3 +1,6 @@
+/**
+ * CharacterDock — 提供角色快捷栏界面与交互。
+ */
 import { useCallback, useEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { animate, motion, useMotionValue, useReducedMotion } from 'framer-motion';

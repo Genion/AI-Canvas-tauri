@@ -1,3 +1,6 @@
+/**
+ * AiAppDialog — 提供AI 应用运行界面与交互。
+ */
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from '@iconify/react';
 import type { AiAppReference, AiAppUiSession, AiAppUiSnapshot } from '../../types/aiApp';

@@ -1,3 +1,6 @@
+/**
+ * RecentAssetsSection — 提供最近使用的资产界面与交互。
+ */
 import { t, useT } from '../../i18n';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from '@iconify/react';

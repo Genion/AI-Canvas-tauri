@@ -1,3 +1,6 @@
+/**
+ * PluginNode — 提供插件节点界面与交互。
+ */
 import Select from '../shared/Select';
 import { useT } from '../../i18n';
 import { Icon } from '@iconify/react';

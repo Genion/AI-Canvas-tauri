@@ -1,3 +1,6 @@
+/**
+ * ComfyModelDedupeGroup — 提供ComfyUI 重复模型分组界面与交互。
+ */
 import { useState } from 'react';
 import { Icon } from '@iconify/react';
 import { useT } from '../../i18n';

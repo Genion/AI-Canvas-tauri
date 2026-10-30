@@ -1,3 +1,6 @@
+/**
+ * canvasVideoPreviewCache — 管理画布视频就绪状态、封面与资源租约。
+ */
 import { afterVideoFramePresented } from '../../../../utils/videoSeek';
 import { getPerformanceModeBudget, subscribePerformanceMode } from '../../../../services/performanceModeRuntime';
 import { acquireComfyMediaSource, type ComfyMediaSourceLease } from '../../../../services/comfyMediaSource';

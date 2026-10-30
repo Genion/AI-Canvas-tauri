@@ -1,3 +1,6 @@
+/**
+ * CanvasPreviewImage — 提供画布节点图片显示界面与交互。
+ */
 import { memo, useContext, useEffect, useLayoutEffect, useRef, useState, type ImgHTMLAttributes } from 'react';
 import { useStoreApi } from '@xyflow/react';
 import { useAppStore } from '../../../../store/useAppStore';

@@ -1,3 +1,6 @@
+/**
+ * McpClientSettings — 提供外部 MCP 客户端设置界面与交互。
+ */
 import { useT } from '../../i18n';
 import { useState } from 'react';
 import { useAppStore } from '../../store/useAppStore';

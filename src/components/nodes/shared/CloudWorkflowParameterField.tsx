@@ -1,3 +1,6 @@
+/**
+ * CloudWorkflowParameterField — 提供云工作流参数字段界面与交互。
+ */
 import { useId, useState, type CSSProperties } from 'react';
 import {
   cloudWorkflowSliderTicks,

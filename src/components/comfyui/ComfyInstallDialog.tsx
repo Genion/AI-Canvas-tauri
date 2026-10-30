@@ -1,3 +1,6 @@
+/**
+ * ComfyInstallDialog — 提供ComfyUI 安装界面与交互。
+ */
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from '@iconify/react';
 import { useT } from '../../i18n';

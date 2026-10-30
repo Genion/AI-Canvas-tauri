@@ -1,9 +1,10 @@
-import { useT } from '../../i18n';
 /**
  * character/CharacterReferenceGallery — 角色参考图画廊。
  * 参考图按预览区高度等比排列为一行，超出宽度时横向滚动。
  * 支持选中、编辑、拖拽排序与裁剪预览，并向上汇报实际图片区域尺寸。
  */
+import { useT } from '../../i18n';
+
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, useMotionValue } from 'framer-motion';

@@ -1,3 +1,6 @@
+/**
+ * DramaAssetImportDialog — 提供短剧资产导入界面与交互。
+ */
 import { useId, useMemo, useState } from 'react';
 import { useT } from '../../i18n';
 import { DRAMA_ASSET_CATEGORY_LABEL } from '../../types/dramaAssets';
