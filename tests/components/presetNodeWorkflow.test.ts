@@ -1,3 +1,6 @@
+/**
+ * presetNodeWorkflow — 回归用例：createPresetNode 派生 ComfyUI 工作流节点；双面部特写预设沿用原快捷指令 ID，并将横版源图切换为 4:5 竖幅；%s 的快捷指令创建 %s 生成节点，同时保留原始素材。
+ */
 import { describe, expect, it } from 'vitest';
 import { createPresetNode, resolveEffectiveModel, resolvePresetAction, resolvePresetDef } from '../../src/components/nodes/shared/toolbar/presetAction';
 import type { BaseNodeData } from '../../src/types';
@@ -23,10 +26,12 @@ it('双面部特写预设沿用原快捷指令 ID，并将横版源图切换为 
   expect(action!.shouldTrigger).toBe(true);
   expect(action!.filledPrompt).toContain('上二下三的两排布局');
   expect(action!.filledPrompt).toContain('正面面部特写、侧面面部特写');
-  expect(action!.filledPrompt).toContain('正面身体图、90度侧面身体图、背面身体图');
-  expect(action!.filledPrompt).toContain('下排左列（正面）：只展示颈部到脚底');
-  expect(action!.filledPrompt).toContain('下排中列（侧面）：90度正侧面，同样只展示颈部到脚底');
-  expect(action!.filledPrompt).toContain('下排右列（背面）：背面保留完整头部，头顶到脚底完整入画');
+  expect(action!.filledPrompt).toContain('正面、严格90度侧面、背面身体图');
+  expect(action!.filledPrompt).toContain('下排三列统一从颈根裁切至脚底');
+  expect(action!.filledPrompt).toContain('背面同样不显示头部，不转头露出侧脸');
+  expect(action!.filledPrompt).toContain('同一高度、距离和缩放下原地转向');
+  expect(action!.filledPrompt).toContain('以五视图布局、白色或浅灰背景、指定裁切和下排等比例对齐为准');
+  expect(action!.filledPrompt).not.toContain('背面保留完整头部');
   expect(action!.filledPrompt).not.toContain('下排三张只展示肩部到脚底');
   expect(action!.filledPrompt).toContain('参考人物穿棕色外套');
   const { node, edge } = createPresetNode(source({

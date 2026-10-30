@@ -17,8 +17,8 @@ import {
   createShotRow,
 } from '../types/shotlist';
 
-/** 媒体列之外才是模型能填写的字段。 */
-type ShotTextColumn = Exclude<ShotlistColumnKey, 'frame' | 'video'>;
+/** 媒体引用和结构化摄影设置不作为模型填写的文字列。 */
+type ShotTextColumn = Exclude<ShotlistColumnKey, 'frame' | 'video' | 'cinematography'>;
 
 /** 每列告诉模型该填什么。键名直接用列 key，返回的 JSON 就能对号入座 */
 const COLUMN_SPECS: Record<ShotTextColumn, string> = {
@@ -39,7 +39,7 @@ const COLUMN_SPECS: Record<ShotTextColumn, string> = {
  */
 export function buildShotlistGenerationPrompt(request: string, columns: ShotlistColumnKey[]): string {
   const fields = columns
-    .filter((key): key is ShotTextColumn => key !== 'frame' && key !== 'video')
+    .filter((key): key is ShotTextColumn => key !== 'frame' && key !== 'video' && key !== 'cinematography')
     .map((key) => `- ${key}（${SHOTLIST_COLUMN_LABELS[key]}）：${COLUMN_SPECS[key]}`);
   return [
     '你是分镜师。按下面的需求拆出一份逐镜清单。',
@@ -112,6 +112,6 @@ export function carryOverShotFrames(previous: ShotRow[], generated: ShotRow[]): 
   return generated.map((row) => {
     const existing = unique.get(row.shotNo.trim());
     return existing && generatedCounts.get(row.shotNo.trim()) === 1
-      ? { ...row, id: existing.id, frame: existing.frame, video: existing.video } : row;
+      ? { ...row, id: existing.id, frame: existing.frame, video: existing.video, cinematography: existing.cinematography } : row;
   });
 }

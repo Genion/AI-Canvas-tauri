@@ -1,3 +1,6 @@
+/**
+ * shotlistGenerate — 回归用例：分镜表出题；摄影配置不作为文字列出题，镜头运镜仍可由模型填写；只问表上显示的文字列，不问参考画面或生成视频列。
+ */
 import { describe, expect, it } from 'vitest';
 import {
   buildShotlistGenerationPrompt,
@@ -8,6 +11,16 @@ import { DEFAULT_SHOT_DURATION, createShotRow, resolveShotlistColumns } from '..
 import type { ShotRow } from '../../src/types/shotlist';
 
 describe('分镜表出题', () => {
+  it('摄影配置不作为文字列出题，镜头运镜仍可由模型填写', () => {
+    const prompt = buildShotlistGenerationPrompt('拆第一集', resolveShotlistColumns(['camera', 'cinematography']));
+    expect(prompt).toContain('- camera（运镜）');
+    expect(prompt).not.toContain('cinematography');
+    const existing = { ...createShotRow('stable', '1'), cinematography: { lensId: 'cooke-s4', focalLengthMm: 35 } };
+    const [regenerated] = carryOverShotFrames([existing], [createShotRow('new', '1')]);
+    expect(regenerated.cinematography).toEqual(existing.cinematography);
+    expect(regenerated.id).toBe('stable');
+  });
+
   it('只问表上显示的文字列，不问参考画面或生成视频列', () => {
     const prompt = buildShotlistGenerationPrompt('拆第一集', resolveShotlistColumns(undefined));
     expect(prompt).toContain('拆第一集');

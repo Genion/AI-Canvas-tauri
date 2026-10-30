@@ -1,3 +1,6 @@
+/**
+ * mentionEditorTextSelection — 回归用例：引用编辑器的原文选区；胶囊显示名与令牌长度不同时，后续文字仍按原文定位，保留换行并忽略落点；选中令牌内部时扩到完整胶囊，格式工具不会按显示文字切断身份。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readMentionTextSelection, selectMentionText } from '../../src/components/nodes/shared/mentionEditorTextSelection';
 import { serializeDOM, ZWSP } from '../../src/components/nodes/shared/mentionEditorDom';
@@ -7,7 +10,16 @@ class TestNode {
   childNodes: TestNode[] = [];
   ownerDocument: TestDocument = doc;
   focus = vi.fn();
-  constructor(public nodeType: number, public tagName = '', private text = '', public attrs: Record<string, string> = {}) {}
+  nodeType: number;
+  tagName: string;
+  private text: string;
+  attrs: Record<string, string>;
+  constructor(nodeType: number, tagName = '', text = '', attrs: Record<string, string> = {}) {
+    this.nodeType = nodeType;
+    this.tagName = tagName;
+    this.text = text;
+    this.attrs = attrs;
+  }
   get textContent(): string { return this.nodeType === 3 ? this.text : this.childNodes.map((node) => node.textContent).join(''); }
   getAttribute(name: string) { return this.attrs[name] ?? null; }
   hasAttribute(name: string) { return name in this.attrs; }
