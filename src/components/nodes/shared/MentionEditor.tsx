@@ -25,6 +25,7 @@ import { useDialogFocus } from '../../../hooks/useDialogFocus';
 import { useComfyDomImageSources } from '../../../hooks/useComfyDomImageSources';
 import { useComfyImageSource } from '../../../hooks/useComfyImageSource';
 import { findDraggableMentionChip, startMentionChipDrag } from './mentionEditorChipDrag';
+import { readMentionTextSelection, selectMentionText } from './mentionEditorTextSelection';
 import {
   captureMentionEditorSelection,
   captureMentionEditorSnapshot,
@@ -141,6 +142,10 @@ export interface MentionEditorProps {
 // ── 暴露给上层的命令式接口（在当前光标处插入节点引用芯片）──
 export interface MentionEditorHandle {
   insertMentionAtCursor: (id: string, label: string) => void;
+  /** 供共用文档工具栏调用；偏移按序列化原文计算。 */
+  textInput?: Pick<HTMLTextAreaElement, 'selectionStart' | 'selectionEnd' | 'focus' | 'setSelectionRange'>;
+  /** 父弹窗收到 Escape 时优先收起引用菜单。 */
+  dismissMenu?: () => boolean;
 }
 
 // ── Cursor save/restore ──
@@ -290,6 +295,21 @@ const MentionEditor = forwardRef<MentionEditorHandle, MentionEditorProps>(functi
   const composingRef = useRef(false);
   const [compositionRevision, setCompositionRevision] = useState(0);
   const savedMentionRangeRef = useRef<Range | null>(null);
+  const textInputActiveRef = useRef(false);
+  const textInputSelectionRef = useRef<{ start: number; end: number } | null>(null);
+  const rememberTextInputSelection = useCallback(() => {
+    const root = editorRef.current;
+    if (!textInputActiveRef.current || !root) return;
+    const selection = readMentionTextSelection(root);
+    if (selection) textInputSelectionRef.current = selection;
+  }, []);
+  const textInputSelection = useCallback(() => {
+    textInputActiveRef.current = true;
+    rememberTextInputSelection();
+    const length = editorRef.current ? serializeDOM(editorRef.current).length : 0;
+    const saved = textInputSelectionRef.current;
+    return saved ? { start: Math.min(saved.start, length), end: Math.min(saved.end, length) } : { start: length, end: length };
+  }, [rememberTextInputSelection]);
   const replacementChipRef = useRef<MentionChipTarget | null>(null);
   const [chipMenu, setChipMenu] = useState<{ target: MentionChipTarget; x: number; y: number } | null>(null);
   const selectFirstMentionRef = useRef<(() => void) | null>(null);
@@ -405,6 +425,7 @@ const MentionEditor = forwardRef<MentionEditorHandle, MentionEditorProps>(functi
     const ownerChanged = owner.projectId !== currentProjectId || owner.nodeId !== nodeId;
     if (ownerChanged) {
       composingRef.current = false;
+      textInputSelectionRef.current = null;
       savedMentionRangeRef.current = null;
       replacementChipRef.current = null;
       setChipMenu(null);
@@ -850,6 +871,29 @@ const MentionEditor = forwardRef<MentionEditorHandle, MentionEditorProps>(functi
 
   // 暴露命令式插入：在当前光标处插入引用芯片；若编辑器内无有效光标则落到末尾
   useImperativeHandle(ref, () => ({
+    dismissMenu: () => {
+      if (!showMention && !chipMenu) return false;
+      replacementChipRef.current = null;
+      setShowMention(false);
+      setChipMenu(null);
+      editorRef.current?.focus({ preventScroll: true });
+      return true;
+    },
+    textInput: {
+      get selectionStart() { return textInputSelection().start; },
+      get selectionEnd() { return textInputSelection().end; },
+      focus: (options?: FocusOptions) => {
+        textInputActiveRef.current = true;
+        editorRef.current?.focus(options);
+      },
+      setSelectionRange: (start: number, end: number) => {
+        const root = editorRef.current;
+        if (!root) return;
+        textInputActiveRef.current = true;
+        selectMentionText(root, start, end);
+        rememberTextInputSelection();
+      },
+    },
     insertMentionAtCursor: (id: string, label: string) => {
       if (disabledRef.current) return;
       const el = editorRef.current;
@@ -905,7 +949,7 @@ const MentionEditor = forwardRef<MentionEditorHandle, MentionEditorProps>(functi
       }
       insertChipAtCursor(id, label);
     },
-  }), [insertChipAtCursor, emitDOM, nodeMetaMap]);
+  }), [insertChipAtCursor, emitDOM, nodeMetaMap, textInputSelection, rememberTextInputSelection, showMention, chipMenu]);
 
   // ── Insert a workflow IO chip ──
   const insertWorkflowChipAtCursor = useCallback(
@@ -2195,6 +2239,8 @@ const MentionEditor = forwardRef<MentionEditorHandle, MentionEditorProps>(functi
           setCompositionRevision((revision) => revision + 1);
         }}
         onKeyDown={handleKeyDown}
+        onKeyUp={rememberTextInputSelection}
+        onMouseUp={rememberTextInputSelection}
         onPaste={handlePaste}
         onContextMenu={handleChipContextMenu}
         onPointerDown={handleChipPointerDown}
@@ -2216,6 +2262,7 @@ const MentionEditor = forwardRef<MentionEditorHandle, MentionEditorProps>(functi
           onFocus?.();
         }}
         onBlur={() => {
+          rememberTextInputSelection();
           const wasComposing = composingRef.current;
           composingRef.current = false;
           emitDOM();

@@ -4,6 +4,12 @@ import { renderMarkdown } from '../../utils/renderMarkdown';
 import { useT } from '../../i18n';
 import { useComfyDomImageSources } from '../../hooks/useComfyDomImageSources';
 
+export type MarkdownTextInput = Pick<HTMLTextAreaElement, 'selectionStart' | 'selectionEnd' | 'focus' | 'setSelectionRange'>;
+export interface MarkdownSourceEditor {
+  render: (props: { value: string; onChange: (value: string) => void; onBlur?: () => void; readOnly: boolean; label: string }) => ReactNode;
+  getInput: () => MarkdownTextInput | null;
+}
+
 export interface MarkdownEditorProps {
   value: string;
   onChange: (value: string) => void;
@@ -16,6 +22,8 @@ export interface MarkdownEditorProps {
   status?: string;
   /** 仅替换预览面；源码、查找及编辑历史继续使用原始 value。 */
   renderPreview?: (value: string, markdown: boolean) => ReactNode;
+  /** 可选正文适配器；选区使用原文偏移，数据来源和引用权限仍由宿主管理。 */
+  sourceEditor?: MarkdownSourceEditor;
 }
 
 const FORMAT_TOOLS = [
@@ -32,7 +40,7 @@ const FORMAT_TOOLS = [
 ];
 
 /** UI Kit 受控编辑器：不读取文件、不访问 Store，保存策略由宿主决定。 */
-export default function MarkdownEditor({ value, onChange, markdown = true, initialMode = 'split', label: customLabel, readOnly = false, onSave, onBlur, status, renderPreview }: MarkdownEditorProps) {
+export default function MarkdownEditor({ value, onChange, markdown = true, initialMode = 'split', label: customLabel, readOnly = false, onSave, onBlur, status, renderPreview, sourceEditor }: MarkdownEditorProps) {
   const t = useT();
   const label = customLabel ?? t('文档内容');
   const [mode, setMode] = useState(initialMode);
@@ -42,6 +50,7 @@ export default function MarkdownEditor({ value, onChange, markdown = true, initi
   const [notice, setNotice] = useState('');
   const [history, setHistory] = useState({ values: [value], index: 0 });
   const textarea = useRef<HTMLTextAreaElement>(null);
+  const sourceRoot = useRef<HTMLDivElement>(null);
   const previewRoot = useRef<HTMLDivElement>(null);
   useComfyDomImageSources(previewRoot);
   const findInput = useRef<HTMLInputElement>(null);
@@ -49,6 +58,7 @@ export default function MarkdownEditor({ value, onChange, markdown = true, initi
   const html = useMemo(() => markdown && !renderPreview ? renderMarkdown(deferred) : '', [deferred, markdown, renderPreview]);
   // 宿主切换文档或重新载入时，不把旧文档撤销栈带到新内容。
   if (history.values[history.index] !== value) setHistory({ values: [value], index: 0 });
+  const input = () => sourceEditor?.getInput() ?? textarea.current;
 
   const change = (next: string) => {
     if (readOnly || next === value) return;
@@ -67,18 +77,18 @@ export default function MarkdownEditor({ value, onChange, markdown = true, initi
   };
   const select = (start: number, end: number) => {
     setMode((current) => current === 'preview' ? 'source' : current);
-    requestAnimationFrame(() => { textarea.current?.focus(); textarea.current?.setSelectionRange(start, end); });
+    requestAnimationFrame(() => { input()?.focus(); input()?.setSelectionRange(start, end); });
   };
   const insert = (before: string, after = '', fallback = '') => {
-    const start = textarea.current?.selectionStart ?? value.length;
-    const end = textarea.current?.selectionEnd ?? start;
+    const start = input()?.selectionStart ?? value.length;
+    const end = input()?.selectionEnd ?? start;
     const selected = value.slice(start, end) || fallback;
     change(value.slice(0, start) + before + selected + after + value.slice(end));
     select(start + before.length, start + before.length + selected.length);
   };
   const prefixLines = (prefix: string) => {
-    const start = value.lastIndexOf('\n', (textarea.current?.selectionStart ?? value.length) - 1) + 1;
-    const cursorEnd = textarea.current?.selectionEnd ?? value.length;
+    const start = value.lastIndexOf('\n', (input()?.selectionStart ?? value.length) - 1) + 1;
+    const cursorEnd = input()?.selectionEnd ?? value.length;
     const nextBreak = value.indexOf('\n', cursorEnd);
     const end = nextBreak < 0 ? value.length : nextBreak;
     const block = value.slice(start, end).split('\n').map((line) => prefix + line).join('\n');
@@ -86,7 +96,7 @@ export default function MarkdownEditor({ value, onChange, markdown = true, initi
   };
   const find = () => {
     if (!query) return;
-    const from = textarea.current?.selectionEnd ?? 0;
+    const from = input()?.selectionEnd ?? 0;
     let index = value.indexOf(query, from);
     if (index < 0) index = value.indexOf(query);
     setNotice(index < 0 ? t('未找到匹配内容') : t('已定位匹配内容'));
@@ -98,28 +108,29 @@ export default function MarkdownEditor({ value, onChange, markdown = true, initi
       const parts = value.split(query);
       change(parts.join(replacement)); setNotice(t('已替换 {count} 处', { count: parts.length - 1 }));
     } else {
-      const start = textarea.current?.selectionStart ?? 0;
-      const end = textarea.current?.selectionEnd ?? 0;
+      const start = input()?.selectionStart ?? 0;
+      const end = input()?.selectionEnd ?? 0;
       if (value.slice(start, end) !== query) { find(); return; }
       change(value.slice(0, start) + replacement + value.slice(end)); select(start, start + replacement.length);
     }
   };
   const openFind = () => { setFindOpen(true); requestAnimationFrame(() => findInput.current?.focus()); };
   const keyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
+    if (event.defaultPrevented || event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
+    const inSource = event.target === textarea.current || !!sourceRoot.current?.contains(event.target as Node);
     const key = event.key.toLowerCase();
     if (event.ctrlKey || event.metaKey) {
       if (key === 's' && onSave) { event.preventDefault(); event.stopPropagation(); onSave(); }
       else if (key === 'f') { event.preventDefault(); event.stopPropagation(); openFind(); }
-      else if (event.target === textarea.current && (key === 'z' || key === 'y')) {
+      else if (inSource && (key === 'z' || key === 'y')) {
         event.preventDefault(); event.stopPropagation(); undo(key === 'y' || event.shiftKey ? 1 : -1);
-      } else if (markdown && !readOnly && event.target === textarea.current && ['b', 'i', 'k'].includes(key)) {
+      } else if (markdown && !readOnly && inSource && ['b', 'i', 'k'].includes(key)) {
         event.preventDefault(); event.stopPropagation();
         if (key === 'b') insert('**', '**', t('粗体'));
         if (key === 'i') insert('*', '*', t('斜体'));
         if (key === 'k') insert('[', '](https://)', t('链接文字'));
       }
-    } else if (event.key === 'Tab' && !event.shiftKey && event.target === textarea.current && !readOnly) {
+    } else if (event.key === 'Tab' && !event.shiftKey && inSource && !readOnly) {
       event.preventDefault(); insert('  ');
     }
   };
@@ -135,7 +146,8 @@ export default function MarkdownEditor({ value, onChange, markdown = true, initi
     if (icon === 'lucide:code') insert('\n```\n', '\n```\n', t('代码'));
     if (icon === 'lucide:table') insert(t('\n| 列一 | 列二 |\n| --- | --- |\n| 内容 | 内容 |\n'));
   };
-  return <div ref={previewRoot} className="ui-markdown-editor nodrag nowheel" onKeyDown={keyDown}>
+  return <div ref={previewRoot} className="ui-markdown-editor nodrag nowheel" onKeyDown={keyDown}
+    onKeyDownCapture={sourceEditor ? keyDown : undefined}>
     <div className="ui-markdown-editor__toolbar" role="toolbar" aria-label={t('文档编辑工具')}>
       <div className="flex items-center gap-1" role="group" aria-label={t('显示方式')}>
         {(['source', 'preview', ...(markdown ? ['split'] as const : [])] as const).map((item) => <button key={item} type="button"
@@ -162,8 +174,10 @@ export default function MarkdownEditor({ value, onChange, markdown = true, initi
       {notice && <span role="status" className="text-xs text-canvas-text-secondary">{notice}</span>}
     </div>}
     <div className={`ui-markdown-editor__body${mode === 'split' && markdown ? ' is-split' : ''}`}>
-      {mode !== 'preview' && <textarea ref={textarea} className="ui-markdown-editor__source text-selection-source" aria-label={label} value={value} readOnly={readOnly}
-        onChange={(event) => change(event.target.value)} onBlur={onBlur} spellCheck={false} placeholder={markdown ? t('# 开始写作') : t('输入文本…')} />}
+      {mode !== 'preview' && (sourceEditor ? <div ref={sourceRoot} className="ui-markdown-editor__source">
+        {sourceEditor.render({ value, onChange: change, onBlur, readOnly, label })}
+      </div> : <textarea ref={textarea} className="ui-markdown-editor__source text-selection-source" aria-label={label} value={value} readOnly={readOnly}
+        onChange={(event) => change(event.target.value)} onBlur={onBlur} spellCheck={false} placeholder={markdown ? t('# 开始写作') : t('输入文本…')} />)}
       {mode !== 'source' && (renderPreview ? <div className={`ui-markdown-editor__preview${markdown ? ' markdown-rendered' : ''}`} aria-label={markdown ? t('Markdown 预览') : t('正文预览')} tabIndex={0}>{renderPreview(deferred, markdown)}</div>
         : markdown ? <div className="ui-markdown-editor__preview markdown-rendered" aria-label={t('Markdown 预览')} tabIndex={0} dangerouslySetInnerHTML={{ __html: html || `<p>${t('暂无内容')}</p>` }} />
         : <pre className="ui-markdown-editor__preview" tabIndex={0}>{value || t('暂无内容')}</pre>)}

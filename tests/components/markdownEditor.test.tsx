@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createElement } from 'react';
+import type { MarkdownSourceEditor } from '../../src/components/shared/MarkdownEditor';
 
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], stateIndex: 0,
@@ -71,5 +73,85 @@ describe('MarkdownEditor 查找输入法边界', () => {
     expect(event.preventDefault).toHaveBeenCalledOnce();
     expect(source.focus).toHaveBeenCalledOnce(); expect(source.setSelectionRange).toHaveBeenCalledWith(2, 4);
     expect(tree.some((node) => node.props.children === '已定位匹配内容')).toBe(true);
+  });
+});
+
+function customSource(readOnly = false) {
+  hooks.states = []; hooks.refs = []; frames = [];
+  let value = '前文 @{image-id:参考图} 后文';
+  let tree: ElementLike[] = [];
+  const target = {};
+  const textInput = { selectionStart: value.indexOf('@{'), selectionEnd: value.indexOf(' 后文'), focus: vi.fn(), setSelectionRange: vi.fn() };
+  const onChange = vi.fn((next: string) => { value = next; });
+  const sourceEditor: MarkdownSourceEditor = {
+    getInput: () => textInput,
+    render: (props) => createElement('test-source', props),
+  };
+  function render() {
+    hooks.stateIndex = hooks.refIndex = 0;
+    tree = elements(MarkdownEditor({ value, onChange, sourceEditor, readOnly, initialMode: 'source' }));
+    tree.forEach((node) => {
+      if (node.props.ref && node.props.className === 'ui-markdown-editor__source') node.props.ref.current = { contains: (item: unknown) => item === target };
+      if (node.props.ref && node.type === 'input') node.props.ref.current = search;
+    });
+  }
+  render();
+  return { render, textInput, onChange, target, value: () => value,
+    source: () => tree.find((node) => node.type === 'test-source')!,
+    root: () => tree.find((node) => node.props.className === 'ui-markdown-editor nodrag nowheel')!,
+    control: (label: string) => tree.find((node) => node.props['aria-label'] === label)!,
+    openFind: () => invoke(tree.find((node) => node.type === 'button' && node.props['aria-expanded'] === false)!, 'onClick'),
+  };
+}
+
+describe('MarkdownEditor 可选引用正文', () => {
+  it('格式工具沿用原始选区，包围完整引用令牌并恢复光标', () => {
+    const view = customSource();
+    const { selectionStart: start, selectionEnd: end } = view.textInput;
+    invoke(view.control('粗体（Ctrl+B）'), 'onClick');
+    view.render(); flushFrames();
+    expect(view.value()).toBe('前文 **@{image-id:参考图}** 后文');
+    expect(view.textInput.focus).toHaveBeenCalledOnce();
+    expect(view.textInput.setSelectionRange).toHaveBeenCalledWith(start + 2, end + 2);
+  });
+
+  it('引用插入后的正文沿用同一套工具栏撤销和重做', () => {
+    const view = customSource();
+    const original = view.value();
+    invoke(view.source(), 'onChange', `${original} @drama{character:人物}`);
+    view.render();
+    invoke(view.control('撤销'), 'onClick'); view.render();
+    expect(view.value()).toBe(original);
+    invoke(view.control('重做'), 'onClick'); view.render();
+    expect(view.value()).toBe(`${original} @drama{character:人物}`);
+  });
+
+  it('查找使用引用之后的原文偏移，正文适配器保持可编辑', () => {
+    const view = customSource();
+    const start = view.value().indexOf('后文');
+    view.openFind(); view.render(); flushFrames();
+    invoke(view.control('查找内容'), 'onChange', { target: { value: '后文' } }); view.render();
+    const input = view.control('查找内容');
+    invoke(input, 'onKeyDown', enter()); view.render(); flushFrames();
+    expect(view.textInput.setSelectionRange).toHaveBeenCalledWith(start, start + 2);
+    expect(view.source().props.readOnly).toBe(false);
+  });
+
+  it('捕获引用编辑器的格式快捷键，避免被其内部历史重复处理', () => {
+    const view = customSource();
+    const event = { key: 'b', ctrlKey: true, target: view.target, nativeEvent: { isComposing: false },
+      preventDefault: vi.fn(), stopPropagation: vi.fn() };
+    invoke(view.root(), 'onKeyDownCapture', event);
+    expect(event.preventDefault).toHaveBeenCalledOnce();
+    expect(event.stopPropagation).toHaveBeenCalledOnce();
+    expect(view.value()).toBe('前文 **@{image-id:参考图}** 后文');
+  });
+
+  it('只读适配器拒绝正文变更，不改变原查看器的权限边界', () => {
+    const view = customSource(true);
+    invoke(view.source(), 'onChange', '不可写');
+    expect(view.source().props.readOnly).toBe(true);
+    expect(view.onChange).not.toHaveBeenCalled();
+    expect(view.control('粗体（Ctrl+B）').props.disabled).toBe(true);
   });
 });

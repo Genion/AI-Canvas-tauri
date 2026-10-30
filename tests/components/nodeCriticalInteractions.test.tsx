@@ -845,6 +845,42 @@ describe('critical canvas node interactions', () => {
     expect(store.commitToHistory).toHaveBeenCalledOnce();
   });
 
+  it.each([['content', '内容'], ['dialogue', '台词']])('opens the full field editor for %s while chip double-click keeps preview behavior', async (field, label) => {
+    const { tree, store, setters } = await setupShotlistWidths(undefined, [{
+      id: 'row-1', shotNo: '1', content: '镜头内容', dialogue: '台词内容', duration: 3,
+    }]);
+    const cell = findElement(tree, (element) => element.props.className === 'ui-input-group shot-input nodrag nowheel'
+      && (element.props.children as ElementLike)?.props?.ariaLabel === label);
+    const event = { stopPropagation: vi.fn(), target: { closest: vi.fn(() => null) } };
+    (cell.props.onDoubleClick as (event: unknown) => void)(event);
+    expect(event.stopPropagation).toHaveBeenCalledOnce();
+    expect(setters.some((setter) => setter.mock.calls.some(([value]) => value?.rowId === 'row-1'
+      && value?.field === field && value?.projectId === 'project-a'))).toBe(true);
+    expect(store.commitToHistory).toHaveBeenCalledOnce();
+    (cell.props.onDoubleClick as (event: unknown) => void)({ ...event, target: { closest: () => ({}) } });
+    expect(store.commitToHistory).toHaveBeenCalledOnce();
+    const editor = cell.props.children as ElementLike;
+    expect(editor.props).toMatchObject({ nodeId: 'shotlist', ariaLabel: label, portalDropdown: true, canSubmit: false });
+    const shortcut = { altKey: true, key: 'Enter', nativeEvent: { isComposing: true, keyCode: 229 }, preventDefault: vi.fn(), stopPropagation: vi.fn() };
+    (cell.props.onKeyDownCapture as (event: unknown) => void)(shortcut);
+    expect(store.commitToHistory).toHaveBeenCalledOnce();
+    (cell.props.onKeyDownCapture as (event: unknown) => void)({ ...shortcut, nativeEvent: { isComposing: false, keyCode: 13 } });
+    expect(shortcut.preventDefault).toHaveBeenCalledOnce();
+    expect(shortcut.stopPropagation).toHaveBeenCalledOnce();
+    expect(store.commitToHistory).toHaveBeenCalledTimes(2);
+  });
+
+  it('edits dialogue through the shared reference editor without changing shot content', async () => {
+    const { tree, store } = await setupShotlistWidths(undefined, [{
+      id: 'row-1', shotNo: '1', content: '保留画面内容', dialogue: '原台词', duration: 3,
+    }]);
+    const editor = findElement(tree, (element) => element.props.ariaLabel === '台词' && element.props.portalDropdown === true);
+    (editor.props.onChange as (value: string) => void)('角色 @drama{character-1:人物}：新台词');
+    expect(store.nodes[0].data.shotlistRows).toEqual([{
+      id: 'row-1', shotNo: '1', content: '保留画面内容', dialogue: '角色 @drama{character-1:人物}：新台词', duration: 3,
+    }]);
+  });
+
   it('keeps custom shotlist options editable and stores real values when selecting UI Kit presets', async () => {
     const { tree, store } = await setupShotlistWidths(undefined, [{
       id: 'row-1', shotNo: '1', shotSize: '特写', camera: '手持跟拍并轻微晃动', duration: 3,

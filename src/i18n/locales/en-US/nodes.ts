@@ -1384,6 +1384,8 @@ const nodes = {
   "原节点提示词＋步骤参考": "Source prompt + step references",
   "填写运行参数后新建各步骤节点；模板输入取原节点提示词，各步按设置引用原节点或上一步结果，第一步始终引用原节点。": "After parameters are entered, creates a node for each step. Templates use the source node's prompt. Each step references the source or previous result as configured; the first step always references the source.",
   "取值：{source}": "Input: {source}",
+  "编辑后自动保存": "Changes are saved automatically",
+  "镜头内容已变化，请关闭后重新打开": "The shot has changed. Close and reopen the editor.",
   "六格线稿分镜": "Six-panel line-art storyboard",
   "黑白铅笔线稿、彩色调度箭头与镜号批注 · 16:9": "Black-and-white pencil lines, colored blocking arrows and shot notes · 16:9",
 };

@@ -10,7 +10,7 @@
  * 画面有三种来源：把素材节点拖进格子、从连线进来的节点里挑、直接叫 AI 生成
  * （生成出的图仍然是画布上一个正常的图像节点，表里只存引用）。
  */
-import { memo, useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
+import { lazy, memo, Suspense, useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '@iconify/react';
 import { Handle, Position, useReactFlow } from '@xyflow/react';
@@ -60,6 +60,8 @@ import ViewportImage from '../shared/ViewportImage';
 import { hasShotlistTimeline, openVideoEditorForShotlist, resolveShotlistTimelineRows, resolveShotlistVoiceoverNodes } from '../../services/videoEditorService';
 import { completeCanvasDerivation, isCanvasDerivationFresh, registerCanvasDerivation } from '../../services/canvasDerivationGuard';
 
+const ShotlistFieldEditor = lazy(() => import('./ShotlistFieldEditor'));
+
 /** 画面格实时解析出的素材 */
 interface ResolvedFrame {
   url?: string;
@@ -83,7 +85,7 @@ interface ResolvedShotVideo {
   dangling: boolean;
 }
 
-/** 多行文本列；内容列另外复用节点提示词的引用编辑器。 */
+/** 多行文本列；内容和台词复用节点提示词的引用编辑器。 */
 const TEXT_COLUMNS: ShotlistColumnKey[] = ['content', 'dialogue', 'audio', 'note'];
 
 const MEDIA_COLUMN_WIDTH = 96;
@@ -185,7 +187,6 @@ function ShotlistNode({ id, data, selected }: { id: string; data: BaseNodeData; 
   const { displayLabel, handleRename } = useNodeRename(id, data, t('分镜表'));
 
   const [isFullscreen, setIsFullscreen] = useState(false);
-  useCanvasNodeLodProtection(id, isFullscreen);
   const [columnMenuRequested, setColumnMenuRequested] = useState(false);
   const [dragRowId, setDragRowId] = useState<string | null>(null);
   const columnMenuRef = useRef<HTMLDivElement>(null);
@@ -225,6 +226,10 @@ function ShotlistNode({ id, data, selected }: { id: string; data: BaseNodeData; 
   const [includeVoiceovers, setIncludeVoiceovers] = useState(false);
   const [timelineBusy, setTimelineBusy] = useState(false);
   const [customOptionCells, setCustomOptionCells] = useState<string[]>([]);
+  const [fieldEditor, setFieldEditor] = useState<{ rowId: string; field: 'content' | 'dialogue'; projectId: string | undefined } | null>(null);
+  if (fieldEditor && fieldEditor.projectId !== currentProjectId) setFieldEditor(null);
+  useCanvasNodeLodProtection(id, isFullscreen || !!fieldEditor);
+  const closeFieldEditor = useCallback(() => setFieldEditor(null), []);
   const numberScrubbingRef = useRef(false);
   const timelineRunning = useRef(false);
   const episodeScript = useAppStore((state) => state.projects.find((project) => project.id === data.shotlistScriptSource?.episodeId)?.episodeScript);
@@ -786,15 +791,30 @@ function ShotlistNode({ id, data, selected }: { id: string; data: BaseNodeData; 
       );
     }
 
-    if (column === 'content') {
+    if (column === 'content' || column === 'dialogue') {
+      const openFieldEditor = () => {
+        if ((useAppStore.getState().currentProjectId ?? undefined) !== currentProjectId) return;
+        commitToHistory();
+        setFieldEditor({ rowId: row.id, field: column, projectId: currentProjectId });
+      };
       return (
-        <div className="ui-input-group shot-input nodrag nowheel" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="ui-input-group shot-input nodrag nowheel" onMouseDown={(event) => event.stopPropagation()}
+          title={t('双击编辑内容')}
+          onDoubleClick={(event) => {
+            event.stopPropagation();
+            if (!(event.target as Element).closest('.prompt-chip')) openFieldEditor();
+          }}
+          onKeyDownCapture={(event) => {
+            if (event.altKey && event.key === 'Enter' && !event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) {
+              event.preventDefault(); event.stopPropagation(); openFieldEditor();
+            }
+          }}>
           <MentionEditor
             nodeId={id}
-            value={row.content ?? ''}
-            onChange={(content) => patchRow(row.id, { content })}
+            value={row[column] ?? ''}
+            onChange={(value) => patchRow(row.id, { [column]: value })}
             onBlur={commitToHistory}
-            ariaLabel={t(SHOTLIST_COLUMN_LABELS.content)}
+            ariaLabel={t(SHOTLIST_COLUMN_LABELS[column])}
             portalDropdown
             placeholder=""
             canSubmit={false}
@@ -1041,6 +1061,10 @@ function ShotlistNode({ id, data, selected }: { id: string; data: BaseNodeData; 
       {revisionOpen && <ShotlistRevisionDialog nodeId={id} onClose={() => setRevisionOpen(false)} />}
       {production && <ShotlistProductionDialog nodeId={id} rowId={production.rowId} onClose={() => setProduction(null)} />}
       {storyboardRowId && <ShotlistStoryboardDialog nodeId={id} rowId={storyboardRowId} onClose={() => setStoryboardRowId(null)} />}
+      {fieldEditor && fieldEditor.projectId === currentProjectId && <Suspense fallback={null}>
+        <ShotlistFieldEditor key={`${fieldEditor.projectId}:${id}:${fieldEditor.rowId}:${fieldEditor.field}`} nodeId={id}
+          rowId={fieldEditor.rowId} field={fieldEditor.field} projectId={fieldEditor.projectId} onClose={closeFieldEditor} />
+      </Suspense>}
       <div className={`node shotlist-node ${selected ? 'selected' : ''}`} style={{ height: nodeHeight }}
         onDoubleClick={(event) => {
           event.stopPropagation();
