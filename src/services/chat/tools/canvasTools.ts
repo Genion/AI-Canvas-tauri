@@ -928,7 +928,7 @@ async function executeCanvasCommand(
  * 布局排布和真正落库的节点共用这里，两边尺寸必须一致，否则会算错碰撞。
  */
 function getNodeDimensions(input: CreateNodeInput): { width: number; height: number } {
-  if (input.type === 'ai-shotlist') return { width: 800, height: 400 };
+  if (input.type === 'ai-shotlist') return { width: 1280, height: 640 };
   if (input.type === 'ai-video') {
     const dimensions = videoNodeDimensionsForAspectRatio(input.aspectRatio, DEFAULT_NODE_WIDTH);
     return dimensions
