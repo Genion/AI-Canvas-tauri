@@ -20,6 +20,21 @@ const frame: { id: string; data: BaseNodeData } = { id: 'frame', data: {
 const mention = '@{sheet/shot/stable-row:本集分镜·第1镜}';
 
 describe('分镜表精确镜头提示词', () => {
+  it('普通视频与精确镜头引用都编译视频自己的器材和效果，覆盖只写入本次请求', () => {
+    const node = sheet();
+    node.data.shotlistCinematography = { cameraId: 'arri-alexa-35', focalLengthMm: 85, apertureT: 2.8 };
+    const cameraSettings = { cinematography: { lensId: 'laowa-proteus-blue', focalLengthMm: 35, apertureT: null, flare: 'subtle' as const } };
+    const ordinary = applyGenerationCameraPrompt('霓虹夜景', [], cameraSettings);
+    expect(ordinary).toContain('Camera settings: lens reference: Laowa Proteus');
+    expect(ordinary).toContain('blue horizontal flares');
+    const linked = applyGenerationCameraPrompt(mention, [node, frame], cameraSettings);
+    expect(linked).toContain('ARRI ALEXA 35');
+    expect(linked).toContain('35mm focal length');
+    expect(linked.match(/摄影设定：/g)).toHaveLength(1);
+    expect(linked).not.toMatch(/85mm|working aperture|Camera settings:/);
+    expect(node.data.shotlistCinematography.focalLengthMm).toBe(85);
+  });
+
   it('整表的图片和视频引用逐镜合并摄影覆盖，保留原有解析入口', async () => {
     const node = sheet();
     node.data.shotlistCinematography = { cameraId: 'arri-alexa-35', lensId: 'cooke-s4', focalLengthMm: 35, apertureT: 2.8 };

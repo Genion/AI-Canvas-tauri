@@ -10,6 +10,7 @@ import SendShortcutMenu from '../../shared/SendShortcutMenu';
 import { lazy, Suspense, useState, useRef, useCallback, useEffect, useMemo, type ReactNode } from 'react';
 import { useReducedMotion } from 'framer-motion';
 const MetalFx = lazy(() => import('./PolishMetalFx'));
+const CinematographyDialog = lazy(() => import('../ShotlistCinematographyDialog'));
 // 生成中的思考球：仅在生成时按需加载
 const ThinkingOrb = lazy(() => import('../../../vendor/generation-effects/thinking-orbs/src').then((m) => ({ default: m.ThinkingOrb })));
 import type {
@@ -218,6 +219,28 @@ function CameraSettingsPreview({ settings }: { settings: CameraGenerationSetting
       </g>
     </svg>
   );
+}
+
+function VideoCameraSettingsSelector({ nodeId, projectId, value, disabled }: {
+  nodeId?: string; projectId: string | undefined; value?: CameraGenerationSettings; disabled: boolean;
+}) {
+  const t = useT();
+  const [target, setTarget] = useState<{ nodeId: string; projectId: string | undefined } | null>(null);
+  const open = !!target && target.nodeId === nodeId && target.projectId === projectId;
+  const configured = !!(value?.lens || value?.aperture || value?.shutterEffect || value?.exposureTime)
+    || Object.values(value?.cinematography ?? {}).some((item) => item !== undefined);
+  return <>
+    <button type="button" className={`prompt-btn${configured ? ' is-configured' : ''}`}
+      aria-label={t('摄影设置')} data-tooltip={t('摄影设置')} aria-haspopup="dialog" aria-expanded={open}
+      disabled={disabled || !nodeId} onClick={(event) => {
+        event.stopPropagation();
+        if (nodeId) setTarget({ nodeId, projectId });
+      }}>
+      <Icon icon="lucide:video" width={17} height={17} aria-hidden="true" />
+    </button>
+    {open && <Suspense fallback={null}><CinematographyDialog key={`${target.projectId}:${target.nodeId}`}
+      nodeId={target.nodeId} projectId={target.projectId} video onClose={() => setTarget(null)} /></Suspense>}
+  </>;
 }
 
 function CameraSettingsSelector({
@@ -522,6 +545,7 @@ export default function PromptPanel({
   onStyleChange,
 }: PromptPanelProps) {
   const t = useT();
+  const projectId = useAppStore((state) => state.currentProjectId ?? undefined);
   const reduceMotion = useReducedMotion();
   const polishIconPathRef = useRef<Path2D | null>(null);
   const capturePolishIcon = useCallback((icon: SVGSVGElement | null) => {
@@ -1034,7 +1058,10 @@ export default function PromptPanel({
             />
           )}
 
-          {(nodeType === 'ai-image' || nodeType === 'ai-video') && onChangeCameraSettings && (
+          {nodeType === 'ai-video' && onChangeCameraSettings && (
+            <VideoCameraSettingsSelector key={`${projectId}:${nodeId}`} nodeId={nodeId} projectId={projectId} value={cameraSettings} disabled={isGenerating} />
+          )}
+          {nodeType === 'ai-image' && onChangeCameraSettings && (
             <CameraSettingsSelector value={cameraSettings} onChange={onChangeCameraSettings} />
           )}
 

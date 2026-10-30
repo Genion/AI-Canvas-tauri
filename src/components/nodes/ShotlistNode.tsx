@@ -885,7 +885,7 @@ function ShotlistNode({ id, data, selected }: { id: string; data: BaseNodeData; 
             <button type="button" className="ui-btn ui-btn--sm" disabled={generating || !rows.length}
               onClick={() => setProduction({})}>{t('镜头制作准备')}</button>
             <button type="button" className="ui-btn ui-btn--sm" disabled={generating}
-              onClick={() => openCinematography()}><Icon icon="lucide:camera" width={13} aria-hidden="true" />{t('整表摄影')}</button>
+              onClick={() => openCinematography()}><Icon icon="lucide:video" width={13} aria-hidden="true" />{t('整表摄影')}</button>
             {frameProgress ? (
               <button type="button" className="ui-btn ui-btn--sm" onClick={() => frameController.current?.abort()}>
                 {t('取消补图')} {frameProgress.completed}/{frameProgress.total}

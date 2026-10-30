@@ -141,6 +141,7 @@ export type CameraAperture = 'f/1.4' | 'f/2' | 'f/2.8' | 'f/4' | 'f/5.6' | 'f/8'
 export type CameraExposureTime = '1/2000s' | '1/1000s' | '1/500s' | '1/250s' | '1/125s' | '1/60s' | '1/30s' | '1/8s' | '1/2s' | '1s' | '5s';
 
 export interface CameraGenerationSettings {
+  cinematography?: CinematographySettings; // 视频摄影设定；缺省跟随引用镜头，null 明确自动
   lens?: CameraLens;
   shutterEffect?: CameraShutterEffect;
   aperture?: CameraAperture;

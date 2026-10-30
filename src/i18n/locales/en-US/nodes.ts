@@ -2,6 +2,15 @@
  * 节点与画布节点组件（nodes）
  */
 const nodes = {
+  '跟随分镜': 'Inherit shot',
+  '逐项选择跟随分镜或覆盖；自动表示此视频不指定该项。': 'Inherit or override each field from the shot. Auto leaves that field unspecified for this video.',
+  '选择本视频的摄影机、镜头与效果；自动表示不指定该项。': 'Choose the camera, lens and look for this video. Auto leaves a field unspecified.',
+  '兼容旧参数': 'Legacy settings',
+  '原光圈、特殊镜头和曝光参数已保留，调整对应项或选择效果预设后替换。': 'Original aperture, special lens and exposure settings are preserved. Adjust the corresponding field or choose a look preset to replace them.',
+  '清除旧版摄影参数': 'Clear legacy photography settings',
+  '本视频逐项覆盖引用分镜的摄影设置；未覆盖的项目在生成时跟随最新分镜。': 'This video overrides individual photography fields from the referenced shot. Other fields follow the latest shot at generation time.',
+  '恢复分镜摄影': 'Restore shot photography',
+  '清除视频摄影': 'Clear video photography',
   '推荐参考': 'Suggested reference',
   "摄影": "Photography",
   "摄影设置": "Photography settings",

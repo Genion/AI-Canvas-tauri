@@ -4,6 +4,7 @@
  * - 其他 provider → 通用视频参数（像素分辨率、帧率、时长）
  */
 import Select from '../../shared/Select';
+import { Icon } from '@iconify/react';
 import ComfyH3MemorySelector from './ComfyH3MemorySelector';
 import ViewportImage from '../../shared/ViewportImage';
 import VideoCharacterPicker from './VideoCharacterPicker';
@@ -766,10 +767,7 @@ export default function VideoParamSelector({
             if (open) closePopup(); else setOpen(true);
           }}
         >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <polygon points="23 7 16 12 23 17 23 7" />
-            <rect x="1" y="5" width="15" height="14" rx="2" />
-          </svg>
+          <Icon icon="lucide:film" width={12} height={12} aria-hidden="true" />
           <span className="ui-schema-pill-label ui-schema-quality-ratio-label">{triggerLabel}</span>
         </AnimatedButton>
 

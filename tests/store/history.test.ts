@@ -129,6 +129,23 @@ beforeEach(() => {
 });
 
 describe('shotlist photography history', () => {
+  it('视频摄影与旧参数可独立撤销和重做，保留当前生成结果与序列化数据', async () => {
+    useAppStore.setState({ nodes: [node('video', { type: 'ai-video', cameraSettings: { lens: '35mm', aperture: 'f/4' } })] });
+    const state = useAppStore.getState();
+    state.commitToHistory();
+    const cameraSettings = { cinematography: { cameraId: 'sony-venice-2', focalLengthMm: 50, apertureT: null } };
+    state.updateNodeData('video', { cameraSettings });
+    state.commitToHistory();
+    state.updateNodeData('video', { videoUrl: 'latest-video' });
+    await useAppStore.getState().undo();
+    expect(useAppStore.getState().nodes[0].data.cameraSettings).toEqual({ lens: '35mm', aperture: 'f/4' });
+    expect(useAppStore.getState().nodes[0].data.videoUrl).toBe('latest-video');
+    await useAppStore.getState().redo();
+    const saved = JSON.parse(JSON.stringify(useAppStore.getState().nodes[0].data));
+    expect(saved.cameraSettings).toEqual(cameraSettings);
+    expect(saved.videoUrl).toBe('latest-video');
+  });
+
   it('整表默认与单镜覆盖独立撤销和重做，序列化保留设置与媒体绑定', async () => {
     const frame = { nodeId: 'image', kind: 'image' as const, url: 'image-url' };
     const original: ShotRow = { id: 'one', shotNo: '1', content: '原内容', dialogue: '原台词', frame };

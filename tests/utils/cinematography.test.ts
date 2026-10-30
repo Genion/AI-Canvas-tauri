@@ -1,9 +1,40 @@
 import { describe, expect, it } from 'vitest';
 import { CINEMA_CAMERAS, CINEMA_EFFECTS, CINEMA_LENSES } from '../../src/data/cinematography';
-import { buildGenerationCameraPrompt, cinemaMinT, cinematographyCompatibility, resolveCinematography, supportsCinemaFocal } from '../../src/utils/cinematography';
+import { buildGenerationCameraPrompt, cinemaMinT, cinematographyCompatibility, editableGenerationCinematography, resolveCinematography, supportsCinemaFocal } from '../../src/utils/cinematography';
 import { buildShotFramePrompt, formatShotVideoPrompt, type ShotRow } from '../../src/types/shotlist';
 
 describe('摄影设定', () => {
+  it('视频摄影逐项覆盖分镜，保留未覆盖项并支持明确自动', () => {
+    const defaults = { cameraId: 'arri-alexa-35', lensId: 'cooke-s4', focalLengthMm: 35, apertureT: 2.8 };
+    const prompt = buildGenerationCameraPrompt({ cinematography: { cameraId: 'sony-venice-2', focalLengthMm: 50, apertureT: null } }, defaults);
+    expect(prompt).toContain('SONY VENICE 2');
+    expect(prompt).toContain('Cooke S4/i');
+    expect(prompt).toContain('50mm focal length');
+    expect(prompt).not.toMatch(/ARRI ALEXA|35mm|working aperture/);
+    expect(defaults).toEqual({ cameraId: 'arri-alexa-35', lensId: 'cooke-s4', focalLengthMm: 35, apertureT: 2.8 });
+  });
+
+  it('视频新的明确自动和光学设置替换旧参数，不产生两套焦段、光圈和快门', () => {
+    const prompt = buildGenerationCameraPrompt({ lens: '85mm', aperture: 'f/8', shutterEffect: 'freeze',
+      cinematography: { lensId: 'laowa-proteus-blue', focalLengthMm: 35, apertureT: 2.8, shutterEffect: 'natural' } });
+    expect(prompt).toContain('Laowa Proteus');
+    expect(prompt).toContain('35mm focal length');
+    expect(prompt).toContain('working aperture T2.8');
+    expect(prompt).toContain('natural shutter motion rendering');
+    expect(prompt).not.toMatch(/85mm|f\/8|crisp frozen/);
+    expect(buildGenerationCameraPrompt({ lens: '85mm', aperture: 'f/8', shutterEffect: 'freeze',
+      cinematography: { focalLengthMm: null, apertureT: null, shutterEffect: null } })).toBe('');
+  });
+
+  it('旧焦段、快门可编辑，f 值不伪装成 T 值，显式自动不被旧值复活', () => {
+    const legacy = { lens: '35mm' as const, aperture: 'f/4' as const, shutterEffect: 'natural' as const };
+    expect(editableGenerationCinematography(legacy)).toEqual({ focalLengthMm: 35, shutterEffect: 'natural' });
+    expect(editableGenerationCinematography({ ...legacy, cinematography: { focalLengthMm: null, shutterEffect: null } }))
+      .toEqual({ focalLengthMm: null, shutterEffect: null });
+    expect(editableGenerationCinematography({ lens: 'macro', exposureTime: '1s' })).toBeUndefined();
+    expect(legacy).toEqual({ lens: '35mm', aperture: 'f/4', shutterEffect: 'natural' });
+  });
+
   it('逐项继承，显式自动不重新带入整表字段，输入保持不变', () => {
     const defaults = { cameraId: 'arri-alexa-35', lensId: 'cooke-s4', focalLengthMm: 35, apertureT: 2.8 };
     const override = { cameraId: undefined, focalLengthMm: 50, apertureT: null };

@@ -30,13 +30,15 @@ function content(value: unknown): string {
   return value && typeof value === 'object' && 'props' in value ? content((value as Element).props.children) : '';
 }
 beforeEach(() => { hooks.refs = []; hooks.refIndex = 0; });
-function setup(rowId?: string) {
+function setup(rowId?: string, videoData?: Partial<BaseNodeData>) {
   const node = { id: 'table', data: { type: 'ai-shotlist', label: '第一场',
     shotlistCinematography: { cameraId: 'sony-venice-2', lensId: 'zeiss-supreme', focalLengthMm: 85, apertureT: 2 },
     shotlistRows: [{ id: 'one', shotNo: '1', content: '保留内容', dialogue: '保留台词', frame: { nodeId: 'image', kind: 'image' } },
       { id: 'two', shotNo: '2', content: '另一个镜头' }],
   } as BaseNodeData };
-  const state = { currentProjectId: 'project-a', projectLoadStatus: 'ready', nodes: [node],
+  const videoNode = { id: 'video', data: { type: 'ai-video', label: '镜头视频',
+    prompt: '@{table/shot/one:第一镜}', ...videoData } as BaseNodeData };
+  const state = { currentProjectId: 'project-a', projectLoadStatus: 'ready', nodes: videoData ? [node, videoNode] : [node],
     isCreatingProject: false, isReturningToStartPage: false, switchingProjectName: null as string | null,
     updateNodeData: vi.fn((id: string, patch: Partial<BaseNodeData>) => {
       const target = state.nodes.find((item) => item.id === id);
@@ -48,16 +50,77 @@ function setup(rowId?: string) {
   const onClose = vi.fn();
   const render = () => {
     hooks.refIndex = 0;
-    tree = elements(ShotlistCinematographyDialog({ nodeId: 'table', rowId, projectId: 'project-a', onClose }));
+    tree = elements(ShotlistCinematographyDialog({ nodeId: videoData ? 'video' : 'table', rowId, video: !!videoData, projectId: 'project-a', onClose }));
   };
   render();
   const select = (label: string) => tree.find((item) => item.type === 'cinema-select' && item.props['aria-label'] === label)!;
   const change = (label: string, value: string) => (select(label).props.onChange as (value: string) => void)(value);
   const click = (label: string) => (tree.find((item) => item.type === 'button' && content(item.props.children) === label)!.props.onClick as () => void)();
-  return { node, state, render, select, change, click, onClose, text: () => tree.map((item) => content(item.props.children)).join(' ') };
+  return { node, videoNode, state, render, select, change, click, onClose, text: () => tree.map((item) => content(item.props.children)).join(' ') };
 }
 
 describe('分镜摄影选择', () => {
+  it('视频跟随最新分镜，单项覆盖、自动和恢复不修改整表或镜头', () => {
+    const view = setup(undefined, {});
+    expect(view.select('摄影机').props.value).toBe('inherit');
+    expect(view.text()).toContain('SONY VENICE 2');
+    const original = JSON.stringify(view.node.data);
+    view.change('焦段', '50'); view.render();
+    expect(view.videoNode.data.cameraSettings?.cinematography).toEqual({ focalLengthMm: 50 });
+    view.node.data.shotlistCinematography!.cameraId = 'arri-alexa-35'; view.render();
+    expect(view.text()).toContain('ARRI ALEXA 35');
+    view.change('摄影机', ''); view.render();
+    expect(view.videoNode.data.cameraSettings?.cinematography?.cameraId).toBeNull();
+    view.change('摄影机', 'inherit'); view.render();
+    expect(view.videoNode.data.cameraSettings?.cinematography?.cameraId).toBeUndefined();
+    view.click('恢复分镜摄影'); view.render();
+    expect(view.videoNode.data.cameraSettings).toBeUndefined();
+    view.node.data.shotlistCinematography!.cameraId = 'sony-venice-2';
+    expect(JSON.stringify(view.node.data)).toBe(original);
+  });
+
+  it('独立源视频复用器材、效果和用途，不需要分镜表', () => {
+    const view = setup(undefined, { type: 'source-video', prompt: '夜景人像' });
+    expect(view.select('摄影机').props.value).toBe('');
+    expect((view.select('摄影机').props.options as SelectOption[]).some((item) => item.value === 'inherit')).toBe(false);
+    view.change('效果预设', 'anamorphic'); view.render();
+    expect(view.videoNode.data.cameraSettings?.cinematography).toMatchObject({ effectId: 'anamorphic', lensId: 'laowa-proteus-blue' });
+    expect(view.text()).toContain('blue horizontal flares');
+    view.click('清除视频摄影');
+    expect(view.videoNode.data.cameraSettings).toBeUndefined();
+  });
+
+  it('旧焦段和 f 光圈保留，替换后与真实提示词预览一致', () => {
+    const view = setup(undefined, { cameraSettings: { lens: '35mm', aperture: 'f/4', exposureTime: '1/60s' } });
+    expect(view.select('焦段').props.value).toBe('35');
+    expect(view.select('拍摄光圈').props.value).toBe('legacy');
+    expect(view.text()).toContain('f/4 aperture');
+    expect(view.videoNode.data.cameraSettings?.cinematography).toBeUndefined();
+    view.change('焦段', '50'); view.render();
+    view.change('拍摄光圈', '4'); view.render();
+    expect(view.videoNode.data.cameraSettings).toMatchObject({ cinematography: { focalLengthMm: 50, apertureT: 4 }, exposureTime: '1/60s' });
+    expect(view.videoNode.data.cameraSettings?.lens).toBeUndefined();
+    expect(view.videoNode.data.cameraSettings?.aperture).toBeUndefined();
+    expect(view.text()).toContain('working aperture T4');
+    expect(view.text()).not.toContain('f/4 aperture');
+    view.click('清除旧版摄影参数'); view.render();
+    expect(view.videoNode.data.cameraSettings?.exposureTime).toBeUndefined();
+    expect(view.videoNode.data.cameraSettings?.cinematography?.apertureT).toBe(4);
+  });
+
+  it.each(['project', 'loading', 'deleted', 'generating', 'closed'])('视频 %s 后拒绝迟到回写', (kind) => {
+    const view = setup(undefined, {});
+    const change = view.select('摄影机').props.onChange as (value: string) => void;
+    if (kind === 'project') view.state.currentProjectId = 'project-b';
+    if (kind === 'loading') view.state.projectLoadStatus = 'loading';
+    if (kind === 'deleted') view.state.nodes = [view.node];
+    if (kind === 'generating') view.videoNode.data.status = 'loading';
+    if (kind === 'closed') view.click('完成');
+    change('arri-alexa-35');
+    expect(view.state.updateNodeData).not.toHaveBeenCalled();
+    expect(view.state.commitToHistory).not.toHaveBeenCalled();
+  });
+
   it('摄影机和镜头选项展示常用场景，使用共用防裁剪 Select', () => {
     const view = setup();
     const cameras = view.select('摄影机').props.options as SelectOption[];

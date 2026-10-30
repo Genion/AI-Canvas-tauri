@@ -67,8 +67,27 @@ const FOCUS = { eyes: 'focus on the subject eyes', foreground: 'focus on the for
 const GRAIN = { none: 'clean image without added film grain', subtle: 'subtle organic film grain varying between frames', visible: 'visible organic film grain varying between frames' };
 const finitePositive = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0;
 
+/** 旧数值焦段和快门可无损接入新表单；f 值不冒充 T 值，微距/鱼眼与曝光原样保留。 */
+export function editableGenerationCinematography(settings?: CameraGenerationSettings): CinematographySettings | undefined {
+  const focal = settings?.lens ? Number.parseFloat(settings.lens) : undefined;
+  const compatible: CinematographySettings = {};
+  if (finitePositive(focal)) compatible.focalLengthMm = focal;
+  if (settings?.shutterEffect) compatible.shutterEffect = settings.shutterEffect;
+  const value = resolveCinematography(compatible, settings?.cinematography);
+  return Object.keys(value).length ? value : undefined;
+}
+
 /** 现有节点参数显式覆盖分镜同类参数；所有入口共用，只有旧参数时输出保持原格式。 */
 export function buildGenerationCameraPrompt(legacy?: CameraGenerationSettings, settings?: CinematographySettings): string {
+  const own = legacy?.cinematography;
+  if (own) {
+    settings = resolveCinematography(settings, own);
+    legacy = { ...legacy,
+      lens: own.focalLengthMm !== undefined || own.lensId !== undefined ? undefined : legacy?.lens,
+      aperture: own.apertureT !== undefined || own.depthOfField !== undefined ? undefined : legacy?.aperture,
+      shutterEffect: own.shutterEffect !== undefined ? undefined : legacy?.shutterEffect,
+    };
+  }
   const camera = CINEMA_CAMERAS.find((item) => item.id === settings?.cameraId);
   const selectedLens = CINEMA_LENSES.find((item) => item.id === settings?.lensId);
   const overrideFocal = legacy?.lens ? Number.parseFloat(legacy.lens) : undefined;

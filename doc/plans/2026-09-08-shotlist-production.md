@@ -8,6 +8,25 @@
 首批范围不包含原著章节索引、跨版本改稿传播、音轨字幕装配、导演台或宫格自动拆图。后续按下列独立阶段接续，每阶段检查后提交。
 
 ## 接续阶段
+### 视频节点复用摄影设置（2026-10-30）
+
+状态：已实现，待用户验收；定向 ESLint 由提交钩子执行，本次未运行测试、类型检查、构建或桌面验收。
+
+- 视频提示词工具栏改用摄影机图标，打开与分镜表相同的摄影窗口，复用器材用途、效果预设、焦段、T 光圈、进阶参数、搭配提示和提示词预览；整表摄影按钮与窗口图标同步改为摄影机。视频规格入口使用电影胶片图标。
+- 设置沿用 `cameraSettings` 保存，新增可选 `cinematography`。引用单一有效镜头时逐项继承最新整表默认与单镜覆盖；视频自己的覆盖仅影响本节点，`null` 明确自动。普通视频与可生成的源视频也可独立设置。生成、引用解析和视频批次沿用现有摄影编译及指纹，不更改模型分辨率、比例或帧率。
+- 旧焦段和快门可在新表单编辑；旧 f 光圈、特殊镜头与曝光保留并提示，f 值不直接转换成 T 值。修改对应项替换旧值，效果预设或恢复/清除摄影可清除旧覆盖；保留单独清除旧参数的入口。摄影进入既有历史，回写继续校验项目、节点、生成和加载状态。
+- 已确认文件范围：`src/components/nodes/shared/PromptPanel.tsx`、`src/components/nodes/ShotlistCinematographyDialog.tsx`、`src/types/index.ts`、`src/utils/cinematography.ts`、`src/store/store.history.ts`、`src/components/nodes/ShotlistNode.tsx`、本专项；多语言 `src/i18n/locales/{en-US,ja-JP,ko-KR}/nodes.ts`；回归 `tests/utils/cinematography.test.ts`、`tests/components/shotlistCinematographyDialog.test.tsx`、`tests/services/shotlistPromptService.test.ts`、`tests/store/history.test.ts`。后续图标微调仅涉及 `src/components/nodes/shared/VideoParamSelector.tsx`。无新增依赖或原生权限改动。
+
+Tauri 桌面验收（待用户执行）：
+1. 打开普通视频或可生成的源视频，点击提示词底部摄影机图标；应出现新窗口，摄影机/镜头下拉有用途说明。选变形夜景预设，再改焦段与光圈，预览应立即更新。关闭重开、保存重开与导出导入应保留。
+2. 从有摄影默认的分镜准备视频，保持精确镜头胶囊；初始逐项跟随分镜。覆盖一项、另一项选自动，再改表默认，未覆盖项应更新；恢复分镜摄影只清除视频覆盖，不改分镜。用引用预览和用户配置的模型核对最终提示词，焦段、光圈和快门不能重复矛盾。
+3. 打开有旧焦段、f 光圈、快门和曝光的视频，确认旧值保留；选择新焦段/T 光圈或预设后替换对应旧值。清除旧参数保留已选新值。撤销/重做应恢复设置并保留最新媒体结果。
+4. 回归分镜整表与单镜窗口、图片节点原摄影入口、深浅主题、窄窗滚动、下拉键盘；切项目、删节点、生成中和关闭窗口后不得接受迟到回写。失效镜头引用仍由原生成预检明确拒绝，不按名称猜测来源。
+
+定向用例（仓库根目录，由用户执行）：`npx vitest run tests/utils/cinematography.test.ts tests/components/shotlistCinematographyDialog.test.tsx tests/services/shotlistPromptService.test.ts tests/store/history.test.ts tests/components/cameraStudio.test.ts`。
+
+回滚：撤销本节对应增量；旧项目没有 `cameraSettings.cinematography` 时仍按原字段编译。新字段不包含原生资源或运行时对象。
+
 ### 摄影设定、器材用途与提示词（2026-10-30）
 
 状态：已实现，待用户验收；本次未运行测试、类型检查、构建或桌面验收。
