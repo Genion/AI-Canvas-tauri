@@ -1,6 +1,8 @@
 /**
  * indexedDbService IndexedDB 持久化服务 — 浏览器端本地存储，保存项目、工作流、应用配置等数据
  */
+import type { HistoryQuery } from '../types';
+import { matchesHistoryQuery } from '../utils/historyQuery';
 import type { AgentMode, AgentTask } from '../types/agent';
 import type { ConversationContextSummary } from '../types/chat';
 import type { ProjectMemory } from '../types/memory';
@@ -857,10 +859,7 @@ export interface HistoryPageCursor {
   id: string;
 }
 
-export interface HistoryQuery {
-  nodeType?: string;
-  search?: string;
-}
+export type { HistoryQuery } from '../types';
 
 export interface HistoryPage {
   records: HistoryRecord[];
@@ -972,14 +971,6 @@ async function trimProjectHistory(projectId: string): Promise<void> {
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });
-}
-
-function matchesHistoryQuery(record: HistoryRecord, query: HistoryQuery): boolean {
-  if (query.nodeType && record.nodeType !== query.nodeType) return false;
-  const search = query.search?.trim().toLowerCase();
-  if (!search) return true;
-  return [record.prompt, record.output, record.model, record.nodeLabel]
-    .some((value) => value.toLowerCase().includes(search));
 }
 
 /** 保存单条历史记录 */

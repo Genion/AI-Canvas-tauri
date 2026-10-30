@@ -352,6 +352,12 @@ export interface BaseNodeData {
 }
 
 // ── AI 输出历史记录 ──
+/** 输出历史的共享筛选条件；空值表示不限。 */
+export interface HistoryQuery {
+  nodeType?: string;
+  search?: string;
+}
+
 export interface OutputHistoryEntry {
   id: string;                    // 唯一 ID
   projectId: string;             // 所属项目 ID

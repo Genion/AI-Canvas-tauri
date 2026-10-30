@@ -1,9 +1,11 @@
 /**
- * imageGenerationHistory — 回归测试：getNodeHistoryEntries。
+ * imageGenerationHistory — 回归测试：节点历史读取，以及内存、分页与导出的筛选一致性。
  */
 import { IDBFactory } from 'fake-indexeddb';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { HistoryRecord } from '../../src/services/indexedDbService';
+import type { HistoryPageCursor, HistoryRecord } from '../../src/services/indexedDbService';
+import type { HistoryQuery } from '../../src/types';
+import { matchesHistoryQuery } from '../../src/utils/historyQuery';
 
 beforeEach(() => {
   Object.defineProperty(globalThis, 'indexedDB', {
@@ -100,5 +102,54 @@ describe('getNodeHistoryEntries', () => {
 
     await expect(service.getHistoryEntryCount('project-a')).resolves.toBe(0);
     await expect(service.getHistoryEntryCount('project-b')).resolves.toBe(1);
+  });
+});
+
+describe('输出历史筛选一致性', () => {
+  it('内存、游标分页与导出使用相同条件，并保留项目隔离和倒序', async () => {
+    const service = await import('../../src/services/indexedDbService');
+    const records: HistoryRecord[] = [
+      { ...historyRecord('legacy', 'node-a', 6), nodeType: 'legacy-widget' },
+      { ...historyRecord('prompt', 'node-a', 5), prompt: 'Neon City' },
+      { ...historyRecord('output', 'node-a', 4), nodeType: 'ai-text', output: 'CITY at dusk' },
+      { ...historyRecord('model', 'node-a', 4), nodeType: 'ai-audio', model: 'City-v2' },
+      { ...historyRecord('label', 'node-a', 2), nodeType: 'ai-video', nodeLabel: 'city scene' },
+      { ...historyRecord('miss', 'node-a', 1), provider: 'CITY-ONLY-PROVIDER', error: 'city error' },
+      { ...historyRecord('foreign', 'node-a', 10, 'project-b'), prompt: 'City' },
+    ];
+    await service.putHistoryEntries(records);
+
+    const all = ['legacy', 'prompt', 'output', 'model', 'label', 'miss'];
+    const cases: Array<{ query: HistoryQuery; ids: string[] }> = [
+      { query: {}, ids: all },
+      { query: { nodeType: '', search: ' \t\n' }, ids: all },
+      { query: { search: '  cItY  ' }, ids: ['prompt', 'output', 'model', 'label'] },
+      { query: { nodeType: 'ai-image', search: 'CITY' }, ids: ['prompt'] },
+      { query: { nodeType: 'ai-video', search: 'city' }, ids: ['label'] },
+      { query: { nodeType: 'AI-IMAGE' }, ids: [] },
+      { query: { nodeType: 'legacy-widget' }, ids: ['legacy'] },
+      { query: { search: 'provider' }, ids: [] },
+      { query: { search: 'no-match' }, ids: [] },
+    ];
+    for (const { query, ids } of cases) {
+      const inMemory = records.filter((record) => record.projectId === 'project-a'
+        && matchesHistoryQuery(record, query));
+      expect(inMemory.map((record) => record.id)).toEqual(ids);
+
+      const paged: HistoryRecord[] = [];
+      let cursor: HistoryPageCursor | null = null;
+      let hasMore = true;
+      // 有界遍历也能检测游标不前进，避免回归失败时用例挂起。
+      for (let pageIndex = 0; hasMore && pageIndex < records.length; pageIndex += 1) {
+        const page = await service.getHistoryEntriesPage('project-a', 2, cursor, query);
+        paged.push(...page.records);
+        cursor = page.nextCursor;
+        hasMore = page.hasMore;
+      }
+      expect(hasMore).toBe(false);
+      expect(paged.map((record) => record.id)).toEqual(ids);
+      const exported = await service.getHistoryEntriesForExport('project-a', query);
+      expect(exported.map((record) => record.id)).toEqual(ids);
+    }
   });
 });

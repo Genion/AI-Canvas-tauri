@@ -4,7 +4,7 @@
  */
 import type { StateCreator } from 'zustand';
 import type { AppState } from './useAppStore';
-import type { OutputHistoryEntry, BaseNodeData } from '../types';
+import type { OutputHistoryEntry, BaseNodeData, HistoryQuery } from '../types';
 import { generateId } from './store.utils';
 import {
   putHistoryEntry,
@@ -20,7 +20,8 @@ import {
   deleteNodeHistoryEntries,
   isAssetHistoryRecordActive,
 } from '../services/indexedDbService';
-import type { HistoryPageCursor, HistoryQuery } from '../services/indexedDbService';
+import type { HistoryPageCursor } from '../services/indexedDbService';
+import { matchesHistoryQuery } from '../utils/historyQuery';
 import { tagGeneratedProjectAssetSafely } from '../services/fs/generatedAssetTags';
 import { getAssetUrlFromPath, getProjectDataDir } from '../services/fs/core';
 import { isTransientMediaUrl, persistMediaUrlToProjectData, recycleHistoryFile, collectNodeFileReferences } from '../services/fileService';
@@ -35,14 +36,6 @@ let historyLoadRequestId = 0;
 
 function getHistoryQueryKey(query: HistoryQuery): string {
   return `${query.nodeType ?? ''}\u0000${query.search?.trim().toLowerCase() ?? ''}`;
-}
-
-function matchesHistoryQuery(record: OutputHistoryEntry, query: HistoryQuery): boolean {
-  if (query.nodeType && record.nodeType !== query.nodeType) return false;
-  const search = query.search?.trim().toLowerCase();
-  if (!search) return true;
-  return [record.prompt, record.output, record.model, record.nodeLabel]
-    .some((value) => value.toLowerCase().includes(search));
 }
 
 interface NormalizedHistoryRecord {

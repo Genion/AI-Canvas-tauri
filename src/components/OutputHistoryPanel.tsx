@@ -16,6 +16,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '../store/useAppStore';
 import type { OutputHistoryEntry } from '../types';
 import { NODE_TYPE_CONFIG } from '../types';
+import { matchesHistoryQuery } from '../utils/historyQuery';
 import AnimatedButton from './shared/AnimatedButton';
 import PopupCloseButton from './shared/PopupCloseButton';
 import { convertFileSrc } from '@tauri-apps/api/core';
@@ -303,22 +304,9 @@ export default function OutputHistoryPanel() {
 
   // Filter + search
   const filteredEntries = useMemo(() => {
-    let list = historyProjectId === currentProjectId ? outputHistoryRecords : [];
-    if (filter !== 'all') {
-      list = list.filter((e) => e.nodeType === filter);
-    }
-    if (search.trim()) {
-      const q = search.trim().toLowerCase();
-      list = list.filter(
-        (e) =>
-          e.prompt.toLowerCase().includes(q) ||
-          e.output.toLowerCase().includes(q) ||
-          e.model.toLowerCase().includes(q) ||
-          e.nodeLabel.toLowerCase().includes(q),
-      );
-    }
-    return list;
-  }, [currentProjectId, filter, historyProjectId, outputHistoryRecords, search]);
+    if (historyProjectId !== currentProjectId) return [];
+    return outputHistoryRecords.filter((entry) => matchesHistoryQuery(entry, historyQuery));
+  }, [currentProjectId, historyProjectId, outputHistoryRecords, historyQuery]);
   const videoPreview = useResourceVideoPreview(JSON.stringify([historyPanelOpen, historyPinned, collapsed, currentProjectId, filter, search]), filteredEntries.map((entry) => entry.id));
 
   useEffect(() => {
