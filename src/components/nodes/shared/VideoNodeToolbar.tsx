@@ -4,7 +4,6 @@
 import { useT } from '../../../i18n';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { Icon } from '@iconify/react';
-import type { NodeType, BaseNodeData } from '../../../types';
 import AnimatedButton from '../../shared/AnimatedButton';
 import { useToolbarEdit } from '../../../hooks/useToolbarEdit';
 import ToolbarEditor from './toolbar/ToolbarEditor';
@@ -14,11 +13,8 @@ import {
   getHiddenDefaultToolbarButtons,
   TOOLBAR_MORE_KEY,
 } from './toolbar/toolbarRegistry';
-import { resolvePresetAction, resolvePresetDef, createPresetNode } from './toolbar/presetAction';
-import { executeGeneration } from '../../../services/generationService';
-import { requestPresetSequence } from '../../../services/presetSequenceService';
+import { executeToolbarPreset, resolvePresetDef } from './toolbar/presetAction';
 import { useAppStore } from '../../../store/useAppStore';
-import type { Node } from '@xyflow/react';
 
 /** 截帧位置：首帧 / 播放头当前帧 / 尾帧 */
 export type CaptureFramePosition = 'first' | 'current' | 'last';
@@ -48,7 +44,6 @@ function VideoNodeToolbar({
   const registry = edit.registry;
   const pluginToolbar = useNodePluginToolbar({ nodeId });
   const userPresets = useAppStore((s) => s.userPresets);
-  const addNodeWithEdge = useAppStore((s) => s.addNodeWithEdge);
 
   // ── 截帧子菜单：与图像节点的宫格菜单同一套结构与样式 ──
   const [frameMenuOpen, setFrameMenuOpen] = useState(false);
@@ -93,19 +88,9 @@ function VideoNodeToolbar({
   const handlePresetClick = useCallback(
     (key: string) => (e: React.MouseEvent) => {
       e.stopPropagation();
-      // 实时从 store 读取，避免闭包过期导致对话框内容/ @引用丢失
-      const liveNode = useAppStore.getState().nodes.find((n) => n.id === nodeId) as Node<BaseNodeData> | undefined;
-      if (!liveNode) return;
-      const livePrompt = (liveNode.data?.prompt as string) ?? '';
-      const livePresets = useAppStore.getState().userPresets;
-      if (requestPresetSequence(key, nodeType as NodeType, nodeId, livePresets)) return;
-      const resolved = resolvePresetAction(key, nodeType as NodeType, livePrompt, livePresets);
-      if (!resolved) return;
-      const { node: newNode, edge } = createPresetNode(liveNode, resolved);
-      addNodeWithEdge(newNode, edge);
-      executeGeneration(newNode.id, newNode.data.prompt, resolved.postProcess, newNode.data);
+      executeToolbarPreset(key, nodeType, nodeId);
     },
-    [nodeId, addNodeWithEdge],
+    [nodeId],
   );
 
   const actionMap: Record<string, (e: React.MouseEvent) => void> = {
@@ -124,7 +109,7 @@ function VideoNodeToolbar({
     const handler = actionMap[key];
     const isPreset = !def;
 
-    const presetDef = !def ? resolvePresetDef(key, nodeType as NodeType, userPresets) : null;
+    const presetDef = !def ? resolvePresetDef(key, nodeType, userPresets) : null;
     if (!def && !presetDef) return null;
 
     const resolvedDef = def ?? { key, label: presetDef!.label, icon: presetDef!.icon, defaultZone: '' };

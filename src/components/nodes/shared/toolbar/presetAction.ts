@@ -10,6 +10,8 @@ import { generateId, useAppStore } from '../../../../store/useAppStore';
 import { derivedNodePlacement } from '../../../../store/store.utils';
 import { defaultModelGroups } from '../defaultModels';
 import { getGenerationNodeType } from '../../../../utils/nodeGeneration';
+import { executeGeneration } from '../../../../services/generationService';
+import { requestPresetSequence } from '../../../../services/presetSequenceService';
 
 /** 从 localStorage 读取模型偏好（与 ModelSelector 逻辑一致） */
 const MODEL_PREF_KEY = 'canvas-model-prefs';
@@ -235,4 +237,18 @@ export function createPresetNode(
   };
 
   return { node, edge };
+}
+
+/** 音视频工具栏共用的预设执行入口；点击时读取最新状态，保留源节点引用。 */
+export function executeToolbarPreset(key: string, nodeType: NodeType, nodeId: string): void {
+  const state = useAppStore.getState();
+  const sourceNode = state.nodes.find((node) => node.id === nodeId);
+  if (!sourceNode) return;
+  if (requestPresetSequence(key, nodeType, nodeId, state.userPresets)) return;
+
+  const resolved = resolvePresetAction(key, nodeType, sourceNode.data.prompt ?? '', state.userPresets);
+  if (!resolved) return;
+  const { node, edge } = createPresetNode(sourceNode, resolved);
+  state.addNodeWithEdge(node, edge);
+  void executeGeneration(node.id, node.data.prompt, resolved.postProcess, node.data);
 }

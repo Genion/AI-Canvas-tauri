@@ -1,9 +1,11 @@
 /**
- * presetNodeWorkflow — 回归用例：createPresetNode 派生 ComfyUI 工作流节点；双面部特写预设沿用原快捷指令 ID，并将横版源图切换为 4:5 竖幅；%s 的快捷指令创建 %s 生成节点，同时保留原始素材。
+ * presetNodeWorkflow — 回归用例：预设派生节点的模型、素材引用及音视频工具栏执行边界。
  */
-import { describe, expect, it } from 'vitest';
-import { createPresetNode, resolveEffectiveModel, resolvePresetAction, resolvePresetDef } from '../../src/components/nodes/shared/toolbar/presetAction';
-import type { BaseNodeData } from '../../src/types';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createPresetNode, executeToolbarPreset, resolveEffectiveModel, resolvePresetAction, resolvePresetDef } from '../../src/components/nodes/shared/toolbar/presetAction';
+import type { BaseNodeData, UserPreset } from '../../src/types';
+import { useAppStore } from '../../src/store/useAppStore';
+import * as generationService from '../../src/services/generationService';
 
 const source = (data: Partial<BaseNodeData>) => ({
   id: 'node-src',
@@ -88,5 +90,84 @@ describe('createPresetNode 派生 ComfyUI 工作流节点', () => {
   it('prompt 前置 @ 引用源节点，参考图才能进工作流', () => {
     const { node } = createPresetNode(source({ model: 'comfyui/workflow', provider: 'comfyui', workflowId: 'wf-1' }), resolved);
     expect(node.data.prompt).toBe('@{node-src:源图}\n低角度镜头');
+  });
+});
+
+describe.each(['ai-audio', 'ai-video'] as const)('%s 工具栏预设执行', (nodeType) => {
+  const preset: UserPreset = {
+    id: 'toolbar-preset', nodeType, name: '旧预设', description: '',
+    promptTemplate: '旧模板', triggerMode: 'direct',
+  };
+
+  beforeEach(() => {
+    useAppStore.setState({
+      ...useAppStore.getInitialState(),
+      nodes: [source({ type: nodeType, prompt: '旧提示词',
+        model: 'comfyui/workflow', provider: 'comfyui', workflowId: 'wf-toolbar' })],
+      userPresets: [preset],
+    }, true);
+    vi.spyOn(generationService, 'executeGeneration').mockResolvedValue({ success: true });
+  });
+
+  afterEach(() => {
+    useAppStore.setState(useAppStore.getInitialState(), true);
+  });
+
+  it.each(['direct', 'insertPrompt'] as const)('使用最新内容和 %s 模板，只创建及生成一次', (triggerMode) => {
+    const original = useAppStore.getState().nodes[0];
+    const livePrompt = '最新提示词 @{reference:参考素材}';
+    const liveSource = { ...original, data: { ...original.data, label: '最新素材', prompt: livePrompt } };
+    useAppStore.setState({
+      nodes: [liveSource],
+      userPresets: [{ ...preset, name: '新版预设', promptTemplate: '新版 {{currentPrompt}}', triggerMode }],
+    });
+
+    executeToolbarPreset(preset.id, nodeType, original.id);
+
+    const state = useAppStore.getState();
+    expect(state.nodes).toHaveLength(2);
+    const generated = state.nodes.find((node) => node.id !== original.id)!;
+    const filled = `新版 ${livePrompt}`;
+    const prompt = `@{${original.id}:最新素材}\n${triggerMode === 'direct' ? filled : `${livePrompt}\n${filled}`}`;
+    expect(generated.data).toMatchObject({ type: nodeType, label: '新版预设', prompt,
+      role: 'generator', model: 'comfyui/workflow', provider: 'comfyui', workflowId: 'wf-toolbar' });
+    expect(state.nodes[0]).toEqual(liveSource);
+    expect(state.edges).toMatchObject([{ source: original.id, target: generated.id }]);
+    expect(state.history).toHaveLength(1);
+    expect(state.history[0].nodes).toEqual([liveSource]);
+    expect(generationService.executeGeneration).toHaveBeenCalledTimes(1);
+    expect(generationService.executeGeneration).toHaveBeenCalledWith(
+      generated.id, prompt, undefined, expect.objectContaining({ prompt, workflowId: 'wf-toolbar' }),
+    );
+  });
+
+  it('顺序预设只请求运行配置，不提前创建节点或生成', () => {
+    useAppStore.setState({ userPresets: [{ ...preset, mode: 'advanced', advanced: {
+      parameters: [], steps: [{ id: 'step-1', name: '步骤一', nodeType, promptTemplate: '生成内容' }],
+    } }] });
+    const nodes = useAppStore.getState().nodes;
+
+    executeToolbarPreset(preset.id, nodeType, 'node-src');
+
+    const state = useAppStore.getState();
+    expect(state.presetRunRequest).toEqual({ presetId: preset.id, sourceNodeId: 'node-src' });
+    expect(state.nodes).toEqual(nodes);
+    expect(state.edges).toEqual([]);
+    expect(state.history).toEqual([]);
+    expect(generationService.executeGeneration).not.toHaveBeenCalled();
+  });
+
+  it('预设或源节点已删除时，不创建节点或发起生成', () => {
+    executeToolbarPreset('deleted-preset', nodeType, 'node-src');
+    expect(useAppStore.getState().nodes).toHaveLength(1);
+    useAppStore.setState({ nodes: [] });
+    executeToolbarPreset(preset.id, nodeType, 'node-src');
+
+    const state = useAppStore.getState();
+    expect(state.nodes).toEqual([]);
+    expect(state.edges).toEqual([]);
+    expect(state.history).toEqual([]);
+    expect(state.presetRunRequest).toBeNull();
+    expect(generationService.executeGeneration).not.toHaveBeenCalled();
   });
 });
