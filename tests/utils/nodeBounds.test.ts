@@ -1,11 +1,11 @@
 /**
- * nodeBounds — 覆盖显示尺寸优先级、未挂载估算与嵌套节点的几何边界。
+ * nodeBounds — 覆盖显示尺寸优先级、未挂载估算、嵌套坐标与异常父链终止。
  */
 import { describe, expect, it } from 'vitest';
 import type { Node } from '@xyflow/react';
 import type { BaseNodeData } from '../../src/types';
 import { createCanvasNoteData } from '../../src/types/canvasNote';
-import { getNodeBounds, getNodeSize } from '../../src/utils/nodeBounds';
+import { getNodeBounds, getNodeSize, getParentOffset } from '../../src/utils/nodeBounds';
 import { getDistributionItems, getItemGap } from '../../src/utils/distributionGeometry';
 
 function node(patch: Partial<Node<BaseNodeData>> = {}): Node<BaseNodeData> {
@@ -90,7 +90,98 @@ describe('节点显示尺寸与未挂载估算', () => {
   });
 });
 
+describe.each(['数组', 'Map'] as const)('%s 父链遍历', (kind) => {
+  const lookup = (nodes: Node<BaseNodeData>[]) => {
+    // 查询次数设上限，循环保护回退时直接失败，避免同步死循环挂住整个测试进程。
+    let remaining = nodes.length;
+    const consume = () => {
+      if (remaining-- <= 0) throw new Error('父链查询次数超过节点数');
+    };
+    if (kind === 'Map') {
+      const index = new Map(nodes.map((item) => [item.id, item]));
+      const get = index.get.bind(index);
+      index.get = (id) => { consume(); return get(id); };
+      return index;
+    }
+    const items = [...nodes];
+    Object.defineProperty(items, 'find', {
+      value: (predicate: (item: Node<BaseNodeData>) => boolean) => {
+        consume();
+        return nodes.find(predicate);
+      },
+    });
+    return items;
+  };
+
+  it('没有父级或父级缺失时使用零偏移', () => {
+    const root = node();
+    const orphan = node({ parentId: 'missing' });
+    expect(getParentOffset(root, lookup([root]))).toEqual({ x: 0, y: 0 });
+    expect(getParentOffset(orphan, lookup([orphan]))).toEqual({ x: 0, y: 0 });
+    expect(getNodeBounds(orphan, lookup([orphan]))).toMatchObject({ x: 10, y: 20 });
+  });
+
+  it('自引用不重复累加自身坐标，也不改写原父链', () => {
+    const subject = node({ parentId: 'node' });
+    const before = structuredClone(subject);
+    expect(getParentOffset(subject, lookup([subject]))).toEqual({ x: 0, y: 0 });
+    expect(getNodeBounds(subject, lookup([subject]))).toMatchObject({ x: 10, y: 20 });
+    expect(subject).toEqual(before);
+  });
+
+  it('两节点循环在回到当前节点前停止，每个祖先至多计入一次', () => {
+    const first = node({ id: 'a', parentId: 'b' });
+    const second = node({ id: 'b', parentId: 'a', position: { x: 100, y: 200 } });
+    const nodes = [first, second];
+    const before = structuredClone(nodes);
+    expect(getParentOffset(first, lookup(nodes))).toEqual({ x: 100, y: 200 });
+    expect(getParentOffset(second, lookup(nodes))).toEqual({ x: 10, y: 20 });
+    expect(getNodeBounds(first, lookup(nodes))).toMatchObject({ x: 110, y: 220 });
+    expect(getNodeBounds(second, lookup(nodes))).toMatchObject({ x: 110, y: 220 });
+    expect(nodes).toEqual(before);
+  });
+
+  it('当前节点之外的祖先形成循环时也能停止', () => {
+    const first = node({ id: 'a', parentId: 'b' });
+    const second = node({ id: 'b', parentId: 'a', position: { x: 100, y: 200 } });
+    const child = node({ id: 'leaf', parentId: 'a', position: { x: 5, y: 7 } });
+    const nodes = [first, second, child];
+    expect(getParentOffset(child, lookup(nodes))).toEqual({ x: 110, y: 220 });
+    expect(getNodeBounds(child, lookup(nodes))).toMatchObject({ x: 115, y: 227 });
+    expect(first.parentId).toBe('b');
+    expect(second.parentId).toBe('a');
+  });
+
+  it('父链中途缺失时保留已找到祖先的偏移', () => {
+    const parent = node({ id: 'parent', parentId: 'missing', position: { x: 100, y: 200 } });
+    const child = node({ parentId: 'parent' });
+    expect(getParentOffset(child, lookup([parent, child]))).toEqual({ x: 100, y: 200 });
+    expect(getNodeBounds(child, lookup([parent, child]))).toMatchObject({ x: 110, y: 220 });
+  });
+
+  it('合法多级父链保持坐标与尺寸，使用当前节点传入的位置', () => {
+    const outer = node({ id: 'outer', position: { x: 100, y: 200 } });
+    const inner = node({ id: 'inner', parentId: 'outer', position: { x: -30, y: 40 } });
+    const child = node({ parentId: 'inner', measured: { width: 480, height: 88 } });
+    const nodes = [outer, inner, child];
+    expect(getParentOffset(child, lookup(nodes))).toEqual({ x: 70, y: 240 });
+    expect(getNodeBounds({ ...child, position: { x: 20, y: 30 } }, lookup(nodes)))
+      .toMatchObject({ x: 90, y: 270, width: 480, height: 88 });
+  });
+});
+
 describe('尺寸在几何调用链中的应用', () => {
+  it('深层父链通过 Map 迭代求值，不使用递归', () => {
+    const parents = Array.from({ length: 2_000 }, (_, index) => node({
+      id: `parent-${index}`, parentId: index ? `parent-${index - 1}` : undefined,
+      position: { x: 1, y: -2 },
+    }));
+    const child = node({ parentId: 'parent-1999' });
+    const nodeMap = new Map([...parents, child].map((item) => [item.id, item]));
+    expect(getParentOffset(child, nodeMap)).toEqual({ x: 2000, y: -4000 });
+    expect(getNodeBounds(child, nodeMap)).toMatchObject({ x: 2010, y: -3980 });
+  });
+
   it('嵌套分组只叠加父级坐标，实测宽高保持不变', () => {
     const outer = node({ id: 'outer', type: 'group', position: { x: 500, y: 1000 } });
     const inner = node({ id: 'inner', type: 'group', parentId: 'outer', position: { x: 100, y: 200 } });

@@ -174,6 +174,16 @@ describe('展开分组内创建和拖入空节点', () => {
     expect(useAppStore.getState().nodes[1].parentId).toBe(group.id);
   });
 
+  it('历史分组自引用时几何遍历终止，不重复累计分组自身位置', () => {
+    const { group, empty } = setup();
+    useAppStore.setState({ nodes: [{ ...group, parentId: group.id }] });
+    useAppStore.getState().addNode(empty);
+    expect(useAppStore.getState().nodes[1]).toMatchObject({
+      parentId: group.id, position: { x: 600, y: 300 },
+    });
+    expect(useAppStore.getState().nodes[0].parentId).toBe(group.id);
+  });
+
   it('反向选择不同尺寸节点时，新分组按各自实测边界包住内容并可撤销', async () => {
     const first = { ...node('a'), measured: { width: 120, height: 88 },
       data: { ...node('a').data, nodeWidth: 1000, nodeHeight: 500 } };

@@ -34,7 +34,7 @@ import { playNodeExit } from '../utils/nodeAnimations';
 import { cancelNodePolling } from '../services/pollManager';
 import { applyProjectDefaultsToNodeData, getImageNodeDimensionsForAspectRatio } from '../services/projectSettingsService';
 import { getCanvasPointerPosition } from '../services/canvasPointerService';
-import { videoNodeDimensionsForAspectRatio } from '../utils/nodeBounds';
+import { getNodeSize, getParentOffset, videoNodeDimensionsForAspectRatio } from '../utils/nodeBounds';
 import { resolveDirectorRuntime } from '../services/directorRuntimeRegistry';
 import { copyNodeMedia, needsNodeMediaCopy, discardCopiedNodeMedia } from '../services/nodeMediaCopy';
 import { registerCanvasDerivation, isCanvasDerivationFresh, completeCanvasDerivation } from '../services/canvasDerivationGuard';
@@ -43,7 +43,6 @@ import { getGenerationNodeType } from '../utils/nodeGeneration';
 import { collectCanvasDescendantIds } from '../utils/canvasHierarchy';
 import { normalizeShotlistPromptReferences, resolveSingleShotlistRowReference } from '../services/shotlistPromptService';
 import { readNodeModelPreference } from '../services/modelPreferenceService';
-import { getNodeSize } from '../utils/nodeBounds';
 
 /** 只投影本次真实传入的媒体参数，保留 false、接口默认背景与自动时长。 */
 function mediaParametersToNodeData(kind: MediaKind, parameters?: MediaGenerationParameters): Partial<BaseNodeData> {
@@ -316,18 +315,8 @@ function prepareNodeForInsertion(
 }
 
 function absoluteNodePosition(node: Node<BaseNodeData>, nodes: Node<BaseNodeData>[]) {
-  const position = { ...node.position };
-  const visited = new Set([node.id]);
-  let parentId = node.parentId;
-  while (parentId && !visited.has(parentId)) {
-    visited.add(parentId);
-    const parent = nodes.find((candidate) => candidate.id === parentId);
-    if (!parent) break;
-    position.x += parent.position.x;
-    position.y += parent.position.y;
-    parentId = parent.parentId;
-  }
-  return position;
+  const offset = getParentOffset(node, nodes);
+  return { x: node.position.x + offset.x, y: node.position.y + offset.y };
 }
 
 function groupContainsPoint(group: Node<BaseNodeData>, point: { x: number; y: number }, nodes: Node<BaseNodeData>[]) {

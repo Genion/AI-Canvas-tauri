@@ -4,6 +4,21 @@
 import type { Node as RFNode } from '@xyflow/react';
 import type { BaseNodeData } from '../types';
 
+type NodeLookup = RFNode<BaseNodeData>[] | ReadonlyMap<string, RFNode<BaseNodeData>>;
+
+export interface NodeBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  left: number;
+  centerX: number;
+  right: number;
+  top: number;
+  centerY: number;
+  bottom: number;
+}
+
 function getDefaultNodeSize(nodeType: string | undefined): { width: number; height: number } {
   switch (nodeType) {
     case 'source-text':
@@ -70,16 +85,18 @@ export function videoNodeDimensionsForAspectRatio(
   return { nodeWidth, nodeHeight };
 }
 
-/** Follow parentId chain to compute absolute offset from relative position */
+/** 每个祖先只累加一次；遇到当前节点、重复祖先或缺失父级时停止，不修复原父链。 */
 export function getParentOffset(
   node: RFNode<BaseNodeData>,
-  allNodes: RFNode<BaseNodeData>[],
+  allNodes: NodeLookup,
 ): { x: number; y: number } {
   let offsetX = 0;
   let offsetY = 0;
+  const visited = new Set([node.id]);
   let pid: string | undefined = node.parentId;
-  while (pid) {
-    const p = allNodes.find((n) => n.id === pid);
+  while (pid && !visited.has(pid)) {
+    visited.add(pid);
+    const p = Array.isArray(allNodes) ? allNodes.find((n) => n.id === pid) : allNodes.get(pid);
     if (!p) break;
     offsetX += p.position.x;
     offsetY += p.position.y;
@@ -91,19 +108,8 @@ export function getParentOffset(
 /** Get absolute bounds for a node (accounting for parent group offsets) */
 export function getNodeBounds(
   node: RFNode<BaseNodeData>,
-  allNodes: RFNode<BaseNodeData>[],
-): {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  left: number;
-  centerX: number;
-  right: number;
-  top: number;
-  centerY: number;
-  bottom: number;
-} {
+  allNodes: NodeLookup,
+): NodeBounds {
   const { width: cardWidth, height: cardHeight } = getNodeSize(node);
   const parentOffset = node.parentId ? getParentOffset(node, allNodes) : { x: 0, y: 0 };
   const x = node.position.x + parentOffset.x;

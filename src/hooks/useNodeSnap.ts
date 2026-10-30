@@ -6,7 +6,9 @@ import { useReactFlow } from '@xyflow/react';
 import type { Node } from '@xyflow/react';
 import type { BaseNodeData } from '../types';
 import { useAppStore } from '../store/useAppStore';
-import { getNodeSize } from '../utils/nodeBounds';
+import { getNodeBounds, type NodeBounds } from '../utils/nodeBounds';
+
+export type { NodeBounds } from '../utils/nodeBounds';
 
 /** 视口外保留的 margin（流坐标），略大于一个节点高度，避免边缘节点被误裁 */
 const VIEWPORT_CULL_MARGIN = 400;
@@ -28,59 +30,6 @@ export type SnapLine =
       crossPosition: number;
       segments: Array<{ start: number; end: number }>;
     };
-
-export interface NodeBounds {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  left: number;
-  centerX: number;
-  right: number;
-  top: number;
-  centerY: number;
-  bottom: number;
-}
-
-/** Follow parentId chain to compute absolute offset from relative position */
-function getParentOffset(
-  node: Node<BaseNodeData>,
-  nodeMap: Map<string, Node<BaseNodeData>>
-): { x: number; y: number } {
-  let offsetX = 0;
-  let offsetY = 0;
-  let pid: string | undefined = node.parentId;
-  while (pid) {
-    const p = nodeMap.get(pid);
-    if (!p) break;
-    offsetX += p.position.x;
-    offsetY += p.position.y;
-    pid = p.parentId;
-  }
-  return { x: offsetX, y: offsetY };
-}
-
-function getNodeBounds(
-  node: Node<BaseNodeData>,
-  nodeMap: Map<string, Node<BaseNodeData>>
-): NodeBounds {
-  const { width: cardWidth, height: cardHeight } = getNodeSize(node);
-  const parentOffset = node.parentId ? getParentOffset(node, nodeMap) : { x: 0, y: 0 };
-  const x = node.position.x + parentOffset.x;
-  const y = node.position.y + parentOffset.y;
-  return {
-    x,
-    y,
-    width: cardWidth,
-    height: cardHeight,
-    left: x,
-    centerX: x + cardWidth / 2,
-    right: x + cardWidth,
-    top: y,
-    centerY: y + cardHeight / 2,
-    bottom: y + cardHeight,
-  };
-}
 
 function getNodesBounds(
   nodes: Node<BaseNodeData>[],
