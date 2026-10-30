@@ -1,3 +1,6 @@
+/**
+ * chatReferencePreviewService — 回归测试：独立窗口按需引用预览桥接。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ChatAction, ChatReferencePreviewResponse } from '../../../src/services/chat/chatWindowService';
 

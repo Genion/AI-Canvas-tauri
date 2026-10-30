@@ -1,3 +1,6 @@
+/**
+ * assetVideoDetails — 回归测试：asset video generation details。
+ */
 import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { HistoryRecord } from '../../src/services/indexedDbService';

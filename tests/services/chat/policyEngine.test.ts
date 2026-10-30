@@ -1,3 +1,6 @@
+/**
+ * policyEngine — 回归测试：evaluateAgentToolPolicy。
+ */
 import { describe, expect, it, vi } from 'vitest';
 import { evaluateAgentToolPolicy } from '../../../src/services/chat/policyEngine';
 import type {

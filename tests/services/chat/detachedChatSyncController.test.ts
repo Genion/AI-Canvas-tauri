@@ -1,3 +1,6 @@
+/**
+ * detachedChatSyncController — 回归测试：detached chat sync controller。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ChatAction } from '../../../src/services/chat/chatWindowService';
 

@@ -1,3 +1,6 @@
+/**
+ * animationService — 回归测试：animation source and non-destructive edits。
+ */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { BaseNodeData } from '../../src/types';
 import type { AnimationPreviewResult } from '../../src/types/animation';

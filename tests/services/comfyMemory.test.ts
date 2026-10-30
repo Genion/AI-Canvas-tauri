@@ -1,3 +1,6 @@
+/**
+ * comfyMemory — 回归测试：ComfyUI memory resources。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({ fetch: vi.fn() }));

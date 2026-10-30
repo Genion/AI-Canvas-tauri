@@ -1,3 +1,6 @@
+/**
+ * assistantReasoning — 回归测试：provider reasoning stays outside the answer。
+ */
 import { describe, expect, it } from 'vitest';
 import { parseStream, parseNonStream } from '../../src/services/ai/streamParsers';
 import type { AssistantStreamEvent } from '../../src/types/chat';

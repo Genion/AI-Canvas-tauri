@@ -1,3 +1,6 @@
+/**
+ * cloudWorkflowParameterControls — 回归测试：云工作流参数控件匹配。
+ */
 import { describe, expect, it } from 'vitest';
 import {
   getCloudWorkflowParameterSemantic,

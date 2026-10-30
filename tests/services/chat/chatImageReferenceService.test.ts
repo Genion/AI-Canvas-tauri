@@ -1,3 +1,6 @@
+/**
+ * chatImageReferenceService — 回归测试：chat image references。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as files from '../../../src/services/fileService';
 import { useAppStore } from '../../../src/store/useAppStore';

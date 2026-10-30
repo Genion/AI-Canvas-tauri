@@ -1,3 +1,6 @@
+/**
+ * agentTaskService — 回归测试：repairInterruptedAgentTasks。
+ */
 import { IDBFactory } from 'fake-indexeddb';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AgentTask } from '../../../src/types/agent';

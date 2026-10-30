@@ -1,3 +1,6 @@
+/**
+ * comfyDefaultIONodes — 回归测试：ComfyUI 默认 IO 节点。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({

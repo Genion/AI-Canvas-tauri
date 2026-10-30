@@ -1,3 +1,6 @@
+/**
+ * agentRuntimeDiagnostics — 回归测试：agent runtime diagnostics。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AgentTask } from '../../../src/types/agent';
 

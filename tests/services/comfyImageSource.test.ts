@@ -1,3 +1,6 @@
+/**
+ * comfyImageSource — 回归测试：Comfy 图片原生展示源。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { acquireComfyImageSource, readNativeComfyImageBlob, shouldLoadNativeComfyImage } from '../../src/services/comfyImageSource';
 

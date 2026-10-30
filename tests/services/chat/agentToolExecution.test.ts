@@ -1,3 +1,6 @@
+/**
+ * agentToolExecution — 回归测试：shared Agent tool execution for MCP。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AgentApprovalResolution, AgentMode, AgentTask } from '../../../src/types/agent';
 import {

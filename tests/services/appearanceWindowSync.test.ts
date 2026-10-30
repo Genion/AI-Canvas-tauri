@@ -1,3 +1,6 @@
+/**
+ * appearanceWindowSync — 回归测试：UI Kit appearance synchronization。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppearanceUiSnapshot } from '../../src/types';
 import { getBuiltinAppearanceTheme } from '../../src/services/appearance/appearanceDefaults';

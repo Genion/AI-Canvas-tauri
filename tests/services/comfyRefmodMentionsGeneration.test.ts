@@ -1,3 +1,6 @@
+/**
+ * comfyRefmodMentionsGeneration — 回归测试：RefMod token 视频提交。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ComfyRefmodSelection } from '../../src/types/comfyRefmod';
 import { useAppStore } from '../../src/store/useAppStore';

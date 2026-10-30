@@ -1,3 +1,6 @@
+/**
+ * comfyRefmodSubmissionFreshness — 回归测试：RefMod 最后同步提交检查点。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { WorkflowDefinition } from '../../src/types';
 import type { ComfyRefmodCatalog, ComfyRefmodSelection } from '../../src/types/comfyRefmod';

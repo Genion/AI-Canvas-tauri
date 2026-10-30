@@ -1,3 +1,6 @@
+/**
+ * subAgentTools — 回归测试：可用性与权限边界。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const runSubAgentMock = vi.hoisted(() => vi.fn());

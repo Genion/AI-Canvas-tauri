@@ -1,3 +1,6 @@
+/**
+ * conversationExecutionController — 回归测试：ordinary conversation media recovery。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AgentScheduleResult, ConversationAgentExecution } from '../../../src/services/chat/agentScheduler';
 

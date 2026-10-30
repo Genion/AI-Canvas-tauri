@@ -1,3 +1,6 @@
+/**
+ * characterOrder — 回归测试：角色库手动顺序。
+ */
 import { describe, expect, it } from 'vitest';
 import type { DramaCharacter } from '../../src/types/dramaAssets';
 import { reorderCharacterSubset, sortCharactersForLibrary } from '../../src/services/characterOrder';

@@ -1,3 +1,6 @@
+/**
+ * projectTools — 回归测试：project tools registration。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { registerProjectAgentTools } from '../../../src/services/chat/tools/projectTools';
 import {

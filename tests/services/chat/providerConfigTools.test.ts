@@ -1,3 +1,6 @@
+/**
+ * providerConfigTools — 回归测试：provider config agent tools。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const fileMocks = vi.hoisted(() => ({

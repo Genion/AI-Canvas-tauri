@@ -1,3 +1,6 @@
+/**
+ * assetFolderNavigation — 回归测试：global asset folder browsing。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({

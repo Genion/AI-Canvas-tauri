@@ -1,3 +1,6 @@
+/**
+ * comfyH3Memory — 回归测试：ComfyUI H3 memory policy selection。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { comfyH3MemoryFingerprint, DEFAULT_COMFY_H3_MEMORY_SETTINGS } from '../../src/types/comfyLaunch';
 

@@ -1,3 +1,6 @@
+/**
+ * shotlistTools — 回归测试：分镜工具。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const frames = vi.hoisted(() => vi.fn());
 vi.mock('../../../src/services/shotlistFrameService', () => ({ generateShotlistFrames: frames, MAX_SHOTLIST_FRAME_BATCH: 12 }));

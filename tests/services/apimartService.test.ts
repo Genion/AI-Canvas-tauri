@@ -1,3 +1,6 @@
+/**
+ * apimartService — 回归测试：APIMart 扩图错误边界。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { generateOutpaintImage } from '../../src/services/apimartService';
 

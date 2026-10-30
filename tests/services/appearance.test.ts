@@ -1,3 +1,6 @@
+/**
+ * appearance — 回归测试：appearance themes。
+ */
 import { describe, expect, it, vi } from 'vitest';
 import { APPEARANCE_CANVAS_PANEL_IDS, createBuiltinAppearanceThemes, normalizeAppearanceTheme } from '../../src/services/appearance/appearanceDefaults';
 import { migrateLegacyAppearance } from '../../src/services/appearance/appearanceMigration';

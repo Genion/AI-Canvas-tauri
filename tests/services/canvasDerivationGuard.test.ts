@@ -1,3 +1,6 @@
+/**
+ * canvasDerivationGuard — 回归测试：canvasDerivationGuard。
+ */
 import { describe, expect, it, vi } from 'vitest';
 import {
   cancelCanvasDerivation,

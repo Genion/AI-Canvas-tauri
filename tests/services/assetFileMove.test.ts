@@ -1,3 +1,6 @@
+/**
+ * assetFileMove — 回归测试：资产文件夹拖放服务。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AssetFileEntry } from '../../src/services/fs/core';
 import type { MediaRelocation } from '../../src/services/indexedDb/mediaRelocations';

@@ -1,3 +1,6 @@
+/**
+ * clipboardService — 回归测试：clipboardService.copyImage。
+ */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { copyImage, copyFile, readClipboardFolders } from '../../src/services/clipboardService';
 

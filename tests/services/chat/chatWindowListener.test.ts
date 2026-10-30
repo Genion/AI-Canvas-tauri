@@ -1,3 +1,6 @@
+/**
+ * chatWindowListener — 回归测试：initMainWindowListener。
+ */
 import { describe, expect, it, vi } from 'vitest';
 
 const listeners = new Map<string, Set<(event: { payload: unknown }) => void>>();

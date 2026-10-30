@@ -1,3 +1,6 @@
+/**
+ * comfyConnectionRouting — 回归测试：ComfyUI HTTP 连接选路。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { corsSafeFetch } from '../../src/services/ai/httpTransport';
 import { comfyFetch, normalizeComfyUrl } from '../../src/services/comfyPolling';

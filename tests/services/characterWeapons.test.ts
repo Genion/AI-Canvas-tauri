@@ -1,3 +1,6 @@
+/**
+ * characterWeapons — 回归测试：武器分类、身份与依赖。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAppStore } from '../../src/store/useAppStore';
 import {

@@ -1,3 +1,6 @@
+/**
+ * comfyProgressTransport — 回归测试：connectNativeComfyProgress。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { connectNativeComfyProgress } from '../../src/services/comfyProgressTransport';
 

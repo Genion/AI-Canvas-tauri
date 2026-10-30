@@ -1,3 +1,6 @@
+/**
+ * comfyImageParams — 回归测试：ComfyUI 图片尺寸参数注入。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({

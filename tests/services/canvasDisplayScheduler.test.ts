@@ -1,3 +1,6 @@
+/**
+ * canvasDisplayScheduler — 回归测试：shared canvas display budget。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createCanvasDisplayScheduler } from '../../src/services/canvasDisplayScheduler';
 import { getPerformanceModeBudget, type CanvasDisplayBudget } from '../../src/services/performanceModeRuntime';

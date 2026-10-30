@@ -1,3 +1,6 @@
+/**
+ * chatWindowLifecycle — 回归测试：detached chat window lifecycle。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));

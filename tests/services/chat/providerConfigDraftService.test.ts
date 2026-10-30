@@ -1,3 +1,6 @@
+/**
+ * providerConfigDraftService — 回归测试：provider model field merge。
+ */
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
   clearProviderConfigDraftsForTests,

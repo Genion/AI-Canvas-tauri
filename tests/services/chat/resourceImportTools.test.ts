@@ -1,3 +1,6 @@
+/**
+ * resourceImportTools — 回归测试：resource import tools。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAppStore } from '../../../src/store/useAppStore';
 import { registerFileAgentTools } from '../../../src/services/chat/tools/fileTools';

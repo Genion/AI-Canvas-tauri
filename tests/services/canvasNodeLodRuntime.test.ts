@@ -1,3 +1,6 @@
+/**
+ * canvasNodeLodRuntime — 回归测试：canvas node LOD scheduling。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CANVAS_NODE_LOD, createCanvasNodeLodRuntime } from '../../src/services/canvasNodeLodRuntime';
 

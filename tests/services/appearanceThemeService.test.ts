@@ -1,3 +1,6 @@
+/**
+ * appearanceThemeService — 回归测试：appearance theme image persistence and transfer。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { normalizeAppearanceTheme } from '../../src/services/appearance/appearanceDefaults';
 import { sha256BytesHex } from '../../src/services/mediaDataUrl';

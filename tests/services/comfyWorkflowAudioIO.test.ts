@@ -1,3 +1,6 @@
+/**
+ * comfyWorkflowAudioIO — 回归测试：ComfyUI audio IO injection。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({

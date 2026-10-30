@@ -1,3 +1,6 @@
+/**
+ * agentRoundExecutor — 回归测试：provider approval round parity。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AgentApprovalResolution, AgentMode, AgentTask } from '../../../src/types/agent';
 import type { ProposedToolCall, ToolResultSummary } from '../../../src/types/chat';

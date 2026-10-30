@@ -1,3 +1,6 @@
+/**
+ * comfyPromptErrorAndUploadCache — 回归测试：ComfyUI 任务终止。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({

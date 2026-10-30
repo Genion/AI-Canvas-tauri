@@ -1,3 +1,6 @@
+/**
+ * skillCatalog — 回归测试：模型可见性。
+ */
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useAppStore } from '../../../src/store/useAppStore';
 import {

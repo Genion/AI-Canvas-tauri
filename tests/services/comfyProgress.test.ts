@@ -1,3 +1,6 @@
+/**
+ * comfyProgress — 回归测试：parseComfyProgressEvent。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createServer, request, type IncomingMessage } from 'node:http';
 import { createHash } from 'node:crypto';

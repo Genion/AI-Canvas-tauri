@@ -1,3 +1,6 @@
+/**
+ * comfyBridgeSaveIdentity — 回归测试：ComfyUI 桥接真实标签保存身份。
+ */
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import { describe, expect, it, vi } from 'vitest';

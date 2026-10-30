@@ -1,3 +1,6 @@
+/**
+ * comfyAgentService — 回归测试：ComfyUI assistant server selection。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const comfyFetchMock = vi.hoisted(() => vi.fn());

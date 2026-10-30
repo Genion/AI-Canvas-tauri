@@ -1,3 +1,6 @@
+/**
+ * subAgentService — 回归测试：权限与嵌套边界。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const executeAgentRoundMock = vi.hoisted(() => vi.fn());

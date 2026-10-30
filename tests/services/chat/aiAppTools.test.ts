@@ -1,3 +1,6 @@
+/**
+ * aiAppTools — 回归测试：AI application Agent and MCP tools。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAppStore } from '../../../src/store/useAppStore';
 import type { AgentMode, AgentTask } from '../../../src/types/agent';

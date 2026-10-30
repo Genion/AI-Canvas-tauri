@@ -1,3 +1,6 @@
+/**
+ * builtinWorkflows — 回归测试：内置 MiniMax H3 工作流。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({

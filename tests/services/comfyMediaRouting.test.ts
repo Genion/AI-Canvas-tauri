@@ -1,3 +1,6 @@
+/**
+ * comfyMediaRouting — 回归测试：ComfyUI 图片和音频输出入口的三类参考。
+ */
 import type { Node } from '@xyflow/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAppStore } from '../../src/store/useAppStore';

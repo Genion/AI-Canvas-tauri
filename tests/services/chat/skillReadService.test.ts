@@ -1,3 +1,6 @@
+/**
+ * skillReadService — 回归测试：bounded Skill pages。
+ */
 import { beforeEach, describe, expect, it } from 'vitest';
 import { clearSkillReadTask, createSkillReadBudget, readSkillPage, takeSkillCompactionRequest } from '../../../src/services/chat/skillReadService';
 import { estimateTokens } from '../../../src/services/chat/tokenEstimate';

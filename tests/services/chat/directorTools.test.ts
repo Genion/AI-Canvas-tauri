@@ -1,3 +1,6 @@
+/**
+ * directorTools — 回归测试：director MCP tools。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAppStore } from '../../../src/store/useAppStore';
 import {

@@ -1,3 +1,6 @@
+/**
+ * visualDescriptionService — 回归测试：project visual description cache。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const generateText = vi.hoisted(() => vi.fn(async () => '一只橘猫坐在窗边，逆光，浅景深'));

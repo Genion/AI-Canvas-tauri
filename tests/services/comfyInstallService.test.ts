@@ -1,3 +1,6 @@
+/**
+ * comfyInstallService — 回归测试：ComfyUI 安装接口就绪边界。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cancelComfyInstall, chooseComfyInstallTarget, getBundledComfyInstallInfo, getComfyInstallInfo, installComfyPortable } from '../../src/services/comfyInstallService';
 

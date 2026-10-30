@@ -1,3 +1,6 @@
+/**
+ * contextUsage — 回归测试：conversation usage cache。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ConversationContextSummary, WebSource } from '../../../src/types/chat';
 import { resolveTextModelContextSpec } from '../../../src/components/nodes/shared/defaultModels';

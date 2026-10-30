@@ -1,3 +1,6 @@
+/**
+ * dramaAssetTools — 回归测试：drama asset agent tools。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAppStore } from '../../../src/store/useAppStore';
 import { registerDramaAssetAgentTools } from '../../../src/services/chat/tools/dramaAssetTools';

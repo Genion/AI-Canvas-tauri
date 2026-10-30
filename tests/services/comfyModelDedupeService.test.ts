@@ -1,3 +1,6 @@
+/**
+ * comfyModelDedupeService — 回归测试：ComfyUI model deduplication native bridge。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ComfyModelDedupeProgress, ComfyModelDedupeScan } from '../../src/types/comfyModelDedupe';
 

@@ -1,3 +1,6 @@
+/**
+ * assetRepair — 回归测试：asset repair validation and commit boundary。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AssetIndexRecord } from '../../src/services/indexedDbService';
 const io = vi.hoisted(() => ({ indexes: vi.fn(), index: vi.fn(), images: vi.fn(), lstat: vi.fn(), stat: vi.fn(),

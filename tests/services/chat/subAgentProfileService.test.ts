@@ -1,3 +1,6 @@
+/**
+ * subAgentProfileService — 回归测试：内置典范。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const saveMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));

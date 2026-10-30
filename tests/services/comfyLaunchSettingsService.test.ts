@@ -1,3 +1,6 @@
+/**
+ * comfyLaunchSettingsService — 回归测试：ComfyUI 显存设置兼容与输入边界。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_COMFY_LAUNCH_SETTINGS, isValidComfyLaunchSettings, isValidComfyH3MemoryApplication, comfyH3MemoryFingerprint } from '../../src/types/comfyLaunch';
 import { getComfyLaunchSettings, normalizeComfyLaunchSettings, saveComfyLaunchSettings } from '../../src/services/comfyLaunchSettingsService';

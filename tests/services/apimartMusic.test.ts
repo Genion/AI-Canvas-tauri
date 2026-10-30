@@ -1,3 +1,6 @@
+/**
+ * apimartMusic — 回归测试：APIMart 音频错误脱敏。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => {

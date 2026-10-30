@@ -1,3 +1,6 @@
+/**
+ * agentTaskControl — 回归测试：agent replan requests。
+ */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { AgentTask, AgentTaskStatus } from '../../../src/types/agent';
 import {

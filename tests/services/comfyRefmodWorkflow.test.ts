@@ -1,3 +1,6 @@
+/**
+ * comfyRefmodWorkflow — 回归测试：RefMod 工作流槽位绑定。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { WorkflowDefinition } from '../../src/types';
 import type { ComfyRefmodCatalog, ComfyRefmodSelection } from '../../src/types/comfyRefmod';

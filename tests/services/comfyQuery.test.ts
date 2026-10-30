@@ -1,3 +1,6 @@
+/**
+ * comfyQuery — 回归测试：ComfyUI 短查询预算。
+ */
 import { describe, expect, it } from 'vitest';
 import { withComfyQueryTimeout } from '../../src/services/comfyQuery';
 

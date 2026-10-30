@@ -1,3 +1,6 @@
+/**
+ * assetUsageService — 回归测试：asset usage identity matching。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AssetUsageTarget } from '../../src/types/assetUsage';
 const io = vi.hoisted(() => ({ projects: vi.fn(), project: vi.fn(), globals: vi.fn(), details: vi.fn(),

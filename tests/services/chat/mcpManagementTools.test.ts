@@ -1,3 +1,6 @@
+/**
+ * mcpManagementTools — 回归测试：MCP management tool coverage。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { registerWorkflowAgentTools } from '../../../src/services/chat/tools/workflowTools';
 import { registerStyleAgentTools } from '../../../src/services/chat/tools/styleTools';

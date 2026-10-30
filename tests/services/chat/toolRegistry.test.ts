@@ -1,3 +1,6 @@
+/**
+ * toolRegistry — 回归测试：Agent tool registry。
+ */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   buildAssistantFunctionTools,

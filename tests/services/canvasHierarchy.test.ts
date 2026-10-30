@@ -1,3 +1,6 @@
+/**
+ * canvasHierarchy — 回归测试：canvas hierarchy traversal。
+ */
 import { describe, expect, it } from 'vitest';
 import { collectCanvasDescendantIds } from '../../src/utils/canvasHierarchy';
 

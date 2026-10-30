@@ -1,3 +1,6 @@
+/**
+ * comfyMediaSource — 回归测试：Comfy 原生媒体租约。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({

@@ -1,3 +1,6 @@
+/**
+ * comfyOutputs — 回归测试：findComfyOutputFile。
+ */
 import { describe, expect, it } from 'vitest';
 
 import { findComfyOutputFile, resolveComfyOutputUrl, type ComfyOutputFile, type ComfyOutputKind } from '../../src/services/comfyOutputs';

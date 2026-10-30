@@ -1,3 +1,6 @@
+/**
+ * chatMessageSequence — 回归测试：putChatMessageWithSequence。
+ */
 import { IDBFactory } from 'fake-indexeddb';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ChatMessageRecord } from '../../src/services/indexedDbService';

@@ -1,3 +1,6 @@
+/**
+ * mediaTools — 回归测试：media task recovery tools。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAppStore } from '../../../src/store/useAppStore';
 import { registerMediaAgentTools } from '../../../src/services/chat/tools/mediaTools';

@@ -1,3 +1,6 @@
+/**
+ * comfyWorkflowSaveBack — 回归测试：ComfyUI 工作流保存回写。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({

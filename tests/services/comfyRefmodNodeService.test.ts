@@ -1,3 +1,6 @@
+/**
+ * comfyRefmodNodeService — 回归测试：RefMod 资源添加的调用方映射与身份边界。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppState } from '../../src/store/useAppStore';
 import type { ComfyRefmodSelection } from '../../src/types/comfyRefmod';

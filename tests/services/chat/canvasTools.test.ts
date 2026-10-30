@@ -1,3 +1,6 @@
+/**
+ * canvasTools — 回归测试：canvas agent tools。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Node } from '@xyflow/react';
 import { useAppStore } from '../../../src/store/useAppStore';

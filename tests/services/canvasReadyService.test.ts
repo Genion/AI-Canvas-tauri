@@ -1,3 +1,6 @@
+/**
+ * canvasReadyService — 回归测试：project canvas first paint。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { waitForCanvasFirstPaint } from '../../src/services/canvasReadyService';
 

@@ -1,3 +1,6 @@
+/**
+ * apimartGen — 回归测试：APIMart 错误凭据隔离。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const pollingMocks = vi.hoisted(() => {

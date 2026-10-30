@@ -1,3 +1,6 @@
+/**
+ * comfyVideoParams — 回归测试：ComfyUI checks the caller lease immediately before /prompt。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({

@@ -1,3 +1,6 @@
+/**
+ * comfyImageUtilityReads — 回归测试：ComfyUI image utility reads。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const native = vi.hoisted(() => ({ matches: vi.fn(), read: vi.fn() }));

@@ -1,3 +1,6 @@
+/**
+ * comfyDependencyInstall — 回归测试：ComfyUI 依赖安装进度与取消。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { cancelComfyDependencies, ComfyDependencyInstallCancelledError, installComfyDependencies } from '../../src/services/comfyManagementService';
 

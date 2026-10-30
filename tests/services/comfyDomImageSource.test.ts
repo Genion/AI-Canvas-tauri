@@ -1,3 +1,6 @@
+/**
+ * comfyDomImageSource — 回归测试：引用缩略图的原生租约。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const native = vi.hoisted(() => ({ matches: vi.fn(), acquire: vi.fn() }));
 vi.mock('../../src/services/comfyImageSource', () => ({

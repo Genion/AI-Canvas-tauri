@@ -1,3 +1,6 @@
+/**
+ * canvasViewportPersistence — 回归测试：canvas viewport persistence。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readCanvasViewport, restoreCanvasViewport, saveCanvasViewport } from '../../src/services/canvasViewportPersistence';
 

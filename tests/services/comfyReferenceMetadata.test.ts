@@ -1,3 +1,6 @@
+/**
+ * comfyReferenceMetadata — 回归测试：Comfy 参考媒体元数据读取。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const native = vi.hoisted(() => ({ matches: vi.fn(), acquire: vi.fn(), accepts: vi.fn() }));
 vi.mock('../../src/services/comfyMediaSource', () => ({

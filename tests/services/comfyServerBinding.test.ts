@@ -1,3 +1,6 @@
+/**
+ * comfyServerBinding — 回归测试：工作流绑定的 ComfyUI 服务端。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({

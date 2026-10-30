@@ -1,3 +1,6 @@
+/**
+ * assetImageMetadata — 回归测试：content-bound asset image information。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AssetImageRecord, AssetImageSaveInput } from '../../src/types/assetImage';
 

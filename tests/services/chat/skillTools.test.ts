@@ -1,3 +1,6 @@
+/**
+ * skillTools — 回归测试：工具可用性与权限边界。
+ */
 import { clearSkillReadTask } from '../../../src/services/chat/skillReadService';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 

@@ -1,3 +1,6 @@
+/**
+ * comfyBridgeInferCategory — 回归测试：bridge.js workflowBaseName。
+ */
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
