@@ -1,3 +1,6 @@
+/**
+ * aiAppProjectFiles — 回归测试：AI 应用项目素材有界读取。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 interface FileInfo {

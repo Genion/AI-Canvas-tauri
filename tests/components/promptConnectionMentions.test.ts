@@ -1,3 +1,6 @@
+/**
+ * promptConnectionMentions — 回归测试：editing while upstream references are appended。
+ */
 import { describe, expect, it } from 'vitest';
 import { mergeAppendedNodeMentions } from '../../src/utils/promptConnectionMentions';
 

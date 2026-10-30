@@ -1,3 +1,6 @@
+/**
+ * aiAppService — 回归测试：AI 应用定义生命周期。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Node } from '@xyflow/react';
 import type { BaseNodeData } from '../../src/types';

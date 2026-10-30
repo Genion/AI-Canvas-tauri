@@ -1,3 +1,6 @@
+/**
+ * useViewportMediaSource — 回归测试：performance viewport media lifecycle。
+ */
 import type { ImgHTMLAttributes, ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 

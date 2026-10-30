@@ -1,3 +1,6 @@
+/**
+ * slashCommandFolders — 回归测试：快捷指令文件夹菜单。
+ */
 import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PresetFolder, UserPreset } from '../../src/types';

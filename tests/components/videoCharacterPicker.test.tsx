@@ -1,3 +1,6 @@
+/**
+ * videoCharacterPicker — 回归测试：VideoCharacterPicker 角色范围与交互。
+ */
 import type { ComponentProps, EffectCallback, KeyboardEvent, ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 

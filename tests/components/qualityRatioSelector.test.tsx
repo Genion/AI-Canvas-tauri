@@ -1,3 +1,6 @@
+/**
+ * qualityRatioSelector — 回归测试：image resolution and quality selector。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const driver = vi.hoisted(() => ({ open: false }));

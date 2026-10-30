@@ -1,3 +1,6 @@
+/**
+ * viewportImage — 回归测试：ViewportImage。
+ */
 import { readFileSync } from 'node:fs';
 import type { ImgHTMLAttributes, ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';

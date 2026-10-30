@@ -1,3 +1,6 @@
+/**
+ * useComfyImageSource — 回归测试：useComfyImageSource。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type Effect = { run: () => void | (() => void); deps?: readonly unknown[]; cleanup?: () => void };

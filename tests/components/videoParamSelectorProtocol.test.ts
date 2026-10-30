@@ -1,3 +1,6 @@
+/**
+ * videoParamSelectorProtocol — 回归测试：ComfyUI 时长显示与提交一致。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ComponentProps } from 'react';
 import { createElement } from 'react';

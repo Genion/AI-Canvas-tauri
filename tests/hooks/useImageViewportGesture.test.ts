@@ -1,3 +1,6 @@
+/**
+ * useImageViewportGesture — 回归测试：图片查看与裁切的原子视口更新。
+ */
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 

@@ -1,3 +1,6 @@
+/**
+ * nodePluginToolDialog — 回归测试：plugin dialog window button。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { isValidElement, type ReactElement } from 'react';
 import type { AvailableNodePluginTool } from '../../src/types/plugin';

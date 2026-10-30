@@ -1,3 +1,6 @@
+/**
+ * sharedProjectResetDialog — 回归测试：shared cloud cleanup。
+ */
 import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppState } from '../../src/store/useAppStore';

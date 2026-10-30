@@ -1,3 +1,6 @@
+/**
+ * numberStepper — 回归测试：NumberStepper component。
+ */
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 

@@ -1,3 +1,6 @@
+/**
+ * select — 回归测试：共享 Select 迁移语义。
+ */
 import { readdirSync, readFileSync } from 'node:fs';
 import ts from 'typescript';
 import { renderToStaticMarkup } from 'react-dom/server';

@@ -1,3 +1,6 @@
+/**
+ * providerConnectionDraftGuard — 回归测试：自定义连接未完成草稿保护。
+ */
 import type { ComponentProps, ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 

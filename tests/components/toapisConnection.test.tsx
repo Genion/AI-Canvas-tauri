@@ -1,3 +1,6 @@
+/**
+ * toapisConnection — 回归测试：ToAPIs 国内与国际站共用凭据。
+ */
 import type { ComponentProps, ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 

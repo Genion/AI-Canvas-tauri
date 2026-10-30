@@ -1,3 +1,6 @@
+/**
+ * shotlistCinematographyDialog — 回归测试：分镜摄影选择。
+ */
 import type { ReactElement } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BaseNodeData } from '../../src/types';

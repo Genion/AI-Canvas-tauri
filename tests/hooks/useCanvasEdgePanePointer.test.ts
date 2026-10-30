@@ -1,3 +1,6 @@
+/**
+ * useCanvasEdgePanePointer — 回归测试：bitmap edge picking from a stationary pane gesture。
+ */
 import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 

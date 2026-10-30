@@ -1,3 +1,6 @@
+/**
+ * useDialogFocus — 回归测试：弹窗焦点与键盘层级。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { bindDialogFocus } from '../../src/hooks/useDialogFocus';
 

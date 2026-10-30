@@ -1,3 +1,6 @@
+/**
+ * shotlistFieldEditor — 回归测试：分镜字段全屏编辑。
+ */
 import type { ReactElement } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BaseNodeData } from '../../src/types';

@@ -1,3 +1,6 @@
+/**
+ * useReferencedImageWatcher — 回归测试：referenced image watcher projection。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Node } from '@xyflow/react';
 import type { BaseNodeData } from '../../src/types';

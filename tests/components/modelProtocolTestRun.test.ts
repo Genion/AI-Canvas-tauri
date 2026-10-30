@@ -1,3 +1,6 @@
+/**
+ * modelProtocolTestRun — 回归测试：模型协议试跑前置条件。
+ */
 import { describe, expect, it, vi } from 'vitest';
 import { assertRealProtocolTestVariables, defaultVideoTestScenario, describeProtocolTestRunBlocker,
   buildVideoTestVariables, resolveProtocolTestRunDraft, videoTestReferences } from '../../src/components/settings/modelProtocolTestRun';

@@ -1,3 +1,6 @@
+/**
+ * aiCanvasMcp — 回归测试：AI Canvas MCP stdio adapter。
+ */
 import net from 'node:net';
 import { createRequire } from 'node:module';
 import { afterEach, describe, expect, it } from 'vitest';

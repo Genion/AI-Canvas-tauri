@@ -1,3 +1,6 @@
+/**
+ * useCanvasSecondaryClickMenu — 回归测试：分组右键命中。
+ */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const driver = vi.hoisted(() => ({ cleanup: undefined as (() => void) | undefined }));

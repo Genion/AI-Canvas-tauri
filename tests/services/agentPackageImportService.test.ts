@@ -1,3 +1,6 @@
+/**
+ * agentPackageImportService — 回归测试：agentPackageImportService。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({

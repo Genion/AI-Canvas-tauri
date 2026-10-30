@@ -1,3 +1,6 @@
+/**
+ * generationEffects — 回归测试：内置生成特效。
+ */
 import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 import { build } from 'esbuild';

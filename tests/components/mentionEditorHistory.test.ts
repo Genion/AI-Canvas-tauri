@@ -1,3 +1,6 @@
+/**
+ * mentionEditorHistory — 回归测试：提示词临时历史。
+ */
 import { describe, expect, it, vi } from 'vitest';
 import { MentionEditorHistory, restoreMentionEditorSnapshot, type MentionEditorSnapshot } from '../../src/components/nodes/shared/mentionEditorHistory';
 

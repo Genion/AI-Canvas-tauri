@@ -1,3 +1,6 @@
+/**
+ * settingsPersistence — 回归测试：settings persistence consumers。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppState } from '../../src/store/useAppStore';
 

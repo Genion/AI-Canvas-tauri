@@ -1,3 +1,6 @@
+/**
+ * fullscreenOverlay — 回归测试：全屏预览的焦点边界与生命周期。
+ */
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 

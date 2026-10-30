@@ -1,3 +1,6 @@
+/**
+ * videoThumbnailSource — 回归测试：静态视频封面来源。
+ */
 import { describe, expect, it } from 'vitest';
 import { resolveVideoThumbnailPoster } from '../../src/components/shared/videoThumbnailSource';
 

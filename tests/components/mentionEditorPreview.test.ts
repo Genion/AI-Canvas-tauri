@@ -1,3 +1,6 @@
+/**
+ * mentionEditorPreview — 回归测试：胶囊预览来源。
+ */
 import { describe, expect, it } from 'vitest';
 import {
   readMentionPreviewSource,

@@ -1,3 +1,6 @@
+/**
+ * modelSelectorWorkflows — 回归测试：模型选择器工作流可用性。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BaseNodeData, ModelGroup, NodeType, WorkflowDefinition } from '../../src/types';
 import { getGenerationNodeType, resolveGenerationNodeData } from '../../src/utils/nodeGeneration';

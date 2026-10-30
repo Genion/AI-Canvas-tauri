@@ -1,3 +1,6 @@
+/**
+ * tooltipAutoPlacement — 回归测试：鼠标位置的资产悬浮提示。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const driver = vi.hoisted(() => ({ effect: null as (() => (() => void) | void) | null }));

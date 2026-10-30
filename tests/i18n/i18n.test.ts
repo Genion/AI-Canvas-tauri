@@ -1,3 +1,6 @@
+/**
+ * i18n — 回归测试：i18n runtime。
+ */
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';

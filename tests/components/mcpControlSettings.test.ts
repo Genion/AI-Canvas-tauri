@@ -1,3 +1,6 @@
+/**
+ * mcpControlSettings — 回归测试：MCP control settings helpers。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { isValidElement, type ReactElement } from 'react';
 import { getConfiguredMcpToolExposure } from '../../src/services/mcp/mcpToolCatalog';

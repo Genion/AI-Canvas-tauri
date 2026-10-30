@@ -1,3 +1,6 @@
+/**
+ * defaultModels — 回归测试：DeepSeek 文本模型的图片输入能力。
+ */
 import { describe, expect, it } from 'vitest';
 import {
   defaultModelGroups,

@@ -1,3 +1,6 @@
+/**
+ * promptChipViewer — 回归测试：renderPromptWithChips。
+ */
 import { describe, expect, it } from 'vitest';
 import type { ReactElement } from 'react';
 import { findPromptChipRanges, renderPromptWithChips } from '../../src/components/nodes/shared/PromptChipViewer';

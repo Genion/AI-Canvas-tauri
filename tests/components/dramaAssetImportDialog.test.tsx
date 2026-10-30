@@ -1,3 +1,6 @@
+/**
+ * dramaAssetImportDialog — 回归测试：creative asset import choices。
+ */
 import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DramaAssetImportPreview } from '../../src/services/dramaAssetTransferFormat';

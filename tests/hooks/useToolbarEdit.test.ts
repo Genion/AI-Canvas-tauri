@@ -1,3 +1,6 @@
+/**
+ * useToolbarEdit — 回归测试：toolbar edit save lifecycle。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ToolbarLayout } from '../../src/types';
 import type { UseToolbarEditReturn } from '../../src/hooks/useToolbarEdit';

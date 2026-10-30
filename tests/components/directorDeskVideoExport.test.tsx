@@ -1,3 +1,6 @@
+/**
+ * directorDeskVideoExport — 回归测试：Blender director video export。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReactElement } from 'react';
 import type { BaseNodeData, DirectorResultManifestReference } from '../../src/types';

@@ -1,3 +1,6 @@
+/**
+ * toolbarRegistry — 回归测试：toolbar layout migration。
+ */
 import { describe, expect, it } from 'vitest';
 import {
   getDefaultLayout,

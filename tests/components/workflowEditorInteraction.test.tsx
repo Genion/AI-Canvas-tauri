@@ -1,3 +1,6 @@
+/**
+ * workflowEditorInteraction — 回归测试：shows loading, blocks repeated opens, and retries a failed workflow from its row。
+ */
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { ComfyUIWorkflowOpenResult } from '../../src/services/comfyUIWindowService';
 

@@ -1,3 +1,6 @@
+/**
+ * imageLosslessCompressionToolbar — 回归测试：image lossless compression toolbar。
+ */
 import type { ReactElement } from 'react';
 import type { ToolbarLayout } from '../../src/types';
 import { beforeEach, describe, expect, it, vi } from 'vitest';

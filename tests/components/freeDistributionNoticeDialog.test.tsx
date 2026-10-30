@@ -1,3 +1,6 @@
+/**
+ * freeDistributionNoticeDialog — 回归测试：免费发行提醒。
+ */
 import { isValidElement, type ReactElement } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 

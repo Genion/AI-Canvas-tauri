@@ -1,3 +1,6 @@
+/**
+ * providerConnectionModels — 回归测试：RelayOnAPI 编辑初始化保留已保存配置。
+ */
 import { describe, expect, it } from 'vitest';
 import { assertProviderModelsVideoCapabilities, materializeLegacyImageProtocolDefault, mergeModels } from '../../src/components/settings/providerConnection/providerConnectionModels';
 import { assertModelProtocolResult } from '../../src/services/ai/modelCapabilityValidation';

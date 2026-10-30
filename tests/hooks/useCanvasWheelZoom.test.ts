@@ -1,3 +1,6 @@
+/**
+ * useCanvasWheelZoom — 回归测试：Mac native mouse wheel routing。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Viewport } from '@xyflow/react';
 import { bindCanvasWheelZoom } from '../../src/hooks/useCanvasWheelZoom';

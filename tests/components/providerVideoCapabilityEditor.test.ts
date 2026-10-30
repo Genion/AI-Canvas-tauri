@@ -1,3 +1,6 @@
+/**
+ * providerVideoCapabilityEditor — 回归测试：provider video capability editor normalization。
+ */
 import { describe, expect, it } from 'vitest';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';

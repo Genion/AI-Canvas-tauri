@@ -1,3 +1,6 @@
+/**
+ * mediaPreviewMemoryGuard — 回归测试：media preview memory guards。
+ */
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 

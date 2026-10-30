@@ -1,3 +1,6 @@
+/**
+ * videoTaskStatus — 回归测试：video task retry entry。
+ */
 import type { ReactElement } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 

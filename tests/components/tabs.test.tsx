@@ -1,3 +1,6 @@
+/**
+ * tabs — 回归测试：公用 Tabs。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TabsProps } from '../../src/components/shared/Tabs';
 

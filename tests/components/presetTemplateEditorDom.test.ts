@@ -1,3 +1,6 @@
+/**
+ * presetTemplateEditorDom — 回归测试：preset template capsule DOM。
+ */
 import { describe, expect, it } from 'vitest';
 import {
   createPresetTemplateFragment,

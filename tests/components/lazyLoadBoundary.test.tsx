@@ -1,3 +1,6 @@
+/**
+ * lazyLoadBoundary — 回归测试：LazyLoadBoundary recovery。
+ */
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { LazyLoadBoundary } from '../../src/components/shared/LazyLoadBoundary';

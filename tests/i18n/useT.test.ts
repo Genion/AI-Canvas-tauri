@@ -1,3 +1,6 @@
+/**
+ * useT — 回归测试：useT language changes。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Reuse the project's hook-slot approach without adding a DOM test dependency.

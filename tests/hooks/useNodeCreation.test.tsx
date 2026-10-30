@@ -1,3 +1,6 @@
+/**
+ * useNodeCreation — 回归测试：成功导入后的最近使用记录。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppState } from '../../src/store/useAppStore';
 type DropEvent = { payload: { type: 'enter' | 'leave' | 'drop'; paths: string[]; position: { x: number; y: number } } };

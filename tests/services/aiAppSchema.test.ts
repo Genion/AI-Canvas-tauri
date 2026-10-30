@@ -1,3 +1,6 @@
+/**
+ * aiAppSchema — 回归测试：AI 应用数据边界。
+ */
 import { describe, expect, it } from 'vitest';
 import {
   AI_APP_MAX_JSON_BYTES, normalizeAiAppDefinition, normalizeAiAppInputIds,

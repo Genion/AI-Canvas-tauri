@@ -1,3 +1,6 @@
+/**
+ * runninghubWorkflowImport — 回归测试：云工作流参数界面。
+ */
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';

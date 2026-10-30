@@ -1,3 +1,6 @@
+/**
+ * useAutoSave — 回归测试：useAutoSave node data tracking。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Node } from '@xyflow/react';
 import type { BaseNodeData } from '../../src/types';

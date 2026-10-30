@@ -1,3 +1,6 @@
+/**
+ * workflowFileDrop — 回归测试：imports a Finder workflow on a Retina Mac using logical drop coordinates。
+ */
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 type ElementLike = { props: Record<string, unknown> & { children?: unknown } };

@@ -1,3 +1,6 @@
+/**
+ * mediaTaskStatus — 回归测试：跨媒体原任务续取入口。
+ */
 import type { ReactElement } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BaseNodeData } from '../../src/types';

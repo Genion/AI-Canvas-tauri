@@ -1,3 +1,6 @@
+/**
+ * resourceVideoPreview — 回归测试：资源视频封面与播放器。
+ */
 vi.mock('../../src/hooks/useComfyMediaSource', () => ({ useComfyMediaSource: (source?: string) => source }));
 vi.mock('../../src/hooks/useComfyImageSource', () => ({ useComfyImageSource: (source?: string) => source }));
 vi.mock('../../src/components/shared/ViewportImage', () => ({ default: 'img' }));

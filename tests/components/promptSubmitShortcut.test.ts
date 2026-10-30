@@ -1,3 +1,6 @@
+/**
+ * promptSubmitShortcut — 回归测试：节点发送快捷键。
+ */
 import { afterEach, describe, expect, it } from 'vitest';
 import { setLocale } from '../../src/i18n';
 import {

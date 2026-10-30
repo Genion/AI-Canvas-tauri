@@ -1,3 +1,6 @@
+/**
+ * animationReskinPrompt — 回归测试：buildAnimationReskinPrompt。
+ */
 import { describe, expect, it } from 'vitest';
 import {
   buildAnimationReskinPrompt,

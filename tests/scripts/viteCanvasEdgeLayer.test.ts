@@ -1,3 +1,6 @@
+/**
+ * viteCanvasEdgeLayer — 回归测试：React Flow 集中连线构建适配。
+ */
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';

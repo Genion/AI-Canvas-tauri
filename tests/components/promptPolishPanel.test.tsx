@@ -1,3 +1,6 @@
+/**
+ * promptPolishPanel — 回归测试：提示词润色面板。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ComponentProps } from 'react';
 import type { PromptPolishOptions } from '../../src/services/promptPolishService';

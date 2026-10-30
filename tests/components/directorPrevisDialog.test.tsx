@@ -1,3 +1,6 @@
+/**
+ * directorPrevisDialog — 回归测试：previs dialog saved-scene boundary。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReactElement } from 'react';
 import type { BaseNodeData } from '../../src/types';

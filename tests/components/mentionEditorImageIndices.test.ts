@@ -1,3 +1,6 @@
+/**
+ * mentionEditorImageIndices — 回归测试：mention editor media reference indices。
+ */
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { getNodeMetaMap, numberMediaReferenceLabels, syncShotlistReferenceChips } from '../../src/components/nodes/shared/mentionEditorDom';

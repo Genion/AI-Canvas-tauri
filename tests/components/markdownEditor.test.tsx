@@ -1,3 +1,6 @@
+/**
+ * markdownEditor — 回归测试：MarkdownEditor 查找输入法边界。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
 import type { MarkdownSourceEditor } from '../../src/components/shared/MarkdownEditor';

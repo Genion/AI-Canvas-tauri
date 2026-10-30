@@ -1,3 +1,6 @@
+/**
+ * modelProtocolEditor — 回归测试：model protocol editor。
+ */
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';

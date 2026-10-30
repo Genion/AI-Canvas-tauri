@@ -1,3 +1,6 @@
+/**
+ * aiAppRuntime — 回归测试：AI app host runtime。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AiAppDefinition, AiAppJson, AiAppReference, AiAppUiSession } from '../../src/types/aiApp';
 

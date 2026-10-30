@@ -1,3 +1,6 @@
+/**
+ * mentionEditorChipDrag — 回归测试：源素材引用胶囊。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   buildComfyRefmodChipEl, buildWorkflowChipEl, ensureCaretSlotAfterChip, getNodeMetaMap, isChipEl,

@@ -1,3 +1,6 @@
+/**
+ * videoPlayer — 回归测试：UI Kit VideoPlayer。
+ */
 const comfySources = vi.hoisted(() => ({ media: vi.fn((source?: string, _onError?: () => void) => source), image: vi.fn((source?: string) => source) }));
 vi.mock('../../src/hooks/useComfyMediaSource', () => ({ useComfyMediaSource: comfySources.media }));
 vi.mock('../../src/hooks/useComfyImageSource', () => ({ useComfyImageSource: comfySources.image }));

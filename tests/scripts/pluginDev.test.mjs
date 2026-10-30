@@ -1,3 +1,6 @@
+/**
+ * pluginDev — 回归测试：plugin developer CLI。
+ */
 import { mkdtemp, readFile, writeFile, mkdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

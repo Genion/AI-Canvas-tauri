@@ -1,3 +1,6 @@
+/**
+ * mentionPortals — 回归测试：MentionEditor 的 Portal 浮层识别。
+ */
 import { describe, expect, it } from 'vitest';
 import {
   MENTION_PORTAL_CLASSES,

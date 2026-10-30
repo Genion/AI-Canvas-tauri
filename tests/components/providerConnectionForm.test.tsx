@@ -1,3 +1,6 @@
+/**
+ * providerConnectionForm — 回归测试：ProviderConnectionForm chat protocol selector。
+ */
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import ProviderConnectionForm, { CccGroupConnectionsForm } from '../../src/components/settings/providerConnection/ProviderConnectionForm';

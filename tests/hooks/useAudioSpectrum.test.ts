@@ -1,3 +1,6 @@
+/**
+ * useAudioSpectrum — 回归测试：audio spectrum lifecycle。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createAudioSpectrum } from '../../src/hooks/useAudioSpectrum';
 

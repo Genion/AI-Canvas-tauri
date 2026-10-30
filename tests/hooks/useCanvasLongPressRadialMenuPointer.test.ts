@@ -1,3 +1,6 @@
+/**
+ * useCanvasLongPressRadialMenuPointer — 回归测试：canvas long-press pointer target excludes bitmap edge geometry。
+ */
 import type { RefObject } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 

@@ -1,3 +1,6 @@
+/**
+ * mentionEditorSources — 回归测试：mentionEditorSources。
+ */
 import { describe, expect, it } from 'vitest';
 import type { Edge, Node } from '@xyflow/react';
 import type { BaseNodeData } from '../../src/types';

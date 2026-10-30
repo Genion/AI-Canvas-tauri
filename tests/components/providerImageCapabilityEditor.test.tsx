@@ -1,3 +1,6 @@
+/**
+ * providerImageCapabilityEditor — 回归测试：image capability editor。
+ */
 import { describe, expect, it } from 'vitest';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';

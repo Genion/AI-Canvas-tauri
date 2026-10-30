@@ -1,3 +1,6 @@
+/**
+ * videoNodePreviewLifecycle — 回归测试：video node demand loading。
+ */
 vi.mock('../../src/services/comfyMediaSource', () => ({ acquireComfyMediaSource: async (src: string) => ({ src, release: () => {} }) }));
 vi.mock('../../src/components/shared/ViewportImage', () => ({ default: 'img' }));
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';

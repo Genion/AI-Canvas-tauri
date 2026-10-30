@@ -1,3 +1,6 @@
+/**
+ * usePluginSpeechModels — 回归测试：插件语音模型安装准备。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PluginManifest } from '../../src/types/plugin';
 

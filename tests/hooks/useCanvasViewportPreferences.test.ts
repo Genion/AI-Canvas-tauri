@@ -1,3 +1,6 @@
+/**
+ * useCanvasViewportPreferences — 回归测试：opening a project at its last viewport。
+ */
 import type { AppConfig } from '../../src/types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 

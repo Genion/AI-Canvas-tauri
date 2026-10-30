@@ -1,3 +1,6 @@
+/**
+ * pluginSettingsNativeDrop — 回归测试：waits for speech dependency preparation after review and before %s installation。
+ */
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { AppState } from '../../src/store/useAppStore';
 import type { DragDropEvent } from '@tauri-apps/api/webview';

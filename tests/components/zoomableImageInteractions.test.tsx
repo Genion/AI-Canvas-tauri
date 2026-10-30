@@ -1,3 +1,6 @@
+/**
+ * zoomableImageInteractions — 回归测试：fullscreen source preparation。
+ */
 import { Children, isValidElement, type ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 

@@ -1,3 +1,6 @@
+/**
+ * aiAppSandbox — 回归测试：AI app isolated host。
+ */
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import vm from 'node:vm';

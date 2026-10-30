@@ -1,3 +1,6 @@
+/**
+ * useNodeSnap — 回归测试：equal-spacing node snap geometry。
+ */
 import { describe, expect, it } from 'vitest';
 import {
   buildEqualSpacingCandidates,

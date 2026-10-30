@@ -1,3 +1,6 @@
+/**
+ * relayonGroupConnection — 回归测试：万象分组连接。
+ */
 import type { ComponentProps, ReactElement } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 

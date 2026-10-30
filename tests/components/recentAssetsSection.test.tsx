@@ -1,3 +1,6 @@
+/**
+ * recentAssetsSection — 回归测试：启动页最近使用资源区。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppState } from '../../src/store/useAppStore';
 import type { RecentAssetEntry } from '../../src/services/fs/recentAssets';

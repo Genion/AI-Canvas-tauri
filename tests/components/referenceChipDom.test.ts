@@ -1,3 +1,6 @@
+/**
+ * referenceChipDom — 回归测试：UI Kit reference chip。
+ */
 import { describe, expect, it } from 'vitest';
 import { buildReferenceChipEl } from '../../src/components/shared/referenceChipDom';
 

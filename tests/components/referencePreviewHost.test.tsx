@@ -1,3 +1,6 @@
+/**
+ * referencePreviewHost — 回归测试：引用预览宿主导航。
+ */
 import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReferencePreviewContent, ReferencePreviewSource } from '../../src/types/referencePreview';
