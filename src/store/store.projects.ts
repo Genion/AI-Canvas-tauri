@@ -26,7 +26,7 @@ import {
   seriesOwnerId,
 } from './store.utils';
 import * as fileService from '../services/fileService';
-import { resumePendingTasks, clearProjectTasks } from '../services/pollManager';
+import { resumePendingTasks, clearProjectTasks, getPendingTasksForProject } from '../services/pollManager';
 import { normalizeProjectSettings } from '../services/projectSettingsService';
 import { captureCurrentCanvasSnapshot } from '../services/projectSnapshotService';
 import { stopProjectAgentTasks } from '../services/chat/agentTaskControl';
@@ -53,6 +53,9 @@ import type { DramaAssetLibrary, DramaAssetWriteOptions } from '../types/dramaAs
 import { assertDramaAssetWriteCurrent } from '../types/dramaAssets';
 import { isWebviewRecovery } from '../services/webviewRecoveryService';
 import { normalizeEpisodeAssetRoster, type EpisodeAssetRoster } from '../types/episodeAssets';
+import { prepareProjectImport, previewProjectImport, applyProjectImport, type PreparedProjectImport,
+  restoreProjectImportRecovery, type ProjectImportPreview, type ProjectImportOptions } from '../services/projectImportService';
+import type { ProjectMergeSide } from '../services/projectMergeService';
 
 type ProjectLoadStatus = 'loading' | 'ready' | 'error';
 let activeProjectMetadataWrite: Promise<void> = Promise.resolve();
@@ -199,6 +202,8 @@ interface ProjectAssetSyncBarrier {
   library: AppState['dramaAssets'];
 }
 const projectAssetSyncBarriers = new Map<string, ProjectAssetSyncBarrier>();
+const projectImportsApplying = new Set<string>();
+const importPreviewGuards = new WeakMap<ProjectImportPreview, () => void>();
 
 function waitForProjectSaveQueue(projectId: string): Promise<void> {
   const queue = projectSaveQueues.get(projectId);
@@ -337,6 +342,7 @@ function enqueueProjectSnapshot(projectId: string, snapshot: string | undefined)
 }
 
 function enqueueProjectSave(record: ProjectSaveData): Promise<string> {
+  if (projectImportsApplying.has(record.id)) return Promise.reject(new Error('正在应用项目更新，请稍后保存'));
   const barrier = projectAssetSyncBarriers.get(record.id);
   if (barrier) {
     // 屏障前已捕获的节点和项目元数据仍可保存；所属库必须改用屏障释放时的版本。
@@ -368,6 +374,7 @@ function createCurrentProjectSaveRecord(state: AppState): ProjectSaveData | null
 
   return {
     id: projectId,
+    exchangeEpoch: project.exchangeEpoch,
     name: state.projectName,
     createdAt: project.createdAt,
     updatedAt: Date.now(),
@@ -402,6 +409,7 @@ function createSeriesLibraryRecord(state: AppState): ProjectSaveData | null {
 
   return {
     id: series.id,
+    exchangeEpoch: series.exchangeEpoch,
     name: series.name,
     createdAt: series.createdAt,
     updatedAt: Date.now(),
@@ -533,7 +541,11 @@ export interface ProjectSlice {
   /** 与相邻的一集交换集号；direction 为 -1 上移、1 下移。 */
   moveEpisode: (episodeId: string, direction: -1 | 1) => Promise<boolean>;
   exportProject: (id: string) => Promise<boolean>;
-  importProject: () => Promise<string | undefined>;
+  prepareProjectImport: () => Promise<PreparedProjectImport | null>;
+  previewProjectImport: (session: PreparedProjectImport, targetId: string, confirmedBase?: PreparedProjectImport) => Promise<ProjectImportPreview>;
+  importProject: (session?: PreparedProjectImport, preview?: ProjectImportPreview | null,
+    choices?: Readonly<Record<string, ProjectMergeSide>>, options?: ProjectImportOptions) => Promise<string | undefined>;
+  restoreProjectImport: (ownerId: string, recoveryId: string) => Promise<void>;
   /** 复制项目（含分集、对话与素材），复制完不切画布。 */
   duplicateProject: (id: string) => Promise<string | undefined>;
   deleteProject: (id: string) => Promise<void>;
@@ -877,6 +889,7 @@ export const createProjectSlice: StateCreator<AppState, [], [], ProjectSlice> = 
         const latestProject = latest.projects.find((item) => item.id === id)!;
         record = {
           id,
+          exchangeEpoch: latestProject.exchangeEpoch,
           name: nextName,
           createdAt: latestProject.createdAt,
           updatedAt,
@@ -1365,14 +1378,48 @@ export const createProjectSlice: StateCreator<AppState, [], [], ProjectSlice> = 
     }
   },
 
-  importProject: async () => {
+  prepareProjectImport: () => prepareProjectImport(),
+  previewProjectImport: async (session, targetId, confirmedBase) => {
+    const state = get();
+    if (state.currentProjectId && seriesOwnerId(state.projects, state.currentProjectId) === targetId) {
+      if (await state.saveCurrentProjectSilent() !== state.currentProjectId) throw new Error('当前画布保存失败，无法对比');
+    }
+    const ids = get().projects.filter((item) => item.id === targetId || item.parentId === targetId).map((item) => item.id);
+    await Promise.all(ids.map(waitForProjectSaveQueue));
+    const before = get();
+    const assertCurrent = () => {
+      const latest = get();
+      if (latest.currentProjectId !== before.currentProjectId || latest.nodes !== before.nodes || latest.edges !== before.edges
+        || latest.groups !== before.groups || latest.dramaAssets !== before.dramaAssets || latest.projects !== before.projects) {
+        throw new Error('预览后项目内容已变化，请重新对比');
+      }
+    };
+    const preview = await previewProjectImport(session, targetId, confirmedBase); assertCurrent(); importPreviewGuards.set(preview, assertCurrent); return preview;
+  },
+  importProject: async (session, preview, choices = {}, options = { appendChat: false, appendMemories: false }) => {
     let result: Awaited<ReturnType<typeof importProjectArchive>>;
+    const affected = preview ? get().projects.filter((item) => item.id === preview.targetId || item.parentId === preview.targetId).map((item) => item.id) : [];
     try {
-      result = await importProjectArchive();
+      if (preview) {
+        const guard = importPreviewGuards.get(preview); if (!guard) throw new Error('预览状态已失效，请重新对比'); guard();
+        if (projectAssetSyncBarriers.has(preview.targetId) || affected.some((id) => projectImportsApplying.has(id))) throw new Error('项目正在同步或应用更新，请稍后重试');
+        if (affected.some((id) => getPendingTasksForProject(id).length > 0)
+          || get().agentTasks.some((task) => affected.includes(task.projectId) && !['completed', 'failed', 'stopped', 'paused'].includes(task.status))
+          || get().videoBatchBusy || get().nodes.some((node) => affected.includes(get().currentProjectId ?? '') && node.data.status === 'loading')) {
+          throw new Error('目标项目仍有生成或助手任务，请先停止任务再应用更新');
+        }
+        affected.forEach((id) => projectImportsApplying.add(id));
+        await Promise.all(affected.map(waitForProjectSaveQueue)); guard();
+        affected.forEach(cancelProjectCanvasDerivations);
+      }
+      result = session ? await applyProjectImport(session, preview ?? null, choices, options, preview ? importPreviewGuards.get(preview) : undefined) : await importProjectArchive();
     } catch (error) {
       console.error('[项目导入] 失败:', error);
       get().showToast(error instanceof Error ? t('项目导入失败：{reason}', { reason: error.message }) : '项目导入失败', 'error');
+      if (session) throw error;
       return undefined;
+    } finally {
+      affected.forEach((id) => projectImportsApplying.delete(id));
     }
     if (!result) return undefined;
 
@@ -1387,7 +1434,17 @@ export const createProjectSlice: StateCreator<AppState, [], [], ProjectSlice> = 
       series: result.series,
     };
     fileService.registerProjectFolders([project, ...result.episodes]);
-    set((state) => ({ projects: [...state.projects, project, ...result.episodes] }));
+    let projects: Awaited<ReturnType<typeof fileService.loadProjectsList>>;
+    try { projects = await fileService.loadProjectsList(); }
+    catch { get().showToast('项目已写入，但项目列表刷新失败，请重启后打开', 'error'); return result.projectId; }
+    if (!projects.some((item) => item.id === result.projectId)) {
+      get().showToast('项目已写入，但项目列表刷新失败，请重启后打开', 'error'); return result.projectId;
+    }
+    const replacingCurrent = preview && affected.includes(get().currentProjectId ?? '');
+    if (replacingCurrent) {
+      set({ currentProjectId: null, projectLoadStatus: 'ready', projectName: '', nodes: [], edges: [], groups: [],
+        history: [], historyIndex: -1, selectedNodeIds: [], activeNodeId: null, projects });
+    } else set({ projects });
     let opened = false;
     try {
       // 项目列表已有全部分集，既有切换流程会打开第一集并加载共享资产。
@@ -1406,6 +1463,35 @@ export const createProjectSlice: StateCreator<AppState, [], [], ProjectSlice> = 
     // 旧包缺失分集与素材的提示保留在同一条反馈，避免成功提示覆盖原因。
     get().showToast(notices.join('；'), notices.length > 1 ? 'info' : undefined);
     return result.projectId;
+  },
+
+  restoreProjectImport: async (ownerId, recoveryId) => {
+    if (projectAssetSyncBarriers.has(ownerId)) throw new Error('项目正在同步，请稍后恢复');
+    const affected = get().projects.filter((item) => item.id === ownerId || item.parentId === ownerId).map((item) => item.id);
+    if (!affected.length || affected.some((id) => projectImportsApplying.has(id) || getPendingTasksForProject(id).length)
+      || get().agentTasks.some((task) => affected.includes(task.projectId) && !['completed', 'failed', 'stopped', 'paused'].includes(task.status))
+      || get().videoBatchBusy) throw new Error('项目正在执行任务或更新，请先停止后再恢复');
+    if (affected.includes(get().currentProjectId ?? '')) {
+      const id = get().currentProjectId; if (await get().saveCurrentProjectSilent() !== id) throw new Error('当前画布保存失败');
+    }
+    affected.forEach((id) => projectImportsApplying.add(id));
+    try {
+      await Promise.all(affected.map(waitForProjectSaveQueue));
+      const before = get();
+      const assertCurrent = () => { const current = get();
+        if (current.nodes !== before.nodes || current.edges !== before.edges || current.groups !== before.groups
+          || current.projects !== before.projects || current.dramaAssets !== before.dramaAssets) throw new Error('恢复期间项目发生变化，请重试'); };
+      affected.forEach(cancelProjectCanvasDerivations);
+      await restoreProjectImportRecovery(ownerId, recoveryId, assertCurrent);
+      const projects = await fileService.loadProjectsList();
+      if (!projects.some((item) => item.id === ownerId)) throw new Error('恢复已提交，项目列表刷新失败，请重启后打开');
+      if (affected.includes(get().currentProjectId ?? '')) set({ currentProjectId: null, projectLoadStatus: 'ready', projectName: '',
+        nodes: [], edges: [], groups: [], history: [], historyIndex: -1, selectedNodeIds: [], activeNodeId: null, projects });
+      else set({ projects });
+      // 在后续切换加载之前释放屏障；空画布不会把旧内容重新保存。
+      affected.forEach((id) => projectImportsApplying.delete(id));
+      await get().switchProject(ownerId); get().showToast('已恢复项目，恢复前的状态也已保存为恢复点');
+    } finally { affected.forEach((id) => projectImportsApplying.delete(id)); }
   },
 
   deleteProject: async (id) => {
@@ -1766,7 +1852,7 @@ export const createProjectSlice: StateCreator<AppState, [], [], ProjectSlice> = 
   }),
 
   commitSharedAssetSyncDownload: async (input) => {
-    if (input.commit.ownerId !== input.ownerId || projectAssetSyncBarriers.has(input.ownerId)) {
+    if (input.commit.ownerId !== input.ownerId || projectAssetSyncBarriers.has(input.ownerId) || projectImportsApplying.has(input.ownerId)) {
       throw new Error('该项目正在应用共享资产，请稍后重试');
     }
     const controller = new AbortController();

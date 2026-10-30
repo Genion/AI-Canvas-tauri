@@ -9,13 +9,14 @@ use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::{self, File};
 use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::{Component, Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tar::{Archive, Builder, Header};
-use tauri::{AppHandle, Runtime, Webview};
+use tauri::{AppHandle, Emitter, Runtime, Webview};
+use sha2::{Digest, Sha256};
 
 use crate::path_policy::{authorize_path, ensure_trusted_caller, PathAccess};
 
@@ -51,19 +52,131 @@ pub struct ProjectArchiveUnpackResult {
     /// 已写入目标目录的素材相对路径（正斜杠分隔）。
     asset_paths: Vec<String>,
     asset_bytes: u64,
+    assets: Vec<ArchiveAssetDigest>,
+}
+
+#[derive(Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ArchiveAssetDigest { path: String, bytes: u64, sha256: String }
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ProjectImportAsset { path: String, destination_path: String, bytes: u64, sha256: String }
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ImportProgress { task_id: String, transferred_bytes: u64, total_bytes: u64 }
+
+fn hash_file(path: &Path) -> Result<(u64, String), String> {
+    let mut file = File::open(path).map_err(|_| "无法读取项目素材")?;
+    let mut digest = Sha256::new(); let mut bytes = 0_u64; let mut buffer = vec![0_u8; 1024 * 1024];
+    loop { let count = file.read(&mut buffer).map_err(|_| "读取素材失败")?; if count == 0 { break; }
+        digest.update(&buffer[..count]); bytes += count as u64;
+        if bytes > MAX_EXPANDED_BYTES { return Err("素材超过体积限制".into()); }
+    }
+    Ok((bytes, format!("{:x}", digest.finalize())))
+}
+
+fn inspect_assets(root: &Path, relative: &Path, rows: &mut Vec<ArchiveAssetDigest>) -> Result<(), String> {
+    if relative.components().count() > 64 { return Err("项目素材目录过深".into()); }
+    for item in fs::read_dir(root.join(relative)).map_err(|_| "无法读取项目目录")? {
+        let entry = item.map_err(|_| "无法读取素材目录项")?;
+        let kind = entry.file_type().map_err(|_| "无法读取素材类型")?;
+        let name = entry.file_name(); let child = relative.join(&name);
+        if kind.is_symlink() { return Err("项目素材包含链接，请先移入普通文件".into()); }
+        if kind.is_dir() {
+            if EXCLUDED_DIR_NAMES.contains(&name.to_string_lossy().as_ref()) || (relative.as_os_str().is_empty() && name == ".thumbnail") { continue; }
+            inspect_assets(root, &child, rows)?;
+        } else if kind.is_file() {
+            if rows.len() >= MAX_ARCHIVE_ENTRIES { return Err("项目素材数量超过上限".into()); }
+            let (bytes, sha256) = hash_file(&entry.path())?;
+            rows.push(ArchiveAssetDigest { path: to_archive_text(&normalize_archive_path(&child)?), bytes, sha256 });
+        } else { return Err("不支持的素材类型".into()); }
+    }
+    if rows.iter().map(|row| row.bytes).sum::<u64>() > MAX_EXPANDED_BYTES { return Err("项目素材超过 20 GB".into()); }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn inspect_project_archive_assets<R: Runtime>(webview: Webview<R>, app: AppHandle<R>, assets_dir: String) -> Result<Vec<ArchiveAssetDigest>, String> {
+    ensure_trusted_caller(&webview)?;
+    if webview.label() != "main" { return Err("仅主窗口可以准备项目归档".into()); }
+    let root = authorize_path(&app, &assets_dir, PathAccess::Read)?;
+    let mut rows = Vec::new(); inspect_assets(&root, Path::new(""), &mut rows)?;
+    rows.sort_by(|a, b| a.path.cmp(&b.path)); Ok(rows)
+}
+
+/// 只向全新子目录发布；逐文件复核已预览的字节，不覆盖目标的任何已有素材。
+#[tauri::command]
+pub fn publish_project_import_assets<R: Runtime>(webview: Webview<R>, app: AppHandle<R>, staging_dir: String,
+    project_dir: String, operation_id: String, assets: Vec<ProjectImportAsset>) -> Result<(), String> {
+    ensure_trusted_caller(&webview)?;
+    if webview.label() != "main" || operation_id.len() > 128 || operation_id.is_empty()
+        || !operation_id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') { return Err("导入操作身份无效".into()); }
+    let staging = authorize_path(&app, &staging_dir, PathAccess::Read)?;
+    let root = authorize_path(&app, &project_dir, PathAccess::Write)?;
+    let total_bytes = assets.iter().try_fold(0_u64, |total, asset| total.checked_add(asset.bytes)).ok_or("素材体积无效")?;
+    if assets.len() > MAX_ARCHIVE_ENTRIES || total_bytes > MAX_EXPANDED_BYTES { return Err("导入素材超过上限".into()); }
+    crate::file_transfer::ensure_disk_space(&root, Some(total_bytes))?;
+    let destination = root.join("imports").join(&operation_id);
+    // 授权真实父链，拒绝已有目录/链接，禁止前端用重试覆盖一次已发布的目录。
+    let destination = authorize_path(&app, &destination.to_string_lossy(), PathAccess::Write)?;
+    fs::create_dir_all(destination.parent().ok_or("导入目录无效")?).map_err(|_| "无法创建导入父目录")?;
+    fs::create_dir(&destination).map_err(|_| "导入目录已存在或无法创建，请重新预览")?;
+    let mut seen = HashSet::new(); let mut total = 0_u64; let mut transferred = 0_u64;
+    let result = (|| {
+        for asset in assets {
+            if crate::file_transfer::is_cancelled(&operation_id)? { return Err("项目导入已取消".into()); }
+            let relative = normalize_archive_path(Path::new(&asset.path))?;
+            let published = normalize_archive_path(Path::new(&asset.destination_path))?;
+            if !seen.insert(to_archive_text(&published).to_lowercase()) || relative.as_os_str().is_empty() || published.as_os_str().is_empty() { return Err("导入素材路径重复".into()); }
+            total = total.saturating_add(asset.bytes);
+            if seen.len() > MAX_ARCHIVE_ENTRIES || total > MAX_EXPANDED_BYTES { return Err("导入素材超过上限".into()); }
+            let source = authorize_path(&app, &staging.join(&relative).to_string_lossy(), PathAccess::Read)?;
+            if !source.starts_with(&staging) { return Err("素材不在本次暂存目录内".into()); }
+            let target = destination.join(&published);
+            fs::create_dir_all(target.parent().ok_or("素材目录无效")?).map_err(|_| "无法创建素材目录")?;
+            let mut input = File::open(&source).map_err(|_| "无法打开暂存素材")?;
+            let mut output = fs::OpenOptions::new().create_new(true).write(true).open(&target).map_err(|_| "无法创建目标素材")?;
+            let mut buffer = vec![0; 1024 * 1024]; let mut bytes = 0_u64; let mut digest = Sha256::new();
+            loop {
+                if crate::file_transfer::is_cancelled(&operation_id)? { return Err("项目导入已取消".into()); }
+                let count = input.read(&mut buffer).map_err(|_| "素材发布读取失败")?; if count == 0 { break; }
+                bytes += count as u64;
+                if bytes > asset.bytes { return Err("暂存素材大小已变化".into()); }
+                output.write_all(&buffer[..count]).map_err(|_| "素材写入失败，原项目未改变")?; digest.update(&buffer[..count]);
+                transferred += count as u64;
+                let _ = app.emit_to("main", "file-transfer-progress", ImportProgress { task_id: operation_id.clone(), transferred_bytes: transferred, total_bytes });
+            }
+            output.sync_all().map_err(|_| "素材落盘失败")?; drop(output);
+            let sha256 = format!("{:x}", digest.finalize());
+            if bytes != asset.bytes || sha256 != asset.sha256 { return Err("素材内容已变化，请重新导入".into()); }
+        }
+        Ok(())
+    })();
+    crate::file_transfer::clear_cancelled(&operation_id);
+    if result.is_err() { let _ = fs::remove_dir_all(&destination); }
+    result
 }
 
 /// 校验归档内相对路径：拒绝绝对路径、`..`、盘符和反斜杠，避免解包写到目标目录之外。
 fn normalize_archive_path(path: &Path) -> Result<PathBuf, String> {
     let text = path.to_string_lossy();
-    if text.contains('\\') {
+    if text.contains('\\') || text.contains(':') || text.chars().any(|c| c.is_control()) {
         return Err(format!("项目归档包含不安全路径: {text}"));
     }
     let mut normalized = PathBuf::new();
     for component in path.components() {
         match component {
             Component::CurDir => {}
-            Component::Normal(value) => normalized.push(value),
+            Component::Normal(value) => {
+                let part = value.to_string_lossy();
+                let stem = part.split('.').next().unwrap_or("").to_uppercase();
+                if part.ends_with('.') || part.ends_with(' ') || part.chars().any(|c| ['<', '>', '"', '|', '?', '*'].contains(&c))
+                    || ["CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+                        "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"].contains(&stem.as_str()) { return Err("项目归档路径不受支持".into()); }
+                normalized.push(value);
+            },
             Component::ParentDir | Component::RootDir | Component::Prefix(_) => {
                 return Err(format!("项目归档包含不安全路径: {text}"));
             }
@@ -102,6 +215,7 @@ fn append_assets_dir<W: Write>(
     archive_dir: &Path,
     stats: &mut AssetStats,
 ) -> Result<(), String> {
+    if archive_dir.components().count() > 65 { return Err("项目素材目录过深".into()); }
     let read_dir =
         fs::read_dir(source).map_err(|error| format!("读取项目素材目录失败: {error}"))?;
     for item in read_dir {
@@ -154,6 +268,7 @@ pub fn pack_project_archive<R: Runtime>(
     entries: Vec<ProjectArchiveTextEntry>,
     assets_dir: Option<String>,
     output_path: String,
+    expected_assets: Option<Vec<ArchiveAssetDigest>>,
 ) -> Result<ProjectArchivePackResult, String> {
     ensure_trusted_caller(&webview)?;
     let output = authorize_path(&app, &output_path, PathAccess::Write)?;
@@ -165,17 +280,29 @@ pub fn pack_project_archive<R: Runtime>(
         Some(raw) => Some(authorize_path(&app, raw, PathAccess::Read)?),
         None => None,
     };
+    if assets_root.as_ref().is_some_and(|root| output.starts_with(root)) { return Err("项目包不能导出到被打包的素材目录内".into()); }
 
-    let file = File::create(&output).map_err(|error| format!("创建导出文件失败: {error}"))?;
+    if let (Some(root), Some(expected)) = (&assets_root, &expected_assets) {
+        let mut actual = Vec::new(); inspect_assets(root, Path::new(""), &mut actual)?;
+        let mut expected = expected.clone(); expected.sort_by(|a, b| a.path.cmp(&b.path)); actual.sort_by(|a, b| a.path.cmp(&b.path));
+        if actual != expected { return Err("素材在导出前已变化，请重新导出".into()); }
+    }
+    let temporary = output.with_extension(format!("{}.part", SystemTime::now().duration_since(UNIX_EPOCH).map_err(|_| "系统时间无效")?.as_nanos()));
+    let file = fs::OpenOptions::new().write(true).create_new(true).open(&temporary).map_err(|error| format!("创建导出文件失败: {error}"))?;
+    let result = (|| {
     let encoder = GzEncoder::new(BufWriter::new(file), Compression::default());
     let mut builder = Builder::new(encoder);
     let mtime = unix_now();
 
+    let mut text_bytes = 0_u64; let mut paths = HashSet::new();
     for entry in &entries {
         let relative = normalize_archive_path(Path::new(&entry.path))?;
         if relative.as_os_str().is_empty() {
             return Err("项目归档条目路径为空".to_string());
         }
+        if relative.starts_with(ASSETS_PREFIX) || !paths.insert(to_archive_text(&relative).to_lowercase()) { return Err("项目记录路径冲突".into()); }
+        text_bytes = text_bytes.saturating_add(entry.content.len() as u64);
+        if text_bytes > MAX_TEXT_BYTES { return Err("项目记录超过 512 MB 上限".into()); }
         let bytes = entry.content.as_bytes();
         let mut header = Header::new_gnu();
         header.set_size(bytes.len() as u64);
@@ -202,12 +329,32 @@ pub fn pack_project_archive<R: Runtime>(
         .map_err(|error| format!("写入项目归档失败: {error}"))?;
     drop(writer);
 
+    if let Some(expected) = &expected_assets {
+        // 从实际写出的归档流复核内容，避免检查与打包之间源文件被修改。
+        let mut archive = Archive::new(GzDecoder::new(BufReader::new(File::open(&temporary).map_err(|_| "无法复核归档")?)));
+        let mut actual = Vec::new();
+        for entry in archive.entries().map_err(|_| "无法复核归档")? {
+            let mut entry = entry.map_err(|_| "无法复核归档条目")?;
+            let path = to_archive_text(&entry.path().map_err(|_| "归档路径无效")?);
+            if let Some(path) = path.strip_prefix("assets/") {
+                let mut digest = Sha256::new(); let mut bytes = 0_u64; let mut buffer = vec![0; 1024 * 1024];
+                loop { let count = entry.read(&mut buffer).map_err(|_| "归档素材读取失败")?; if count == 0 { break; } digest.update(&buffer[..count]); bytes += count as u64; }
+                actual.push(ArchiveAssetDigest { path: path.into(), bytes, sha256: format!("{:x}", digest.finalize()) });
+            }
+        }
+        let mut expected = expected.clone(); actual.sort_by(|a, b| a.path.cmp(&b.path)); expected.sort_by(|a, b| a.path.cmp(&b.path));
+        if actual != expected { return Err("素材在导出中发生变化，未发布归档".into()); }
+    }
+    fs::rename(&temporary, &output).map_err(|_| "无法发布归档，目标可能正被占用")?;
     let archive_bytes = fs::metadata(&output).map(|meta| meta.len()).unwrap_or(0);
     Ok(ProjectArchivePackResult {
         asset_count: stats.count,
         asset_bytes: stats.bytes,
         archive_bytes,
     })
+    })();
+    if result.is_err() { let _ = fs::remove_file(&temporary); }
+    result
 }
 
 /// 解包项目归档：`assets/` 下的素材写入 `assets_dir`，其余条目按文本返回。
@@ -224,6 +371,7 @@ pub fn unpack_project_archive<R: Runtime>(
     if !target_dir.is_dir() {
         return Err("导入目标目录不存在".to_string());
     }
+    if fs::read_dir(&target_dir).map_err(|_| "无法读取导入暂存目录")?.next().is_some() { return Err("项目包只能解压至空目录".into()); }
 
     let file =
         File::open(&archive_file).map_err(|error| format!("打开项目归档失败: {error}"))?;
@@ -238,6 +386,7 @@ pub fn unpack_project_archive<R: Runtime>(
     let mut entry_count = 0_usize;
     let mut asset_bytes = 0_u64;
     let mut text_bytes = 0_u64;
+    let mut seen = HashSet::new(); let mut assets = Vec::new();
 
     for item in entries {
         entry_count += 1;
@@ -257,6 +406,7 @@ pub fn unpack_project_archive<R: Runtime>(
         if relative.as_os_str().is_empty() {
             continue;
         }
+        if !seen.insert(to_archive_text(&relative).to_lowercase()) { return Err("项目归档含重复或大小写冲突路径".into()); }
 
         let mut components = relative.components();
         let is_asset = matches!(components.next(), Some(Component::Normal(first)) if first == ASSETS_PREFIX);
@@ -295,16 +445,17 @@ pub fn unpack_project_archive<R: Runtime>(
         if let Some(parent) = destination.parent() {
             fs::create_dir_all(parent).map_err(|error| format!("创建素材目录失败: {error}"))?;
         }
-        entry
-            .unpack(&destination)
-            .map_err(|error| format!("解压项目素材失败: {error}"))?;
-        asset_paths.push(to_archive_text(&inner));
+        let mut target = fs::OpenOptions::new().write(true).create_new(true).open(&destination).map_err(|_| "无法创建暂存素材")?;
+        std::io::copy(&mut entry, &mut target).map_err(|_| "解压素材失败")?; target.flush().map_err(|_| "暂存素材写入失败")?; drop(target);
+        let path = to_archive_text(&inner); let (bytes, sha256) = hash_file(&destination)?;
+        asset_paths.push(path.clone()); assets.push(ArchiveAssetDigest { path, bytes, sha256 });
     }
 
     Ok(ProjectArchiveUnpackResult {
         texts,
         asset_paths,
         asset_bytes,
+        assets,
     })
 }
 

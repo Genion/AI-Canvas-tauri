@@ -340,6 +340,7 @@ export interface BaseNodeData {
   directorStatus?: 'idle' | 'open' | 'ready';
   directorCaptureUrls?: string[];        // 从导演台同步的截图 URL 列表
   directorCaptureFilePaths?: string[];   // 对应本地路径
+  directorCaptureRelativePaths?: string[]; // 可迁移的项目内截图身份；加载时投影本机路径和 URL
   directorScene?: DirectorSceneReference; // 结构化 Director Scene 的不可变项目文件引用
   directorPrevisScene?: DirectorPrevisReference; // AI 镜头预演；独立合同，不覆盖 Blender Scene
   directorPrevisPrompt?: string;
@@ -397,6 +398,8 @@ export interface EpisodeCreativeInfo {
 }
 
 export interface CanvasProject {
+  /** 归档更新后提升；旧窗口/旧保存快照不能跨此代际写回。 */
+  exchangeEpoch?: number;
   id: string;
   name: string;
   createdAt: number;

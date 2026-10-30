@@ -30,6 +30,7 @@ import {
   STORE_PROJECT_VISUAL_DESCRIPTIONS,
   STORE_PROJECT_SUMMARIES,
   STORE_PROJECTS,
+  STORE_PROJECT_EXCHANGE_STATES,
   STORE_TOOLBAR_LAYOUTS,
 } from './indexedDb/schema';
 import {
@@ -291,15 +292,25 @@ export async function saveProjectToDb(record: ProjectRecord): Promise<void> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction([STORE_PROJECTS, STORE_PROJECT_SUMMARIES, STORE_METADATA], 'readwrite');
-    withRelocatedMedia(tx, record, (next) => tx.objectStore(STORE_PROJECTS).put(next));
-    const summaryRequest = tx.objectStore(STORE_PROJECT_SUMMARIES).put(summary);
+    let failure: Error | undefined;
+    const current = tx.objectStore(STORE_PROJECTS).get(record.id);
+    current.onsuccess = () => {
+      const before = current.result as ProjectRecord | undefined;
+      const tombstone = tx.objectStore(STORE_METADATA).get(`project-deleted:${record.id}`);
+      tombstone.onsuccess = () => {
+        if ((before?.exchangeEpoch ?? 0) !== (record.exchangeEpoch ?? 0) || (!before && tombstone.result)) {
+          failure = new Error('项目已被导入更新或删除，请重新打开项目后保存'); tx.abort(); return;
+        }
+        withRelocatedMedia(tx, record, (next) => tx.objectStore(STORE_PROJECTS).put(next));
+        tx.objectStore(STORE_PROJECT_SUMMARIES).put(summary);
+      };
+    };
     let settled = false;
     const fail = (error: DOMException | null) => {
       if (settled) return;
       settled = true;
-      reject(error ?? new Error(`项目 ${record.id} 的 IndexedDB 写入失败`));
+      reject(failure ?? error ?? new Error(`项目 ${record.id} 的 IndexedDB 写入失败`));
     };
-    summaryRequest.onerror = () => fail(summaryRequest.error);
     tx.oncomplete = () => {
       if (settled) return;
       settled = true;
@@ -730,9 +741,12 @@ export async function deleteProjectFromDb(id: string): Promise<void> {
       STORE_PROJECT_VISUAL_DESCRIPTIONS,
       STORE_HISTORY,
       STORE_METADATA,
+      STORE_PROJECT_EXCHANGE_STATES,
     ], 'readwrite');
 
     tx.objectStore(STORE_PROJECTS).delete(id);
+    tx.objectStore(STORE_PROJECT_EXCHANGE_STATES).delete(id);
+    tx.objectStore(STORE_METADATA).put({ id: `project-deleted:${id}`, deletedAt: Date.now() });
     tx.objectStore(STORE_METADATA).delete(`video-batches:${id}`);
     tx.objectStore(STORE_METADATA).delete(`video-replica-jobs:${id}`);
     tx.objectStore(STORE_PROJECT_SUMMARIES).delete(id);
@@ -1386,6 +1400,7 @@ export async function deleteAssetMeta(assetId: string): Promise<void> {
 // ============================================
 
 export interface ChatConversationRecord {
+  archiveOriginId?: string;
   id: string;
   projectId: string;
   title: string;
@@ -1455,6 +1470,7 @@ export async function getTrashConversations(projectId: string): Promise<ChatConv
 // ============================================
 
 export interface ChatMessageRecord {
+  archiveOriginId?: string;
   id: string;
   projectId: string;
   conversationId: string;

@@ -34,6 +34,20 @@ vi.mock('@tauri-apps/api/app', () => ({ getVersion: mocks.getVersion }));
 vi.mock('@tauri-apps/plugin-dialog', () => ({ open: mocks.open, save: mocks.save }));
 vi.mock('@tauri-apps/plugin-fs', () => ({ remove: mocks.remove }));
 vi.mock('../../src/services/projectArchiveSerialization', () => ({ serializeProjectArchiveEntries: mocks.serializeEntries }));
+// 本文件保留旧包恢复/目录回滚的回归；v3 内核与事务在各自的专用用例覆盖。
+vi.mock('../../src/services/indexedDb/projectExchangeRepository', () => ({ loadProjectExchangeState: async () => ({ headRevisionId: 'export-head', identities: [] }) }));
+vi.mock('../../src/services/projectExchangeDomain', () => ({
+  materializeExchangeSnapshot: (_snapshot: unknown, _identities: unknown, records: unknown[]) => records,
+}));
+vi.mock('../../src/services/projectImportService', () => ({
+  prepareExchangeExport: async () => ({ headRevisionId: 'export-head', revisions: [{ revisionId: 'export-head', snapshot: {} }] }),
+  prepareProjectImport: async () => {
+    if (!mocks.isTauriEnv()) throw new Error('项目导入仅在桌面版可用');
+    const archivePath = await mocks.open(); return archivePath ? { archivePath } : null;
+  },
+  applyProjectImport: async (session: { archivePath: string }) => (await import('../../src/services/projectTransferService')).restoreProjectArchive(session.archivePath),
+  closePreparedProjectImport: async () => undefined,
+}));
 vi.mock('../../src/services/indexedDbService', () => ({
   getAllProjects: mocks.getAllProjects,
   getProjectById: mocks.getProjectById,
@@ -190,14 +204,14 @@ describe('projectTransferService', () => {
     const result = await exportProjectArchive('source-project');
 
     expect(result).toEqual({ filePath: '/out/分镜项目.aicanvas', assetCount: 3, archiveBytes: 8, episodeCount: 0 });
-    const [command, args] = mocks.invoke.mock.calls[0];
+    const [command, args] = mocks.invoke.mock.calls.find(([name]) => name === 'pack_project_archive')!;
     expect(command).toBe('pack_project_archive');
     expect(args.assetsDir).toBe('/data/分镜项目-source12');
     expect(args.outputPath).toBe('/out/分镜项目.aicanvas');
 
     const entries = args.entries as { path: string; content: string }[];
-    expect(entries.map((entry) => entry.path)).toEqual(['manifest.json', 'project.json', 'chat.json']);
-    expect(JSON.parse(entries[0].content)).toMatchObject({ formatVersion: 2, episodeCount: 0 });
+    expect(entries.map((entry) => entry.path)).toEqual(['manifest.json', 'project.json', 'chat.json', 'exchange.json', 'exchange-state.json']);
+    expect(JSON.parse(entries[0].content)).toMatchObject({ formatVersion: 3, episodeCount: 0 });
     const chat = JSON.parse(entries[2].content);
     // 归档内消息按 sequence 升序，保证导入后时间线顺序稳定
     expect(chat.messages.map((message: { id: string }) => message.id)).toEqual(['m1', 'm2']);
@@ -229,7 +243,7 @@ describe('projectTransferService', () => {
 
     expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({ defaultPath: `${PROJECT_RECORD.name}.aicanvas` }));
     expect(mocks.getProjectById).toHaveBeenCalledExactlyOnceWith(PROJECT_RECORD.id);
-    const entries = mocks.invoke.mock.calls[0][1].entries as Array<{ path: string; content: string }>;
+    const entries = mocks.invoke.mock.calls.find(([name]) => name === 'pack_project_archive')![1].entries as Array<{ path: string; content: string }>;
     expect(JSON.parse(entries.find((entry) => entry.path === 'project.json')!.content)).toEqual(latest);
   });
 
@@ -240,7 +254,7 @@ describe('projectTransferService', () => {
 
     await expect(exportProjectArchive(PROJECT_RECORD.id)).rejects.toThrow('整理超时');
 
-    expect(mocks.invoke).not.toHaveBeenCalled();
+    expect(mocks.invoke.mock.calls.some(([name]) => name === 'pack_project_archive')).toBe(false);
     expect(mocks.saveProject).not.toHaveBeenCalled();
     expect(mocks.remove).not.toHaveBeenCalled();
   });
@@ -258,10 +272,10 @@ describe('projectTransferService', () => {
 
     expect(result!.episodeCount).toBe(2);
     expect(mocks.ensureProjectDataDir).toHaveBeenCalledExactlyOnceWith(SERIES_RECORD.id);
-    expect(mocks.invoke).toHaveBeenCalledTimes(1);
-    const entries = mocks.invoke.mock.calls[0][1].entries as { path: string; content: string }[];
+    expect(mocks.invoke.mock.calls.filter(([name]) => name === 'pack_project_archive')).toHaveLength(1);
+    const entries = mocks.invoke.mock.calls.find(([name]) => name === 'pack_project_archive')![1].entries as { path: string; content: string }[];
     const texts = Object.fromEntries(entries.map((entry) => [entry.path, entry.content]));
-    expect(JSON.parse(texts['manifest.json'])).toMatchObject({ formatVersion: 2, episodeCount: 2 });
+    expect(JSON.parse(texts['manifest.json'])).toMatchObject({ formatVersion: 3, episodeCount: 2 });
     expect(JSON.parse(texts['episodes.json']).map((episode: { project: { id: string } }) => episode.project.id))
       .toEqual(['episode-1', 'episode-2']);
     expect(mocks.getProjectConversations.mock.calls.map(([id]) => id)).toEqual([
@@ -707,9 +721,9 @@ describe('projectTransferService', () => {
     expect(result.projectName).toBe('分镜项目 副本');
     // 副本目录名跟着副本名走，不能和源项目共用同一个素材目录
     expect(result.dataFolder).toContain('分镜项目 副本');
-    expect(mocks.invoke.mock.calls[0][1].outputPath).toContain('.duplicate-');
+    expect(mocks.invoke.mock.calls.find(([name]) => name === 'pack_project_archive')![1].outputPath).toContain('.duplicate-');
     // 临时归档无论成败都要删掉，否则数据目录里会堆积复制残留
-    expect(mocks.remove).toHaveBeenCalledWith(mocks.invoke.mock.calls[0][1].outputPath);
+    expect(mocks.remove).toHaveBeenCalledWith(mocks.invoke.mock.calls.find(([name]) => name === 'pack_project_archive')![1].outputPath);
 
     expect(result.episodes).toHaveLength(1);
     const episode = result.episodes[0];

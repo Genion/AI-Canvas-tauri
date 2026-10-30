@@ -1851,6 +1851,8 @@ pub fn run() {
             agent_package::agent_source_read_text,
             project_archive::pack_project_archive,
             project_archive::unpack_project_archive,
+            project_archive::inspect_project_archive_assets,
+            project_archive::publish_project_import_assets,
             skill_archive::read_skill_archive,
             thumbnail_cache::prepare_project_thumbnail,
             thumbnail_cache::write_project_thumbnail,

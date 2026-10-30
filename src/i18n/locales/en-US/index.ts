@@ -6,6 +6,7 @@ import common from './common';
 import settings from './settings';
 import onboarding from './onboarding';
 import project from './project';
+import projectImport from './projectImport';
 import character from './character';
 import canvas from './canvas';
 import chat from './chat';
@@ -27,6 +28,7 @@ const enUS: Record<string, string> = {
   ...settings,
   ...onboarding,
   ...project,
+  ...projectImport,
   ...character,
   ...canvas,
   ...chat,

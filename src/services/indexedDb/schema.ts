@@ -6,7 +6,7 @@
 import { toProjectSummaryRecord } from './projectSummary';
 
 export const DB_NAME = 'ai-canvas-db';
-export const DB_VERSION = 26;
+export const DB_VERSION = 27;
 
 export const STORE_PROJECTS = 'projects';
 export const STORE_PROJECT_SUMMARIES = 'projectSummaries';
@@ -36,6 +36,8 @@ export const STORE_APPEARANCE_THEMES = 'appearanceThemes';
 export const STORE_SHARED_ASSET_MAPPINGS = 'sharedAssetMappings';
 export const STORE_SHARED_ASSET_OUTBOX = 'sharedAssetOutbox';
 export const STORE_SHARED_ASSET_CONFLICTS = 'sharedAssetConflicts';
+export const STORE_PROJECT_EXCHANGE_STATES = 'projectExchangeStates';
+export const STORE_PROJECT_EXCHANGE_SNAPSHOTS = 'projectExchangeSnapshots';
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -200,6 +202,13 @@ export function openDB(): Promise<IDBDatabase> {
             store.createIndex('sharedIdentity', [...scope, 'sharedAssetId'], { unique: true });
           }
         }
+      }
+      // 项目包协作身份与 S3 身份独立；只加表，不推断旧项目的协作来源。
+      for (const [name, keyPath] of [[STORE_PROJECT_EXCHANGE_STATES, 'ownerId'],
+        [STORE_PROJECT_EXCHANGE_SNAPSHOTS, 'revisionId']]) {
+        const store = db.objectStoreNames.contains(name)
+          ? request.transaction!.objectStore(name) : db.createObjectStore(name, { keyPath });
+        if (!store.indexNames.contains('lineageId')) store.createIndex('lineageId', 'lineageId', { unique: false });
       }
     };
     request.onsuccess = () => {

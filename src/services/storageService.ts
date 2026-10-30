@@ -671,7 +671,13 @@ async function restoreProjectNodes(nodes: unknown, projectId: string, lookup: Pr
       ));
       data = { ...data, videoReferences };
     }
-    if (Array.isArray(data.directorCaptureUrls) && Array.isArray(data.directorCaptureFilePaths)) {
+    if (Array.isArray(data.directorCaptureRelativePaths)) {
+      const captures = await mapWithConcurrency(data.directorCaptureRelativePaths, 2, async (relativePath) => {
+        const restored = await restoreAssetReferenceSafely({ relativePath } as AssetReferenceLike, projectId, projectDir, lookup);
+        return { filePath: restored.filePath ?? '', url: restored.filePath ? await getAssetUrlFromPath(restored.filePath) : '' };
+      });
+      data = { ...data, directorCaptureFilePaths: captures.map((capture) => capture.filePath), directorCaptureUrls: captures.map((capture) => capture.url) };
+    } else if (Array.isArray(data.directorCaptureUrls) && Array.isArray(data.directorCaptureFilePaths)) {
       const directorCaptureUrls = await mapWithConcurrency(
         data.directorCaptureUrls,
         2,
@@ -839,6 +845,7 @@ async function restoreProjectDramaAssets(
 }
 
 export interface ProjectSaveData {
+  exchangeEpoch?: number;
   id: string;
   name: string;
   createdAt: number;

@@ -7,6 +7,7 @@ import canvas from './canvas';
 import character from './character';
 import chat from './chat';
 import common from './common';
+import projectImport from './projectImport';
 import nodes from './nodes';
 import onboarding from './onboarding';
 import project from './project';
@@ -28,6 +29,7 @@ const koKR: Record<string, string> = {
   ...character,
   ...chat,
   ...common,
+  ...projectImport,
   ...nodes,
   ...onboarding,
   ...project,

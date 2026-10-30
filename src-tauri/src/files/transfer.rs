@@ -72,7 +72,7 @@ fn required_free_space(total_bytes: u64) -> u64 {
     total_bytes.saturating_add((total_bytes / 20).max(MIN_FREE_SPACE_RESERVE))
 }
 
-fn ensure_disk_space(parent: &Path, total_bytes: Option<u64>) -> Result<(), String> {
+pub(crate) fn ensure_disk_space(parent: &Path, total_bytes: Option<u64>) -> Result<(), String> {
     let available =
         fs2::available_space(parent).map_err(|e| format!("无法读取目标磁盘可用空间: {e}"))?;
     let required = total_bytes

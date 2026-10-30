@@ -18,6 +18,8 @@ import Select from './shared/Select';
 import { useT } from '../i18n';
 
 const RecentAssetsSection = lazy(() => import('./assets/RecentAssetsSection'));
+const ProjectImportDialog = lazy(() => import('./projectImport/ProjectImportDialog'));
+const ProjectImportRecoveryDialog = lazy(() => import('./projectImport/ProjectImportRecoveryDialog'));
 
 type ProjectSort = 'updated' | 'created' | 'name';
 
@@ -108,7 +110,7 @@ export default function ProjectLibraryModal({ isOpen, onClose, presentation = 'm
   const projectLoadStatus = useAppStore((state) => state.projectLoadStatus);
   const {
     projects, currentProjectId, createProject, renameProject, switchProject, deleteProject,
-    exportProject, importProject, duplicateProject, isCreatingProject,
+    exportProject, duplicateProject, isCreatingProject,
   } = useAppStore(
     useShallow((state) => ({
       projects: state.projects,
@@ -118,7 +120,6 @@ export default function ProjectLibraryModal({ isOpen, onClose, presentation = 'm
       switchProject: state.switchProject,
       deleteProject: state.deleteProject,
       exportProject: state.exportProject,
-      importProject: state.importProject,
       duplicateProject: state.duplicateProject,
       isCreatingProject: state.isCreatingProject,
     })),
@@ -134,10 +135,11 @@ export default function ProjectLibraryModal({ isOpen, onClose, presentation = 'm
   const [isDeleting, setIsDeleting] = useState(false);
   const [exportingId, setExportingId] = useState<string | null>(null);
   const [isImporting, setIsImporting] = useState(false);
+  const [recoveryOwnerId, setRecoveryOwnerId] = useState<string | null>(null);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{ project: CanvasProject; x: number; y: number } | null>(null);
   const [isOpeningProject, setIsOpeningProject] = useState(false);
-  const projectBusy = isOpeningProject || isCreatingProject || isImporting || projectLoadStatus === 'loading';
+  const projectBusy = isOpeningProject || isCreatingProject || isImporting || !!recoveryOwnerId || projectLoadStatus === 'loading';
   const listUnavailable = projectLoadStatus === 'error' && projects.length === 0;
   const searchInputRef = useRef<HTMLInputElement>(null);
   const createInputRef = useRef<HTMLInputElement>(null);
@@ -313,16 +315,10 @@ export default function ProjectLibraryModal({ isOpen, onClose, presentation = 'm
     }
   };
 
-  const runImportProject = async () => {
+  const runImportProject = () => {
     if (projectBusy || listUnavailable) return;
     if (isImporting || exportingId) return;
     setIsImporting(true);
-    try {
-      const projectId = await importProject();
-      if (projectId) closeLibrary();
-    } finally {
-      setIsImporting(false);
-    }
   };
 
   const confirmDeleteProject = async () => {
@@ -359,6 +355,8 @@ export default function ProjectLibraryModal({ isOpen, onClose, presentation = 'm
 
   const content = (
       <div className="relative flex min-h-0 flex-1 select-none flex-col" aria-busy={projectBusy}>
+        {isImporting && <Suspense fallback={null}><ProjectImportDialog onClose={() => setIsImporting(false)} onImported={() => { setIsImporting(false); closeLibrary(); }} /></Suspense>}
+        {recoveryOwnerId && <Suspense fallback={null}><ProjectImportRecoveryDialog ownerId={recoveryOwnerId} onClose={() => setRecoveryOwnerId(null)} /></Suspense>}
         <header
           inert={deleteTarget ? true : undefined}
           aria-hidden={deleteTarget ? true : undefined}
@@ -768,6 +766,8 @@ export default function ProjectLibraryModal({ isOpen, onClose, presentation = 'm
                   setContextMenu(null);
                 }}
               />
+              <ProjectMenuItem icon="mdi:history" label={t('导入更新恢复点')} disabled={projectBusy}
+                onClick={() => { setRecoveryOwnerId(seriesOwnerId(projects, contextMenu.project.id)); setContextMenu(null); }} />
               {canDeleteProject(contextMenu.project) ? (
                 <>
                   <div className="my-1 border-t border-canvas-border" />

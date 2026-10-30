@@ -309,7 +309,8 @@ export async function applySharedAssetSyncCommit(rawInput: SharedAssetSyncCommit
       if (input.project) {
         const project = input.project;
         check<ProjectRecord>(STORE_PROJECTS, input.ownerId, (before) => {
-          if (!before || !configValuesEqual(before.dramaAssets, input.expectedProjectLibrary)) throw failConflict();
+          if (!before || (before.exchangeEpoch ?? 0) !== (project.exchangeEpoch ?? 0)
+            || !configValuesEqual(before.dramaAssets, input.expectedProjectLibrary)) throw failConflict();
           relocated({ ...project, snapshot: before.snapshot }, (record) => {
             const summary = toProjectSummaryRecord(record);
             if (!summary) throw failConflict();

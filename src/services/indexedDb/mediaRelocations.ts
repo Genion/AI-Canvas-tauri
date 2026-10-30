@@ -22,7 +22,7 @@ export interface MediaRelocation {
 }
 const JOURNAL_ID = 'media-relocations';
 const STORES = ['projects', 'history', 'chatMessages', 'assetIndex', 'assetMeta', 'assetMetaV2',
-  'globalCharacters', 'globalDramaAssets', 'videoEditorProjects', 'agentTasks', 'workflows', 'presets'];
+  'globalCharacters', 'globalDramaAssets', 'videoEditorProjects', 'agentTasks', 'workflows', 'presets', 'projectExchangeStates'];
 const pathKey = (path: string) => {
   const normalized = path.replace(/\\/g, '/').replace(/^\/\/\?\/UNC\//i, '//').replace(/^\/\/\?\//, '');
   return /^[a-z]:\//i.test(normalized) ? normalized.toLowerCase() : normalized;
@@ -39,6 +39,26 @@ export function mediaFileAllocationKey(path: string): string {
 
 /** 精确文件引用迁移；显式修复另同步真实 @asset 路径 token，普通正文不改。 */
 export function relocateMediaReferences<T>(value: T, moves: readonly MediaRelocation[]): T {
+  // 只迁移本机映射，不改不可变版本。局部共享副本保留旧文件身份，新副本在捕获时另分配。
+  if (value && typeof value === 'object' && 'identities' in value && 'ownerId' in value
+    && Array.isArray(value.identities)) {
+    const state = value as unknown as import('../../types/projectExchange').ProjectExchangeState;
+    let changed = false;
+    const identities = state.identities.map((identity) => {
+      if (identity.kind !== 'file') return identity;
+      let localId = identity.localId;
+      for (const move of moves) {
+        if (move.ownerId || move.assetMove || !state.identities.some((item) => item.kind === 'project' && item.localId === move.projectId)) continue;
+        const destination = move.newPath.replace(/\\/g, '/'), relative = move.relativePath.replace(/\\/g, '/');
+        if (!destination.endsWith(`/${relative}`)) continue;
+        const root = destination.slice(0, -(relative.length + 1)), source = move.oldPath.replace(/\\/g, '/');
+        if (pathKey(source).startsWith(`${pathKey(root)}/`) && pathKey(localId) === pathKey(source.slice(root.length + 1))) localId = relative;
+      }
+      if (localId === identity.localId) return identity;
+      changed = true; return { ...identity, localId };
+    });
+    if (changed) return { ...state, identities } as T;
+  }
   const lookup = new Map(moves.map((move) => [pathKey(move.oldPath), move]));
   const repairs = new Map(moves.filter((move) => move.assetMove?.repair).map((move) => [move.assetMove!.assetId, move]));
   const resolve = (path: string | undefined): MediaRelocation | undefined => {

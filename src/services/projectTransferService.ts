@@ -10,7 +10,7 @@
  */
 import { invoke } from '@tauri-apps/api/core';
 import { getVersion } from '@tauri-apps/api/app';
-import { open, save } from '@tauri-apps/plugin-dialog';
+import { save } from '@tauri-apps/plugin-dialog';
 import { remove } from '@tauri-apps/plugin-fs';
 import * as fileService from './fileService';
 import {
@@ -37,13 +37,13 @@ import { serializeProjectArchiveEntries, type ProjectArchiveJsonEntry } from './
 
 export const PROJECT_ARCHIVE_EXTENSION = 'aicanvas';
 /** 归档格式版本；解包时拒绝更高版本，避免旧版本误读新结构。 */
-export const PROJECT_ARCHIVE_FORMAT_VERSION = 2;
+export const PROJECT_ARCHIVE_FORMAT_VERSION = 3;
 
 const MANIFEST_ENTRY = 'manifest.json';
 const PROJECT_ENTRY = 'project.json';
 const CHAT_ENTRY = 'chat.json';
 const EPISODES_ENTRY = 'episodes.json';
-/** 单个会话一次性读取的消息上限，超出部分不会进入归档。 */
+/** 单个会话读取上限；超出时中止导出，避免把截断记录声明为完整材料。 */
 const MAX_MESSAGES_PER_CONVERSATION = 100_000;
 
 export interface ProjectArchiveManifest {
@@ -56,13 +56,13 @@ export interface ProjectArchiveManifest {
   episodeCount?: number;
 }
 
-interface ProjectArchiveChatPayload {
+export interface ProjectArchiveChatPayload {
   conversations: ChatConversationRecord[];
   messages: ChatMessageRecord[];
   memories: ProjectMemoryRecord[];
 }
 
-interface ProjectArchiveEpisode {
+export interface ProjectArchiveEpisode {
   project: ProjectSaveData;
   chat: ProjectArchiveChatPayload | null;
 }
@@ -217,7 +217,8 @@ function detachSourceAssetIdentity(record: ProjectSaveData): void {
 }
 
 async function readAllConversationMessages(conversationId: string): Promise<ChatMessageRecord[]> {
-  const { messages } = await getConversationMessages(conversationId, 0, MAX_MESSAGES_PER_CONVERSATION);
+  const { messages, total } = await getConversationMessages(conversationId, 0, MAX_MESSAGES_PER_CONVERSATION);
+  if (total > messages.length) throw new Error('会话消息超过当前归档上限，请先拆分会话后重新导出');
   return messages.slice().sort((left, right) => left.sequence - right.sequence);
 }
 
@@ -230,7 +231,7 @@ async function collectChatPayload(projectId: string): Promise<ProjectArchiveChat
   return { conversations, messages: messageGroups.flat(), memories };
 }
 
-function readArchiveProject(value: unknown, label: string): ProjectSaveData {
+export function readArchiveProject(value: unknown, label: string): ProjectSaveData {
   if (!isRecord(value) || typeof value.id !== 'string' || !value.id.trim()
     || typeof value.name !== 'string' || !Array.isArray(value.nodes) || !Array.isArray(value.edges)
     || (value.groups !== undefined && !Array.isArray(value.groups))) {
@@ -245,7 +246,7 @@ function readArchiveProject(value: unknown, label: string): ProjectSaveData {
   } as unknown as ProjectSaveData;
 }
 
-function readArchiveChat(value: unknown): ProjectArchiveChatPayload | null {
+export function readArchiveChat(value: unknown): ProjectArchiveChatPayload | null {
   if (value === null) return null;
   if (!isRecord(value) || !Array.isArray(value.conversations)
     || !Array.isArray(value.messages) || !Array.isArray(value.memories)) {
@@ -276,7 +277,7 @@ function createChatIdentityMap(payloads: (ProjectArchiveChatPayload | null)[]): 
   return identities;
 }
 
-function readArchiveEpisodes(
+export function readArchiveEpisodes(
   raw: string | undefined,
   manifest: ProjectArchiveManifest,
   source: ProjectSaveData,
@@ -339,17 +340,31 @@ async function packProjectArchive(
   // 用 ensure 而不是 get：老项目可能还没建过数据目录，直接打包会卡在路径校验上。
   const assetsDir = await fileService.ensureProjectDataDir(projectRecord.id);
   if (!assetsDir) throw new Error('无法读取项目素材目录，已取消导出');
+  const { prepareExchangeExport } = await import('./projectImportService');
+  const assets = await invoke<import('./projectExchangeDomain').ArchiveAssetDigest[]>('inspect_project_archive_assets', { assetsDir });
+  const exchange = await prepareExchangeExport([projectRecord, ...episodes.map((episode) => episode.project)], assets, assetsDir);
+  const { loadProjectExchangeState } = await import('./indexedDb/projectExchangeRepository');
+  const exchangeState = await loadProjectExchangeState(projectRecord.id);
+  if (exchangeState?.headRevisionId !== exchange.headRevisionId) throw new Error('协作版本在导出准备期间变化，请重试');
+  const { materializeExchangeSnapshot } = await import('./projectExchangeDomain');
+  const head = exchange.revisions.find((revision) => revision.revisionId === exchange.headRevisionId)!;
+  const portable = materializeExchangeSnapshot(head.snapshot, structuredClone(exchangeState.identities),
+    [projectRecord, ...episodes.map((episode) => episode.project)], projectRecord.dataFolder ?? projectRecord.id,
+    new Map(exchangeState.identities.filter((item) => item.kind === 'file').map((item) => [item.id, item.localId])), false);
   const values: ProjectArchiveJsonEntry[] = [
     { path: MANIFEST_ENTRY, value: manifest },
-    { path: PROJECT_ENTRY, value: projectRecord },
+    { path: PROJECT_ENTRY, value: portable[0] },
     { path: CHAT_ENTRY, value: chat },
+    { path: 'exchange.json', value: exchange },
+    { path: 'exchange-state.json', value: exchangeState },
   ];
-  if (episodes.length > 0) values.push({ path: EPISODES_ENTRY, value: episodes });
+  if (episodes.length > 0) values.push({ path: EPISODES_ENTRY, value: episodes.map((episode) => ({ ...episode, project: portable.find((record) => record.id === episode.project.id)! })) });
   const entries = await serializeProjectArchiveEntries(values);
   const result = await invoke<PackResult>('pack_project_archive', {
     entries,
     assetsDir,
     outputPath,
+    expectedAssets: assets,
   });
   return { ...result, episodeCount: episodes.length };
 }
@@ -443,9 +458,10 @@ async function restoreChatPayload(
  * 从归档还原出一个全新项目。素材先解到临时数据目录，读到项目名后再改名为
  * 正式的「项目名-短ID」目录；overrideName 用于复制项目时另起名字。
  */
-async function restoreProjectArchive(
+export async function restoreProjectArchive(
   archivePath: string,
   overrideName?: string,
+  historyOptions = { appendChat: true, appendMemories: true },
 ): Promise<ProjectImportResult> {
   const projectId = createRecordId();
   const stagingFolder = fileService.buildProjectFolderName('导入中', projectId);
@@ -478,7 +494,11 @@ async function restoreProjectArchive(
     const chat = unpacked.texts[CHAT_ENTRY]
       ? readArchiveChat(parseJson<unknown>(unpacked.texts[CHAT_ENTRY], '对话记录'))
       : null;
-    const payloads = [chat, ...sourceEpisodes.map((episode) => episode.chat)];
+    const payloads = [chat, ...sourceEpisodes.map((episode) => episode.chat)].map((payload) => payload ? {
+      conversations: historyOptions.appendChat ? payload.conversations : [],
+      messages: historyOptions.appendChat ? payload.messages : [],
+      memories: historyOptions.appendMemories ? payload.memories : [],
+    } : null);
     const chatIdentities = createChatIdentityMap(payloads);
 
     const name = (overrideName || source.name || manifest.projectName || '导入项目').trim() || '导入项目';
@@ -500,6 +520,7 @@ async function restoreProjectArchive(
     const record: ProjectSaveData = {
       ...source,
       id: projectId,
+      exchangeEpoch: undefined,
       name,
       dataFolder,
       createdAt: typeof source.createdAt === 'number' ? source.createdAt : now,
@@ -513,6 +534,7 @@ async function restoreProjectArchive(
     const records = [record, ...sourceEpisodes.map(({ project }) => ({
       ...project,
       id: createRecordId(),
+      exchangeEpoch: undefined,
       parentId: projectId,
       dataFolder,
       updatedAt: now,
@@ -593,16 +615,10 @@ async function restoreProjectArchive(
  * 从 `.aicanvas` 归档导入项目。用户取消选择时返回 null。
  */
 export async function importProjectArchive(): Promise<ProjectImportResult | null> {
-  if (!fileService.isTauriEnv()) throw new Error('项目导入仅在桌面版可用');
-
-  const archivePath = await open({
-    multiple: false,
-    title: '导入项目',
-    filters: [{ name: 'AI Canvas 项目包', extensions: [PROJECT_ARCHIVE_EXTENSION] }],
-  });
-  if (!archivePath || typeof archivePath !== 'string') return null;
-
-  return restoreProjectArchive(archivePath);
+  const { prepareProjectImport, applyProjectImport, closePreparedProjectImport } = await import('./projectImportService');
+  const session = await prepareProjectImport(); if (!session) return null;
+  try { return await applyProjectImport(session, null, {}, { appendChat: true, appendMemories: true }); }
+  finally { await closePreparedProjectImport(session); }
 }
 
 /**

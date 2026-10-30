@@ -20,6 +20,8 @@ const EXPECTED_STORES = [
   'metadata',
   'plugins',
   'presets',
+  'projectExchangeSnapshots',
+  'projectExchangeStates',
   'projectMemories',
   'projectSummaries',
   'projectVisualDescriptions',
@@ -425,8 +427,8 @@ describe('indexedDbService schema', () => {
 
     const { openDB, DB_VERSION } = await import('../../src/services/indexedDb/schema');
     const db = await openDB();
-    expect(DB_VERSION).toBe(26);
-    expect(db.version).toBe(26);
+    expect(DB_VERSION).toBe(27);
+    expect(db.version).toBe(27);
     const sync = db.transaction(['sharedAssetMappings', 'sharedAssetOutbox', 'sharedAssetConflicts'], 'readonly');
     const mappings = sync.objectStore('sharedAssetMappings');
     const outbox = sync.objectStore('sharedAssetOutbox');
