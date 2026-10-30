@@ -15,6 +15,7 @@ import { nativeDropClientPosition } from '../utils/nativeDropPosition';
 import { textNodeHeight } from '../utils/num';
 import { COMFY_REFMOD_MIME } from '../utils/comfyRefmod';
 import { registerCanvasImport, isCanvasDerivationFresh, completeCanvasDerivation } from '../services/canvasDerivationGuard';
+import { getPreferredNodeModel } from '../services/modelPreferenceService';
 
 // ── File type constants ──
 
@@ -36,28 +37,6 @@ const MIME_MAP: Record<string, string> = {
 };
 
 export { FILE_EXT_IMAGE, FILE_EXT_VIDEO, FILE_EXT_AUDIO, FILE_EXT_TEXT };
-
-// ── Model preference helper ──
-const MODEL_PREF_KEY = 'canvas-model-prefs';
-
-function loadDefaultModel(nodeType: string): { model: string; provider: string } | null {
-  try {
-    const raw = localStorage.getItem(MODEL_PREF_KEY);
-    if (!raw) return null;
-    const prefs: Record<string, string> = JSON.parse(raw);
-    // 全景图回退到生图偏好
-    const modelValue = prefs[nodeType] || (nodeType === 'ai-panorama' ? prefs['ai-image'] : undefined);
-    if (!modelValue) return null;
-    // modelValue format: "provider/modelId" → data.model stores the full value, data.provider stores the prefix
-    const slashIdx = modelValue.indexOf('/');
-    if (slashIdx === -1) return null;
-    const provider = modelValue.slice(0, slashIdx);
-    if (!provider) return null;
-    return { model: modelValue, provider };
-  } catch {
-    return null;
-  }
-}
 
 export type FileCategory = 'image' | 'video' | 'audio' | 'text';
 
@@ -91,7 +70,7 @@ export function useNodeCreation() {
 
   const addTextNode = useCallback(
     (position: { x: number; y: number }, opts?: { label?: string; prompt?: string; width?: number; height?: number }) => {
-      const defaultModel = loadDefaultModel('ai-text');
+      const defaultModel = getPreferredNodeModel('ai-text', useAppStore.getState());
       addNode({
         id: `node-${generateId()}`,
         type: 'ai-text',
@@ -103,7 +82,7 @@ export function useNodeCreation() {
           status: 'idle' as const,
           nodeWidth: opts?.width ?? 280,
           nodeHeight: opts?.height ?? 160,
-          ...(defaultModel ? { model: defaultModel.model, provider: defaultModel.provider } : {}),
+          ...defaultModel,
         },
       } as RFNode<BaseNodeData>);
     },
@@ -114,7 +93,7 @@ export function useNodeCreation() {
     async (position: { x: number; y: number }, opts?: { label?: string; dataUrl?: string }) => {
       const dataUrl = opts?.dataUrl;
       const isGenerator = !dataUrl;
-      const defaultModel = isGenerator ? loadDefaultModel('ai-image') : null;
+      const defaultModel = isGenerator ? getPreferredNodeModel('ai-image', useAppStore.getState()) : null;
       const dims = dataUrl
         ? await computeImageNodeDimensions(dataUrl)
         : { nodeWidth: 280, nodeHeight: 158 };
@@ -131,7 +110,7 @@ export function useNodeCreation() {
             ? { imageUrl: dataUrl }
             : { prompt: '', aspectRatio: '16:9' as const, imageSize: '2K' as const }),
           ...dims,
-          ...(defaultModel ? { model: defaultModel.model, provider: defaultModel.provider } : {}),
+          ...defaultModel,
         },
       } as RFNode<BaseNodeData>);
     },
@@ -142,7 +121,7 @@ export function useNodeCreation() {
     (position: { x: number; y: number }, opts?: { label?: string; dataUrl?: string }) => {
       const dataUrl = opts?.dataUrl;
       const isGenerator = !dataUrl;
-      const defaultModel = isGenerator ? loadDefaultModel('ai-video') : null;
+      const defaultModel = isGenerator ? getPreferredNodeModel('ai-video', useAppStore.getState()) : null;
       addNode({
         id: `node-${generateId()}`,
         type: 'ai-video',
@@ -155,7 +134,7 @@ export function useNodeCreation() {
           ...(dataUrl ? { videoUrl: dataUrl } : { prompt: '' }),
           nodeWidth: 280,
           nodeHeight: 160,
-          ...(defaultModel ? { model: defaultModel.model, provider: defaultModel.provider } : {}),
+          ...defaultModel,
         },
       } as RFNode<BaseNodeData>);
     },
@@ -166,7 +145,7 @@ export function useNodeCreation() {
     (position: { x: number; y: number }, opts?: { label?: string; dataUrl?: string }) => {
       const dataUrl = opts?.dataUrl;
       const isGenerator = !dataUrl;
-      const defaultModel = isGenerator ? loadDefaultModel('ai-audio') : null;
+      const defaultModel = isGenerator ? getPreferredNodeModel('ai-audio', useAppStore.getState()) : null;
       addNode({
         id: `node-${generateId()}`,
         type: 'ai-audio',
@@ -179,7 +158,7 @@ export function useNodeCreation() {
           ...(dataUrl ? { audioUrl: dataUrl } : { prompt: '' }),
           nodeWidth: 260,
           nodeHeight: 140,
-          ...(defaultModel ? { model: defaultModel.model, provider: defaultModel.provider } : {}),
+          ...defaultModel,
         },
       } as RFNode<BaseNodeData>);
     },

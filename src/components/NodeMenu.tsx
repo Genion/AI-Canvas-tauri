@@ -15,6 +15,7 @@ import { NODE_TYPE_CONFIG, SHOTLIST_DEFAULT_COLUMNS, createShotRow } from '../ty
 import { calcFixedPosition } from '../utils/popupPosition';
 import { uploadSourceFileToProject } from '../services/fileService';
 import { getCanvasPointerPosition } from '../services/canvasPointerService';
+import { getPreferredNodeModel } from '../services/modelPreferenceService';
 import { classifyFile } from '../hooks/useNodeCreation';
 import AnimatedButton from './shared/AnimatedButton';
 import { useT } from '../i18n';
@@ -102,6 +103,7 @@ export default function NodeMenu() {
     const isAnimation = type === 'ai-animation';
     const isDirector = type === 'ai-director';
     const isShotlist = type === 'ai-shotlist';
+    const defaultModel = isDirector ? null : getPreferredNodeModel(type, useAppStore.getState());
     const pos = getCanvasPointerPosition();
     const newNode: Record<string, unknown> = {
       id: `node-${generateId()}`,
@@ -112,6 +114,7 @@ export default function NodeMenu() {
         type,
         prompt: '',
         status: 'idle' as const,
+        ...defaultModel,
         nodeWidth: isShotlist ? 720 : isAnimation || isDirector ? 320 : 280,
         nodeHeight: isShotlist ? 380 : isDirector ? 240 : isImage ? 158 : isAnimation ? 358 : 160,
         ...(isImage ? { aspectRatio: '16:9', imageSize: '2K' } : {}),

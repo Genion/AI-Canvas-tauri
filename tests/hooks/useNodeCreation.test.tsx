@@ -30,10 +30,11 @@ import { useNodeCreation } from '../../src/hooks/useNodeCreation';
 import { COMFY_REFMOD_MIME } from '../../src/utils/comfyRefmod';
 let cleanups: Array<void | (() => void)>;
 beforeEach(async () => {
+  localStorage.clear();
   driver.effects = []; driver.ids = 0; driver.onDrag = undefined;
   driver.copy.mockReset().mockResolvedValue({ assetUrl: 'asset://copied', fileName: 'copied', filePath: '/project/copied' });
   driver.read.mockReset().mockResolvedValue(new Uint8Array([0])); driver.mark.mockReset().mockResolvedValue(true);
-  driver.state = { currentProjectId: 'project', nodes: [], workflowPanelOpen: false, showToast: vi.fn(), markAssetUsed: driver.mark,
+  driver.state = { currentProjectId: 'project', projects: [], nodes: [], workflowPanelOpen: false, showToast: vi.fn(), markAssetUsed: driver.mark,
     addNode: vi.fn((node: AppState['nodes'][number]) => { driver.state.nodes = [...driver.state.nodes, node]; }),
     updateNodeDataTransient: vi.fn((id: string, patch: Record<string, unknown>) => {
       driver.state.nodes = driver.state.nodes.map((node) => node.id === id ? { ...node, data: { ...node.data, ...patch } } : node);
@@ -48,6 +49,17 @@ function drag(type: DropEvent['payload']['type'], path = '/external/source.mp4')
   driver.onDrag!({ payload: { type, paths: [path], position: { x: 20, y: 30 } } });
 }
 describe('成功导入后的最近使用记录', () => {
+  it('新建文本与音频把真实历史偏好写入节点，源音频不自动绑定', () => {
+    localStorage.setItem('canvas-model-prefs', JSON.stringify({ 'ai-text': 'general/text', 'ai-audio': 'general/audio' }));
+    const creation = useNodeCreation();
+    creation.addTextNode({ x: 0, y: 0 });
+    creation.addAudioNode({ x: 0, y: 0 });
+    creation.addAudioNode({ x: 0, y: 0 }, { dataUrl: 'asset://source.mp3' });
+    expect(driver.state.nodes.map((node) => [node.data.model, node.data.provider])).toEqual([
+      ['general/text', 'general'], ['general/audio', 'general'], [undefined, undefined],
+    ]);
+  });
+
   it('RefMod 的语义拖放留给视频节点，不显示文件导入或创建媒体节点', async () => {
     const creation = useNodeCreation();
     const event = {

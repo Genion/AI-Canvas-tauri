@@ -16,28 +16,7 @@ import { playNodeExit } from '../utils/nodeAnimations';
 import { createPluginNode, getAvailablePluginNodes } from '../services/plugins/pluginRuntime';
 import type { AvailablePluginNode } from '../types/plugin';
 import { collectCanvasDescendantIds } from '../utils/canvasHierarchy';
-
-// ── Model preference helper ──
-const MODEL_PREF_KEY = 'canvas-model-prefs';
-
-function loadDefaultModel(nodeType: string): { model: string; provider: string } | null {
-  try {
-    const raw = localStorage.getItem(MODEL_PREF_KEY);
-    if (!raw) return null;
-    const prefs: Record<string, string> = JSON.parse(raw);
-    // 全景图回退到生图偏好
-    const modelValue = prefs[nodeType]
-      || (nodeType === 'ai-panorama' || nodeType === 'ai-animation' ? prefs['ai-image'] : undefined);
-    if (!modelValue) return null;
-    const slashIdx = modelValue.indexOf('/');
-    if (slashIdx === -1) return null;
-    const provider = modelValue.slice(0, slashIdx);
-    if (!provider) return null;
-    return { model: modelValue, provider };
-  } catch {
-    return null;
-  }
-}
+import { getPreferredNodeModel } from '../services/modelPreferenceService';
 
 interface ContextMenuState {
   visible: boolean;
@@ -116,7 +95,7 @@ export function useCanvasContextMenu() {
         : isAnimation || isDirector ? 320 : type === 'ai-audio' ? 260 : isPanorama ? 300 : 280;
       const newHeight = isShotlist ? 380 : isStoryboard ? Math.max(200, grid!.rows * 56)
         : isDirector ? 240 : isAnimation ? 358 : type === 'ai-audio' ? 140 : isImage ? 158 : isPanorama ? 200 : type === 'ai-markdown' ? 200 : 160;
-      const defaultModel = !isSource ? loadDefaultModel(type) : null;
+      const defaultModel = !isSource && !isDirector ? getPreferredNodeModel(type, useAppStore.getState()) : null;
       const newNode: RFNode<BaseNodeData> = {
         id: `node-${generateId()}`,
         type,
@@ -152,7 +131,7 @@ export function useCanvasContextMenu() {
             storyboardCols: grid!.cols,
             storyboardExtracted: new Array<boolean>(grid!.rows * grid!.cols).fill(true),
           } : {}),
-          ...(defaultModel ? { model: defaultModel.model, provider: defaultModel.provider } : {}),
+          ...defaultModel,
         },
       };
       addNode(newNode);

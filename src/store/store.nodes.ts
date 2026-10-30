@@ -42,6 +42,7 @@ import { AI_APP_COPY_MESSAGE, AI_APP_CREATION_MESSAGE, assertAiAppNodeInsertion,
 import { getGenerationNodeType } from '../utils/nodeGeneration';
 import { collectCanvasDescendantIds } from '../utils/canvasHierarchy';
 import { normalizeShotlistPromptReferences, resolveSingleShotlistRowReference } from '../services/shotlistPromptService';
+import { readNodeModelPreference } from '../services/modelPreferenceService';
 
 /** 只投影本次真实传入的媒体参数，保留 false、接口默认背景与自动时长。 */
 function mediaParametersToNodeData(kind: MediaKind, parameters?: MediaGenerationParameters): Partial<BaseNodeData> {
@@ -433,15 +434,10 @@ function applyRememberedMediaParameters(data: BaseNodeData, settings: ProjectSet
   if ((data.type !== 'ai-image' && data.type !== 'ai-video') || data.role === 'source'
     || data.displayId !== undefined || data.prompt?.trim() || data.workflowId
     || (data.status && data.status !== 'idle') || hasMaterializedNodeOutput(data, data.type)) return data;
-  // 工具栏新建尚未写入模型时，补齐与模型选择器相同的偏好身份。
+  // 保留图片／视频空节点原有的参数偏好回填，其他类型只由明确的 UI 新建入口绑定模型。
   if (data.model === undefined) {
-    try {
-      const raw = globalThis.localStorage?.getItem('canvas-model-prefs');
-      const model: unknown = raw ? JSON.parse(raw)?.[data.type] : undefined;
-      if (typeof model === 'string' && model.indexOf('/') > 0) {
-        data = { ...data, model, provider: model.slice(0, model.indexOf('/')) };
-      }
-    } catch { /* 缺失或损坏的模型偏好沿用原默认行为。 */ }
+    const preferred = readNodeModelPreference(data.type);
+    if (preferred) data = { ...data, ...preferred };
   }
   const preference = readMediaParameterPreferences()[data.type];
   if (!preference || typeof preference !== 'object' || Array.isArray(preference)) return data;

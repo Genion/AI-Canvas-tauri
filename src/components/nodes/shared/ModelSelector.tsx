@@ -26,39 +26,7 @@ import { ModelMenu, type ModelPickerGroup } from '../../shared/ModelPicker';
 import { resolveAppearanceMode } from '../../../services/appearance/appearanceRuntime';
 import { comfyBaseUrlFor, DEFAULT_COMFY_URL, probeComfyServer } from '../../../services/comfyServers';
 import { getGenerationNodeType } from '../../../utils/nodeGeneration';
-
-const MODEL_PREF_KEY = 'canvas-model-prefs';
-
-/**
- * 没有独立模型清单的节点类型，借用哪一类的模型和偏好。
- * 分镜表让文本模型把剧本拆成表格行，用的就是生文那批模型。
- */
-const MODEL_TYPE_FALLBACK: Partial<Record<NodeType, NodeType>> = {
-  'ai-panorama': 'ai-image',
-  'ai-animation': 'ai-image',
-  'ai-shotlist': 'ai-text',
-};
-
-function loadModelPrefs(): Record<string, string> {
-  try {
-    const raw = localStorage.getItem(MODEL_PREF_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
-}
-
-function saveModelPref(nodeType: string, modelValue: string) {
-  try {
-    const prefs = loadModelPrefs();
-    prefs[nodeType] = modelValue;
-    // 生图模型选择时同步到全景图节点
-    if (nodeType === 'ai-image') {
-      prefs['ai-panorama'] = modelValue;
-    }
-    localStorage.setItem(MODEL_PREF_KEY, JSON.stringify(prefs));
-  } catch { /* ignore */ }
-}
+import { getModelPreferenceType, saveModelPreference } from '../../../services/modelPreferenceService';
 
 interface ModelSelectorProps {
   nodeType: NodeType;
@@ -111,7 +79,7 @@ export default function ModelSelector({
   const [workflowsCollapsed, setWorkflowsCollapsed] = useState(true);
   const [availableComfyUrls, setAvailableComfyUrls] = useState<Record<string, boolean>>({});
   const generationNodeType = getGenerationNodeType(nodeType);
-  const modelNodeType = MODEL_TYPE_FALLBACK[generationNodeType] ?? generationNodeType;
+  const modelNodeType = getModelPreferenceType(nodeType);
 
   // 读取配置 — 判断哪些 provider 有 API Key
   const config = useAppStore((s) => s.config);
@@ -254,22 +222,8 @@ export default function ModelSelector({
     }))
     .filter((g) => g.models.length > 0);
 
-  // 持久化偏好：优先 props 传入的 selectedModel，其次 localStorage 中的记录
-  // 全景图/动画回退到生图偏好，分镜表回退到生文偏好
-  const effectiveModel = useMemo(
-    () => {
-      // 空字符串表示用户已清除当前节点选择，不再回填历史偏好。
-      if (selectedModel === '') return undefined;
-      const prefs = loadModelPrefs();
-      const fallbackType = MODEL_TYPE_FALLBACK[generationNodeType];
-      return selectedModel
-        || prefs[generationNodeType]
-        || prefs[nodeType]
-        || (fallbackType ? prefs[fallbackType] : undefined)
-        || undefined;
-    },
-    [selectedModel, nodeType, generationNodeType],
-  );
+  // 只展示调用方真实绑定；历史偏好在 UI 新建时写入，旧节点和临时表单不做隐式回填。
+  const effectiveModel = selectedModel || undefined;
 
   const currentGroup = effectiveModel
     ? filteredGroups.find((group) => group.models.some((model) => model.value === effectiveModel))
@@ -304,10 +258,12 @@ export default function ModelSelector({
   };
 
   // 匹配当前节点类型的工作流
-  const targetCategory = getWorkflowCategory(generationNodeType);
   const matchingWorkflows = useMemo(
-    () => (targetCategory ? workflows.filter((w) => w.category === targetCategory) : []),
-    [workflows, targetCategory],
+    () => {
+      const category = getWorkflowCategory(getGenerationNodeType(nodeType));
+      return category ? workflows.filter((workflow) => workflow.category === category) : [];
+    },
+    [workflows, nodeType],
   );
 
   // 与生成时一致：未绑定或服务器已删除时回落默认地址；云端工作流不检测 ComfyUI。
@@ -402,7 +358,7 @@ export default function ModelSelector({
     disabledReason: isGroupAvailable(group.id) ? undefined : t('请先在设置中配置 {name} API Key', { name: group.name }),
     items: group.models.map((model) => ({ value: model.value, label: model.label, description: model.description })),
   }));
-  if (targetCategory && onWorkflowSelect && visibleWorkflows.length > 0) {
+  if (onWorkflowSelect && visibleWorkflows.length > 0) {
     menuGroups.push({
       id: workflowGroupId,
       label: t('工作流'),
@@ -424,7 +380,7 @@ export default function ModelSelector({
     const group = filteredGroups.find((candidate) => candidate.models.some((model) => model.value === value));
     const model = group?.models.find((candidate) => candidate.value === value);
     if (group && model && isGroupAvailable(group.id)) {
-      if (persistPreference) saveModelPref(generationNodeType, model.value);
+      if (persistPreference) saveModelPreference(generationNodeType, model.value);
       onSelect(model);
       onWorkflowSelect?.(undefined);
       setOpen(false);

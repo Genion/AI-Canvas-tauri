@@ -17,6 +17,7 @@ import { generateId } from '../store/store.utils';
 import { invoke } from '@tauri-apps/api/core';
 import { collectCanvasDescendantIds } from '../utils/canvasHierarchy';
 import { startNodeRename } from '../utils/nodeRename';
+import { getPreferredNodeModel } from '../services/modelPreferenceService';
 
 interface NodeShortcutDefinition {
   type: NodeType;
@@ -42,22 +43,6 @@ const SOURCE_NODE_SHORTCUTS: NodeShortcutDefinition[] = [
   { type: 'ai-shotlist', label: '分镜表' },
 ];
 
-function loadDefaultModel(nodeType: NodeType): { model: string; provider: string } | null {
-  try {
-    const raw = localStorage.getItem('canvas-model-prefs');
-    if (!raw) return null;
-    const prefs: Record<string, string> = JSON.parse(raw);
-    const model = prefs[nodeType]
-      || (nodeType === 'ai-panorama' || nodeType === 'ai-animation' ? prefs['ai-image'] : undefined);
-    if (!model) return null;
-    const separatorIndex = model.indexOf('/');
-    if (separatorIndex <= 0) return null;
-    return { model, provider: model.slice(0, separatorIndex) };
-  } catch {
-    return null;
-  }
-}
-
 function createNodeFromNumberShortcut(shortcutIndex: number, isSource: boolean) {
   const definition = (isSource ? SOURCE_NODE_SHORTCUTS : GENERATOR_NODE_SHORTCUTS)[shortcutIndex];
   if (!definition) return false;
@@ -72,8 +57,8 @@ function createNodeFromNumberShortcut(shortcutIndex: number, isSource: boolean) 
   const nodeRole = isSource || isDirector ? 'source' : 'generator';
   const nodeWidth = isShotlist ? 720 : isAnimation || isDirector ? 320 : isAudio ? 260 : isPanorama ? 300 : 280;
   const nodeHeight = isShotlist ? 380 : isDirector ? 240 : isAnimation ? 358 : isAudio ? 140 : isImage ? 158 : isPanorama ? 200 : type === 'ai-markdown' ? 200 : 160;
-  const defaultModel = nodeRole === 'source' ? null : loadDefaultModel(type);
   const state = useAppStore.getState();
+  const defaultModel = nodeRole === 'source' ? null : getPreferredNodeModel(type, state);
   const position = getCanvasPointerPosition();
 
   const node: RFNode<BaseNodeData> = {

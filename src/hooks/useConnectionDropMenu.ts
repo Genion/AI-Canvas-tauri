@@ -7,30 +7,9 @@ import type { Node as RFNode, Edge, FinalConnectionState, Connection } from '@xy
 import { useAppStore, generateId } from '../store/useAppStore';
 import { isCanvasConnectionValid } from '../store/store.nodes';
 import type { BaseNodeData, NodeType } from '../types';
+import { getPreferredNodeModel } from '../services/modelPreferenceService';
 
 const SELECTION_MENU_TYPE = '__selection__';
-
-// ── Model preference helper ──
-const MODEL_PREF_KEY = 'canvas-model-prefs';
-
-function loadDefaultModel(nodeType: string): { model: string; provider: string } | null {
-  try {
-    const raw = localStorage.getItem(MODEL_PREF_KEY);
-    if (!raw) return null;
-    const prefs: Record<string, string> = JSON.parse(raw);
-    // 全景图和动画节点回退到生图偏好
-    const modelValue = prefs[nodeType]
-      || (nodeType === 'ai-panorama' || nodeType === 'ai-animation' ? prefs['ai-image'] : undefined);
-    if (!modelValue) return null;
-    const slashIdx = modelValue.indexOf('/');
-    if (slashIdx === -1) return null;
-    const provider = modelValue.slice(0, slashIdx);
-    if (!provider) return null;
-    return { model: modelValue, provider };
-  } catch {
-    return null;
-  }
-}
 
 interface ConnectionMenuOption {
   label: string;
@@ -315,7 +294,7 @@ export function useConnectionDropMenu(smoothLine: boolean) {
       const nodeY = flowPos.y - newHeight / 2;
 
       const newNodeId = `node-${generateId()}`;
-      const defaultModel = loadDefaultModel(option.type);
+      const defaultModel = isDirector ? null : getPreferredNodeModel(option.type, useAppStore.getState());
       const newNode: RFNode<BaseNodeData> = {
         id: newNodeId,
         type: option.type,
@@ -342,7 +321,7 @@ export function useConnectionDropMenu(smoothLine: boolean) {
             directorStatus: 'idle' as const,
             directorCaptureUrls: [] as string[],
           } : {}),
-          ...(defaultModel && !isDirector ? { model: defaultModel.model, provider: defaultModel.provider } : {}),
+          ...defaultModel,
         },
       };
       const edge: Edge = {

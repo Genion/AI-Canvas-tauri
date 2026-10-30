@@ -15,6 +15,7 @@ import type { NodeType } from '../types';
 import { NODE_TYPE_CONFIG } from '../types';
 import { uploadSourceFileToProject } from '../services/fileService';
 import { getCanvasPointerPosition } from '../services/canvasPointerService';
+import { getPreferredNodeModel } from '../services/modelPreferenceService';
 import { classifyFile } from '../hooks/useNodeCreation';
 import { checkForUpdate, downloadAndInstallUpdate, isAppUpdateRunning } from '../services/updateService';
 import DownloadProgress from './shared/DownloadProgress';
@@ -164,26 +165,7 @@ function NodePicker({
       nodeData.directorStatus = 'idle';
       nodeData.directorCaptureUrls = [];
     }
-    // Auto-fill default model from localStorage preference
-    // 全景图节点回退到生图节点偏好
-    try {
-      const raw = localStorage.getItem('canvas-model-prefs');
-      if (raw) {
-        const prefs: Record<string, string> = JSON.parse(raw);
-        const modelValue = prefs[type]
-          || (type === 'ai-panorama' || type === 'ai-animation' ? prefs['ai-image'] : undefined);
-        if (modelValue) {
-          const slashIdx = modelValue.indexOf('/');
-          if (slashIdx !== -1) {
-            const provider = modelValue.slice(0, slashIdx);
-            if (provider) {
-              nodeData.model = modelValue;
-              nodeData.provider = provider;
-            }
-          }
-        }
-      }
-    } catch { /* ignore */ }
+    if (!isDirector) Object.assign(nodeData, getPreferredNodeModel(type, useAppStore.getState()));
     const pos = getCanvasPointerPosition();
     addNode({
       id: `node-${generateId()}`,

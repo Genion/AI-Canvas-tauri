@@ -82,6 +82,7 @@ function open(workflows: WorkflowDefinition[]) {
 }
 
 beforeEach(() => {
+  localStorage.clear();
   vi.useFakeTimers();
   driver.states = []; driver.effects = []; driver.pending = [];
   driver.probe.mockReset().mockResolvedValue(false);
@@ -97,6 +98,50 @@ afterEach(() => {
 });
 
 describe('模型选择器工作流可用性', () => {
+  it.each([undefined, ''])('未绑定或显式清空 (%s) 不把历史偏好显示为当前选择', (selectedModel) => {
+    localStorage.setItem('canvas-model-prefs', JSON.stringify({ 'ai-text': 'general/preferred' }));
+    const onSelect = vi.fn();
+    const groups: ModelGroup[] = [{ id: 'configured', name: '已配置', description: '', models: [
+      { value: 'general/preferred', provider: 'general', label: '历史模型', nodeTypes: ['ai-text'] },
+    ] }];
+    const draw = () => {
+      driver.stateIndex = 0; driver.effectIndex = 0;
+      const elements = all(ModelSelector({ nodeType: 'ai-text', selectedModel,
+        configuredGroupsOverride: groups, onSelect }));
+      driver.pending.splice(0).forEach((effect) => effect());
+      return elements;
+    };
+    const elements = draw();
+    expect(elements.find((element) => element.props.className === 'model-selector-label')?.props.children).toBe('选择模型');
+    expect(onSelect).not.toHaveBeenCalled();
+    click(elements.find((element) => String(element.props.className).startsWith('model-selector-trigger'))!);
+    expect(menu(draw())?.value).toBeUndefined();
+    expect(JSON.parse(localStorage.getItem('canvas-model-prefs')!)).toEqual({ 'ai-text': 'general/preferred' });
+  });
+
+  it('显示实际绑定而非历史偏好，临时选择仍回调但不改全局偏好', () => {
+    localStorage.setItem('canvas-model-prefs', JSON.stringify({ 'ai-text': 'general/old' }));
+    const onSelect = vi.fn();
+    const groups: ModelGroup[] = [{ id: 'configured', name: '已配置', description: '', models: [
+      { value: 'general/actual', provider: 'general', label: '实际模型', nodeTypes: ['ai-text'] },
+      { value: 'general/next', provider: 'general', label: '临时模型', nodeTypes: ['ai-text'] },
+    ] }];
+    const draw = () => {
+      driver.stateIndex = 0; driver.effectIndex = 0;
+      const elements = all(ModelSelector({ nodeType: 'ai-text', selectedModel: 'general/actual',
+        configuredGroupsOverride: groups, onSelect, persistPreference: false }));
+      driver.pending.splice(0).forEach((effect) => effect());
+      return elements;
+    };
+    const elements = draw();
+    expect(elements.find((element) => element.props.className === 'model-selector-label')?.props.children).toBe('实际模型');
+    click(elements.find((element) => String(element.props.className).startsWith('model-selector-trigger'))!);
+    expect(menu(draw())?.value).toBe('general/actual');
+    menu(draw())!.onChange('general/next');
+    expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ value: 'general/next', provider: 'general' }));
+    expect(JSON.parse(localStorage.getItem('canvas-model-prefs')!)).toEqual({ 'ai-text': 'general/old' });
+  });
+
   it.each([
     ['source-text', 'ai-text'], ['source-image', 'ai-image'], ['source-video', 'ai-video'],
     ['source-audio', 'ai-audio'], ['ai-markdown', 'ai-text'],
