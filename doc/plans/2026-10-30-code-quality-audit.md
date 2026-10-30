@@ -1,6 +1,6 @@
 # 全仓代码质量审查与精简建议
 
-日期：2026-10-30。状态：静态审查完成；Q01 自动回归与部分桌面交互已验证，真实生成等场景待验收；Q02 与 Q03 运行时保护已实现、尚未运行测试；其余业务精简尚未实施。
+日期：2026-10-30。状态：静态审查完成；Q01 自动回归与部分桌面交互已验证，真实生成等场景待验收；Q02 与 Q03 运行时保护已实现、尚未运行测试；Q04 闲置模块及专属样式已清理、待用户验收；Q05～Q11 尚未实施。
 
 建议先收敛模型默认值和节点几何计算，再清理闲置模块、合并同领域重复函数。前两项已经存在实现差异；全仓建立通用抽象或批量拆分大文件的收益较低，影响面更难控制。
 
@@ -97,16 +97,29 @@ Tauri 桌面验收：
 
 ### Q04 P3 四个模块未找到使用入口
 
-| 文件 | 当前结果 | 建议 |
+2026-10-30 已按用户要求重新核对并删除：
+
+| 已删除文件 | 静态核对依据 | 当前使用入口 |
 |---|---|---|
-| [ProjectSwitchOverlay.tsx](../../src/components/ProjectSwitchOverlay.tsx) | 没有导入或组件使用点 | 确认当前项目切换遮罩已承担职责后删除 |
-| [VideoNodeControls.tsx](../../src/components/nodes/shared/VideoNodeControls.tsx) | 没有导入或组件使用点 | 与仅供它使用的 `.video-node-controls` 等样式一起核对后删除 |
-| [runninghubImage.ts](../../src/services/ai/providers/runninghubImage.ts) | 旧兼容入口无仓内调用 | 确认无需保留外部兼容入口后删除 |
-| [loadingText.ts](../../src/components/shared/mascot/loadingText.ts) | `createLoadingText` 无仓内调用 | 确认旧粒子动画已停用后删除 |
+| `src/components/ProjectSwitchOverlay.tsx` | 无导入、重导出或组件使用点 | [App.tsx](../../src/App.tsx) 通过 `showProjectSplash`／`splashReady` 使用 `SplashScreen`，仍读取 `switchingProjectName` |
+| `src/components/nodes/shared/VideoNodeControls.tsx` | 无导入或组件使用点；七个专属 CSS 类及两项视频进度／音量变量只由本文件使用 | [VideoNode.tsx](../../src/components/nodes/VideoNode.tsx) 使用公共 [VideoPlayer.tsx](../../src/components/shared/VideoPlayer.tsx) |
+| `src/services/ai/providers/runninghubImage.ts` | 旧包装函数 `generateRunningHubImagesBatch` 及参数类型无仓内调用或重导出；项目为 private 包，无此模块的发布入口 | [mediaProviderRegistry.ts](../../src/services/ai/mediaProviderRegistry.ts) 注册 [runninghubMedia.ts](../../src/services/ai/providers/runninghubMedia.ts) 的标准 Adapter |
+| `src/components/shared/mascot/loadingText.ts` | `createLoadingText` 与 `LoadingText` 类型无导入或调用点 | [Mascot.tsx](../../src/components/shared/mascot/Mascot.tsx) 的加载状态使用 `createOrbitRibbons` 彩带动画 |
 
-四个文件合计约 448 行，包含注释和空行；关联样式未计入。此数字表示源码维护量，不代表生产包一定减少相同体积，未引用模块可能已被构建工具排除。
+删除前实数为四个模块 444 行，并删除 [nodes.css](../../src/styles/nodes.css) 中 153 行独占控件规则（含悬浮、聚焦、滑块和减少动态效果分支），合计 597 行，包含注释与空行。同步移除目录清单和架构说明中的过期入口。此数字表示源码维护量，不代表生产包一定减少相同体积，未引用模块可能已被构建工具排除。
 
-已经排除误报：[mcpCaptureWorker.ts](../../src/services/mcp/mcpCaptureWorker.ts) 由 [mcpUiRuntimeService.ts:99](../../src/services/mcp/mcpUiRuntimeService.ts#L99) 通过 `new Worker(new URL(...))` 加载，不能删除。当前 `import.meta.glob` 用于工作流 JSON，不为上述四个模块提供入口。
+静态核对覆盖仓内源码、测试、SDK、脚本、配置、入口与文档中的文件名、导出符号、动态加载和专属选择器；当前 `import.meta.glob` 只加载工作流 JSON，不为上述四个模块提供入口。已经排除误报：[mcpCaptureWorker.ts](../../src/services/mcp/mcpCaptureWorker.ts) 由 [mcpUiRuntimeService.ts](../../src/services/mcp/mcpUiRuntimeService.ts) 通过 `new Worker(new URL(...))` 加载，继续保留。共享 Store 字段、视频播放器、翻译词条、标准 Adapter、动画与 Three.js 依赖不在本次删除范围。
+
+本次未运行测试，待用户验收；未执行 ESLint、类型检查、构建或桌面实测。仅完成引用复核、差异空白检查及 UTF-8 编码确认。
+
+Tauri 桌面验收（准备两个现有项目、可播放的本地视频及已有 RunningHub 模型配置）：
+
+1. 从项目库打开项目，再通过项目栏切换到另一项目；预期加载遮罩正常完成、画布可交互，快速连续切换不会残留遮罩。
+2. 打开已有视频节点，检查紧凑预览和全屏播放器的播放／暂停、进度拖动、静音及音量调节；预期控制正常、画面比例不变，深浅主题与减少动态效果下无样式缺失。
+3. 打开 RunningHub 图片／视频／音频模型选择与参数面板；预期目录和参数正常。需要验证真实提交时使用既有生成入口，成功／失败与恢复仍由标准 Adapter 处理（会产生模型调用费用）。
+4. 在既有模型请求期间观察吉祥物；预期显示当前彩带加载态，完成后恢复，性能模式和关闭动态效果的行为保持原样。
+
+回滚：恢复这四个文件、对应专属 CSS 及本节相关文档差异；无数据或配置迁移。
 
 ### Q05 P3 音频和视频工具栏重复执行预设
 
@@ -184,19 +197,19 @@ Tauri 桌面验收：
 
 文件头处理共 936 个文件：新增 927 处职责或回归用例说明，将 9 处已有说明移到 import 前。第三方与生成文件未改。保留 UTF-8、BOM、原换行方式和脚本 shebang。
 
-最初文件头整理的静态核对确认：移除新增注释、将搬移注释放回原处后，原始文件字节摘要一致，差异空白检查通过。该批只改注释；后续 Q01～Q03 修改与验收缺口见上文。
+最初文件头整理的静态核对确认：移除新增注释、将搬移注释放回原处后，原始文件字节摘要一致，差异空白检查通过。该批只改注释；后续 Q01～Q04 修改与验收缺口见上文。
 
 以下为全仓剩余验收，未执行全仓检查或原生检查；Q01 的定向结果见上文：
 
 1. 在仓库根目录执行 `npm run check`，检查前端 lint、源码与测试类型及现有回归；若出现仓库规则记录的 ESLint 工具链错误，单独记录，不修改依赖绕过。
 2. 在 `src-tauri/` 执行 `cargo check --lib`，确认原生源码与构建脚本编译。
 3. 使用既有 Tauri 开发入口打开画布、文本／音频节点、资产库、ComfyUI 管理和插件设置；确认页面可打开、交互与原版本一致，文件头不会进入产品显示内容。
-4. Q01 继续补齐上述桌面剩余场景，Q02／Q03 按各自步骤执行尺寸、父链与布局验收；不能用本次注释的静态核对替代功能验收。
+4. Q01 继续补齐上述桌面剩余场景，Q02／Q03 按各自步骤执行尺寸、父链与布局验收，Q04 回归项目切换、公共视频播放器、RunningHub 入口与吉祥物加载态；不能用静态核对替代功能验收。
 
 ## 建议实施批次
 
 1. **默认模型与几何行为收敛**：Q01 自动回归与部分桌面交互已验证，真实生成等场景仍待验收；Q02 与 Q03 运行时保护已实现、尚未运行测试；归档坏父链的入口策略仍待独立处理，保留源码与测试的独立回退点。
-2. **闲置入口与局部重复清理**：确认 Q04 的兼容需求后删候选，再处理 Q05～Q09；每批保持同一业务领域。
+2. **闲置入口与局部重复清理**：Q04 已完成无仓内引用模块与专属样式清理，尚未运行测试；Q05～Q09 待实施，每批保持同一业务领域。
 3. **低收益统一与热点重构**：处理 Q10、Q11；大模块只有在具体维护需求或性能证据出现时再按职责拆分。
 
-除已明确实施的 Q01、Q02 和 Q03 运行时保护外，其余均为建议，不构成架构改动、删除文件、新增依赖或运行测试的授权。
+除已明确实施的 Q01、Q02、Q03 运行时保护与 Q04 闲置模块清理外，其余均为建议，不构成架构改动、删除文件、新增依赖或运行测试的授权。

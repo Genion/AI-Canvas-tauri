@@ -87,7 +87,7 @@ AI-Canvas-tauri/
 │   │   ├── Header.tsx / Sidebar.tsx / NodeMenu.tsx / Titlebar.tsx
 │   │   ├── SettingsPanel.tsx / AssetsPanel.tsx / WorkflowPanel.tsx
 │   │   ├── ProjectLibraryModal.tsx / SessionProjectTabs.tsx / ProjectSettingsPopover.tsx
-│   │   ├── SeriesRail.tsx / ProjectAssetsOverlay.tsx / ProjectSwitchOverlay.tsx
+│   │   ├── SeriesRail.tsx / ProjectAssetsOverlay.tsx
 │   │   ├── CharacterLibraryPanel.tsx / CharacterAssetDialog.tsx / DramaAssetsPanel.tsx
 │   │   ├── HelpCenterDialog.tsx / HelpMentionDemo.tsx / OnboardingDialog.tsx
 │   │   ├── canvas/            # 画布菜单、工具栏、绘图工具栏、多选、分布、操作记录
