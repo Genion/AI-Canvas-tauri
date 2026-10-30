@@ -1,3 +1,6 @@
+/**
+ * externalEditors — 回归测试：macOS external editor launch results。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { openInJianying, openInPhotoshop, openInPremiere } from '../../src/services/fs/externalEditors';
 

@@ -1,3 +1,6 @@
+/**
+ * modelProtocolTestSession — 回归测试：protocol trial session recovery。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GeneralModelCategory } from '../../src/types';
 import type { ModelExecutionProtocol, ResolvedModelProtocolPoll } from '../../src/types/aiTypes';

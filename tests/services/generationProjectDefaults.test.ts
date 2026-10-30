@@ -1,3 +1,6 @@
+/**
+ * generationProjectDefaults — 回归测试：未选择模型的 %s 节点提交项目默认工作流。
+ */
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { BaseNodeData } from '../../src/types';
 

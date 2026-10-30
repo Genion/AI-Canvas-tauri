@@ -1,3 +1,6 @@
+/**
+ * pluginUiWindowBootstrap — 回归测试：dedicated native plugin window bootstrap。
+ */
 import { readFileSync } from 'node:fs';
 import { Script } from 'node:vm';
 import { describe, expect, it, vi } from 'vitest';

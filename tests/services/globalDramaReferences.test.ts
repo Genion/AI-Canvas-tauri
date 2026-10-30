@@ -1,3 +1,6 @@
+/**
+ * globalDramaReferences — 回归测试：全局人物、场景、道具引用消费。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DramaAsset, DramaCharacter, DramaProp, DramaScene } from '../../src/types/dramaAssets';
 import { emptyDramaAssetLibrary } from '../../src/types/dramaAssets';

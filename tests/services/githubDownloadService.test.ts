@@ -1,3 +1,6 @@
+/**
+ * githubDownloadService — 回归测试：公开 GitHub 下载回退。
+ */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { downloadGithubBytes, githubMirrorUrl } from '../../src/services/githubDownloadService';
 

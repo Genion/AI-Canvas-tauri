@@ -1,3 +1,6 @@
+/**
+ * fileServiceSkillUpload — 回归测试：Skill 压缩包上传。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({

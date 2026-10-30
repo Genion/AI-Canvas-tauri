@@ -1,3 +1,6 @@
+/**
+ * httpUtils — 回归测试：HTTP response failure classification。
+ */
 import { describe, expect, it } from 'vitest';
 import { classifyHttpResponseFailure, getHttpResponseError, HttpResponseError, parseResponseError } from '../../src/services/ai/httpUtils';
 

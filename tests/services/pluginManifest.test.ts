@@ -1,3 +1,6 @@
+/**
+ * pluginManifest — 回归测试：AI Canvas Plugin Manifest Standard。
+ */
 import { readFileSync } from 'node:fs';
 import { Script } from 'node:vm';
 import { describe, expect, it } from 'vitest';

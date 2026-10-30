@@ -1,3 +1,6 @@
+/**
+ * dreaminaService — 回归测试：即梦 CLI 视频命令路由。
+ */
 import { describe, expect, it } from 'vitest';
 import { buildDreaminaVideoParams } from '../../src/services/dreaminaService';
 import type { MediaReference } from '../../src/types/aiTypes';

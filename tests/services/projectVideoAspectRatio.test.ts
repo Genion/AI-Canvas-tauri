@@ -1,3 +1,6 @@
+/**
+ * projectVideoAspectRatio — 回归测试：项目默认的视频画面比例。
+ */
 import { describe, expect, it } from 'vitest';
 import {
   applyProjectDefaultsToNodeData,

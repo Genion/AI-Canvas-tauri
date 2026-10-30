@@ -1,3 +1,6 @@
+/**
+ * mediaDownloadAccess — 回归测试：media download authorization。
+ */
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useAppStore } from '../../src/store/useAppStore';
 import { createMediaDownloadAccess, resolveMediaDownloadRequest, sanitizeMediaDownloadAccess, sanitizeMediaResultUrls } from '../../src/services/ai/mediaDownloadAccess';

@@ -1,3 +1,6 @@
+/**
+ * globalDramaAssetImport — 回归测试：全局资产包原子追加。
+ */
 import { IDBFactory } from 'fake-indexeddb';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DramaAsset, DramaCharacter, DramaScene } from '../../src/types/dramaAssets';

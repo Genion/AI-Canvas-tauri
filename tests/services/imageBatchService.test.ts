@@ -1,3 +1,6 @@
+/**
+ * imageBatchService — 回归测试：imageBatchService。
+ */
 import type { Node } from '@xyflow/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BaseNodeData } from '../../src/types';

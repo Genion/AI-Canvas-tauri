@@ -1,3 +1,6 @@
+/**
+ * fsTrash — 回归测试：显式资产删除的回收站结果。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const fsMocks = vi.hoisted(() => ({

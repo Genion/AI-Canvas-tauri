@@ -1,3 +1,6 @@
+/**
+ * modelProtocolVariables — 回归测试：protocol variable table。
+ */
 import { describe, expect, it } from 'vitest';
 import {
   PROTOCOL_VARIABLE_NAMES,

@@ -1,3 +1,6 @@
+/**
+ * modelProtocol — 回归测试：structured submission failures。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ModelExecutionProtocol } from '../../src/types/aiTypes';
 import {

@@ -1,3 +1,6 @@
+/**
+ * pollManager — 回归测试：polling runtime hot reload identity。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BaseNodeData } from '../../src/types';
 import {

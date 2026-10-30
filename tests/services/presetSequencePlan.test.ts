@@ -1,3 +1,6 @@
+/**
+ * presetSequencePlan — 回归测试：buildPresetSequencePlan。
+ */
 import { describe, expect, it } from 'vitest';
 import { buildPresetSequencePlan } from '../../src/services/presetSequenceService';
 import { validatePresetAdvancedConfig } from '../../src/services/presetTemplateService';

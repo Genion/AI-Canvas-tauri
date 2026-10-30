@@ -1,3 +1,6 @@
+/**
+ * pluginUiSessionService — 回归测试：pluginUiSessionService。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LOCALES, setLocale } from '../../src/i18n';
 import type {

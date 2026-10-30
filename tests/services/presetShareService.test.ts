@@ -1,3 +1,6 @@
+/**
+ * presetShareService — 回归测试：presetShareService。
+ */
 import { describe, expect, it } from 'vitest';
 import type { UserPreset } from '../../src/types';
 import { MAX_JSON_FILE_BYTES } from '../../src/services/fs/jsonFileTransfer';

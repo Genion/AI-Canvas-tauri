@@ -1,3 +1,6 @@
+/**
+ * h3ModelCapabilities — 回归测试：MiniMax H3 capability templates。
+ */
 import { describe, expect, it } from 'vitest';
 import {
   applyH3TemplateDefaults,

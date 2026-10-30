@@ -1,3 +1,6 @@
+/**
+ * pluginVideoReplicaJobService — 回归测试：covers more than six segments, submits once per segment and composes a trimmed full timeline with…。
+ */
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { PluginInvocationResources, PluginModelSummary, PluginNodeHostEffect, PluginVideoReplicaJobSummary, PluginVideoReplicaStart } from '../../src/types/plugin';
 import type { Edge, Node } from '@xyflow/react';

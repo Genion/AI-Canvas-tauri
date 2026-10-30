@@ -1,3 +1,6 @@
+/**
+ * modelRequestTransport — 回归测试：standard image error credentials。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const transportMocks = vi.hoisted(() => ({

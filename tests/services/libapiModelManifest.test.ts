@@ -1,3 +1,6 @@
+/**
+ * libapiModelManifest — 回归测试：LIBAPI 已审计的内置合同。
+ */
 import { describe, expect, it } from 'vitest';
 import type { MediaReference } from '../../src/types/aiTypes';
 import { LIBAPI_MODEL_MANIFEST, assertLibapiImageInput, assertLibapiVideoInput, getLibapiAudioCapability, libapiAudioVariables, libapiImageExecutionProfile, libapiImageVariables,

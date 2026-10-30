@@ -1,3 +1,6 @@
+/**
+ * pluginMarketplace — 回归测试：GitHub plugin marketplace。
+ */
 import { describe, expect, it, vi } from 'vitest';
 import {
   comparePluginVersions,

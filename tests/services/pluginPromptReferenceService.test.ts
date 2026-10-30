@@ -1,3 +1,6 @@
+/**
+ * pluginPromptReferenceService — 回归测试：plugin prompt reference broker。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PluginInvocationResources } from '../../src/types/plugin';
 import type { PluginResourceReadContext } from '../../src/services/plugins/pluginResourceService';

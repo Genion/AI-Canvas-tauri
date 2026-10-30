@@ -1,3 +1,6 @@
+/**
+ * groupFileCopy — 回归测试：group file allocation。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { IDBFactory } from 'fake-indexeddb';
 const disk = vi.hoisted(() => new Set<string>());

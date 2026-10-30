@@ -1,3 +1,6 @@
+/**
+ * projectArchiveSerialization — 回归测试：project archive background serialization。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   ProjectArchiveJsonEntry,

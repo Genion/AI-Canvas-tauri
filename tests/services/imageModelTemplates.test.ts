@@ -1,3 +1,6 @@
+/**
+ * imageModelTemplates — 回归测试：explicit image quick templates。
+ */
 import { describe, expect, it } from 'vitest';
 import {
   buildGoogleImageParts, createImageQuickAdaptTemplate, IMAGE_QUICK_ADAPT_OPTIONS,

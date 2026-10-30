@@ -1,3 +1,6 @@
+/**
+ * mediaPlaceholderLifecycle — 回归测试：media placeholder lifecycle。
+ */
 import { beforeEach, describe, expect, it } from 'vitest';
 import { cancelProjectCanvasDerivations } from '../../src/services/canvasDerivationGuard';
 import {

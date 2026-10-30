@@ -1,3 +1,6 @@
+/**
+ * mediaParameterMappings — 回归测试：media parameter mappings。
+ */
 import { describe, expect, it } from 'vitest';
 import { buildAudioMusicRequestBody, buildAudioSpeechRequestBody, mapAudioParameters } from '../../src/services/ai/audioParameterMappings';
 import { buildStandardImageRequestBody, mapImageParameters } from '../../src/services/ai/imageParameterMappings';

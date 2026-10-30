@@ -1,3 +1,6 @@
+/**
+ * dramaVisualReferences — 回归测试：场景道具独立参考图。
+ */
 import { describe, expect, it } from 'vitest';
 import type { DramaScene } from '../../src/types/dramaAssets';
 import { normalizeDramaVisualAsset, syncDramaVisualAssetPrimary } from '../../src/types/dramaAssets';

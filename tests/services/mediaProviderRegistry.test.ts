@@ -1,3 +1,6 @@
+/**
+ * mediaProviderRegistry — 回归测试：MediaProviderRegistry。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({

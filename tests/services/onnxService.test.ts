@@ -1,3 +1,6 @@
+/**
+ * onnxService — 回归测试：共享本地语音模型管理。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({ invoke: vi.fn(), listen: vi.fn(), unlisten: vi.fn() }));

@@ -1,3 +1,6 @@
+/**
+ * nodeMediaCopy — 回归测试：independent node media files。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BaseNodeData } from '../../src/types';
 

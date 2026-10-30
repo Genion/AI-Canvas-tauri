@@ -1,3 +1,6 @@
+/**
+ * jsonFileTransfer — 回归测试：JSON 文件传输。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const driver = vi.hoisted(() => ({ native: true, save: vi.fn(), write: vi.fn() }));

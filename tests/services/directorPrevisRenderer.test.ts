@@ -1,3 +1,6 @@
+/**
+ * directorPrevisRenderer — 回归测试：previs camera and blocking interpolation。
+ */
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { createDefaultPrevisScene } from '../../src/services/directorPrevisSchema';

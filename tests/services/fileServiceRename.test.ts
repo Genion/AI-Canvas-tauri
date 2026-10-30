@@ -1,3 +1,6 @@
+/**
+ * fileServiceRename — 回归测试：stripVerbatimPrefix。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { stripVerbatimPrefix } from '../../src/services/fs/core';

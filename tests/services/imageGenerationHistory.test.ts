@@ -1,3 +1,6 @@
+/**
+ * imageGenerationHistory — 回归测试：getNodeHistoryEntries。
+ */
 import { IDBFactory } from 'fake-indexeddb';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { HistoryRecord } from '../../src/services/indexedDbService';

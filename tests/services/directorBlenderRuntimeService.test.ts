@@ -1,3 +1,6 @@
+/**
+ * directorBlenderRuntimeService — 回归测试：directorBlenderRuntimeService。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({

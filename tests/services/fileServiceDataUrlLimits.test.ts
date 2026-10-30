@@ -1,3 +1,6 @@
+/**
+ * fileServiceDataUrlLimits — 回归测试：fileService Data URL 内存预算。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({

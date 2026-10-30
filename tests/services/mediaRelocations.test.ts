@@ -1,3 +1,6 @@
+/**
+ * mediaRelocations — 回归测试：repairs exact encoded asset tokens without changing prose, malformed tokens or ordinary move prompts。
+ */
 import { IDBFactory } from 'fake-indexeddb';
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { MediaRelocation } from '../../src/services/indexedDb/mediaRelocations';

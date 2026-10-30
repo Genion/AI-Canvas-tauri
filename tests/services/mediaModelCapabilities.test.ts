@@ -1,3 +1,6 @@
+/**
+ * mediaModelCapabilities — 回归测试：RelayOnAPI 旧图片参数能力。
+ */
 import { describe, expect, it } from 'vitest';
 import { normalizeSeedreamSize } from '../../src/services/ai/helpers';
 import { buildImageCapabilityRequest, getImageCapability, resolveImageParameterCapability } from '../../src/services/ai/mediaModelCapabilities';

@@ -1,3 +1,6 @@
+/**
+ * indexedDbService — 回归测试：project snapshot updates。
+ */
 import { forceCloseDatabase, IDBFactory } from 'fake-indexeddb';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 

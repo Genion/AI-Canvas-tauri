@@ -1,3 +1,6 @@
+/**
+ * pluginVideoReplicaPlanning — 回归测试：pluginVideoReplicaPlanning。
+ */
 import { describe, expect, it } from 'vitest';
 import { planPluginVideoReplica, type PluginVideoReplicaPlan } from '../../src/services/plugins/pluginVideoReplicaPlanning';
 import type { VideoModelCapability } from '../../src/types/aiTypes';

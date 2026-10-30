@@ -1,3 +1,6 @@
+/**
+ * projectSettingsService — 回归测试：assistant text model candidates。
+ */
 import { describe, expect, it } from 'vitest';
 import {
   getAssistantTextModelCandidates,

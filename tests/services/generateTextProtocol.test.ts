@@ -1,3 +1,6 @@
+/**
+ * generateTextProtocol — 回归测试：custom text model protocol。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { generateText } from '../../src/services/ai/generateText';
 import { useAppStore } from '../../src/store/useAppStore';

@@ -1,3 +1,6 @@
+/**
+ * generationServiceReplicaLease — 回归测试：节点视频生成的宿主任务租约。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BaseNodeData } from '../../src/types';
 

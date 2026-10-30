@@ -1,3 +1,6 @@
+/**
+ * presetSequenceRunner — 回归测试：runPresetSequence 调度。
+ */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Node } from '@xyflow/react';
 import type { BaseNodeData, PresetAdvancedConfig, PresetSequenceStep, UserPreset } from '../../src/types';

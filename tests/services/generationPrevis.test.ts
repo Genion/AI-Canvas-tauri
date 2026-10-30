@@ -1,3 +1,6 @@
+/**
+ * generationPrevis — 回归测试：director node generation with canvas references。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAppStore } from '../../src/store/useAppStore';
 import { executeGeneration } from '../../src/services/generationService';

@@ -1,3 +1,6 @@
+/**
+ * dramaLibraryReferences — 回归测试：library reference preference。
+ */
 import { describe, expect, it } from 'vitest';
 import { preferredDramaMentionForNode, preferDramaLibraryReferences } from '../../src/services/dramaAssetPrompt';
 import { emptyDramaAssetLibrary, type DramaCharacter } from '../../src/types/dramaAssets';

@@ -1,3 +1,6 @@
+/**
+ * mcpUiRuntimeService — 回归测试：MCP screenshot capture。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { captureAppWindow, installMcpScreenshotResponder } from '../../../src/services/mcp/mcpUiRuntimeService';
 import { MCP_CAPTURE_MAX_BYTES } from '../../../src/services/mcp/mcpCaptureEncoding';

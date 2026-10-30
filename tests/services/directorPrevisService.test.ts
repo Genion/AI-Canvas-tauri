@@ -1,3 +1,6 @@
+/**
+ * directorPrevisService — 回归测试：previs generation and project lifecycle。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAppStore } from '../../src/store/useAppStore';
 import { generateText } from '../../src/services/ai/generateText';

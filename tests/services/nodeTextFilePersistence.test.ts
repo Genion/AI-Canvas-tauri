@@ -1,3 +1,6 @@
+/**
+ * nodeTextFilePersistence — 回归测试：missing node text files。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BaseNodeData } from '../../src/types';
 

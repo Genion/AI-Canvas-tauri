@@ -1,3 +1,6 @@
+/**
+ * grsaiMedia — 回归测试：GRSAI H3 独立视频合同。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AIVideoGenParams, VideoGenerationReferenceInput } from '../../src/types/aiTypes';
 

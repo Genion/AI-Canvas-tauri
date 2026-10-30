@@ -1,3 +1,6 @@
+/**
+ * pluginVideoReplicaJobRepository — 回归测试：视频复刻摘要边界。
+ */
 import { IDBFactory, IDBKeyRange } from 'fake-indexeddb';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PluginVideoReplicaJobSummary } from '../../src/types/plugin';

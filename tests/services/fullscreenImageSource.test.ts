@@ -1,3 +1,6 @@
+/**
+ * fullscreenImageSource — 回归测试：bounded fullscreen image sources。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 import type { ComfyMediaSourceLease } from '../../src/services/comfyMediaSource';
 

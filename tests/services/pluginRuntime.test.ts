@@ -1,3 +1,6 @@
+/**
+ * pluginRuntime — 回归测试：plugin execution cancellation and categorized budgets。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';

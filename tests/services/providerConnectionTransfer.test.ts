@@ -1,3 +1,6 @@
+/**
+ * providerConnectionTransfer — 回归测试：CCC group connection transfer。
+ */
 import { describe, expect, it } from 'vitest';
 import { parseConnectionShare, serializeConnection } from '../../src/services/ai/providerConnectionTransfer';
 import type { ProviderModelSelection } from '../../src/types';

@@ -1,3 +1,6 @@
+/**
+ * dramaAssetExtract — 回归测试：prepareDramaExtractPrompt。
+ */
 import { describe, expect, it } from 'vitest';
 import {
   extractJsonObject,

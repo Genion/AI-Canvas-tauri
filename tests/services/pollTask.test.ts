@@ -1,3 +1,6 @@
+/**
+ * pollTask — 回归测试：pollTask resource cleanup。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { isPollTimeoutError, pollTask, PollTaskFailedError, PollTimeoutError, withPollRequestDeadline } from '../../src/services/pollTask';
 

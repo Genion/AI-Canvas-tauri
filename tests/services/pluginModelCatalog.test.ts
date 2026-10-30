@@ -1,3 +1,6 @@
+/**
+ * pluginModelCatalog — 回归测试：pluginModelCatalog input modalities。
+ */
 import { describe, expect, it } from 'vitest';
 import { buildPluginModelCatalog, getPluginVideoReplicaSupport, resolvePluginModelInputModalities } from '../../src/services/plugins/pluginModelCatalog';
 import { useAppStore } from '../../src/store/useAppStore';

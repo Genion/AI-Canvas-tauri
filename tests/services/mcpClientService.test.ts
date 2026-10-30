@@ -1,3 +1,6 @@
+/**
+ * mcpClientService — 回归测试：external MCP client boundaries。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAppStore } from '../../src/store/useAppStore';
 import type { McpClientConnection } from '../../src/types/mcpClient';

@@ -1,3 +1,6 @@
+/**
+ * dramaAssetTransferFormat — 回归测试：创作资产包纯格式。
+ */
 import { describe, expect, it } from 'vitest';
 import type { DramaCharacter, DramaProp, DramaScene } from '../../src/types/dramaAssets';
 import { MAX_CHARACTER_WEAPONS, normalizeDramaCharacter, normalizeDramaVisualAsset } from '../../src/types/dramaAssets';

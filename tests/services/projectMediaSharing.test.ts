@@ -1,3 +1,6 @@
+/**
+ * projectMediaSharing — 回归测试：project shared media directories。
+ */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getProjectDataDir, isSharedProjectDataDir, registerProjectFolders } from '../../src/services/fs/core';
 

@@ -1,3 +1,6 @@
+/**
+ * pluginResourceService — 回归测试：pluginResourceService。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Edge, Node } from '@xyflow/react';
 import type { BaseNodeData } from '../../src/types';

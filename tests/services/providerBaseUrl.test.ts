@@ -1,3 +1,6 @@
+/**
+ * providerBaseUrl — 回归测试：normalizeBaseUrl。
+ */
 import { describe, expect, it } from 'vitest';
 import { baseUrlCandidates, normalizeBaseUrl } from '../../src/services/ai/providerBaseUrl';
 import {

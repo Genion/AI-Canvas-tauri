@@ -1,3 +1,6 @@
+/**
+ * mediaRead — 回归测试：bounded original media file reader。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { SeekMode } from '@tauri-apps/plugin-fs';
 

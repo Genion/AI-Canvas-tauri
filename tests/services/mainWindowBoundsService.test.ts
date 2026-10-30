@@ -1,3 +1,6 @@
+/**
+ * mainWindowBoundsService — 回归测试：main window work area。
+ */
 import { describe, expect, it } from 'vitest';
 import { fitWindowRectToWorkArea } from '../../src/services/mainWindowBoundsService';
 

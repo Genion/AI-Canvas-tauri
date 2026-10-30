@@ -1,3 +1,6 @@
+/**
+ * dramaMentionPick — 回归测试：显式全局角色引用。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   DRAMA_MENTION_MERGE_ALL,

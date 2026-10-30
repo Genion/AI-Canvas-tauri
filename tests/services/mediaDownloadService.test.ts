@@ -1,3 +1,6 @@
+/**
+ * mediaDownloadService — 回归测试：MCP original media downloads。
+ */
 import { createHash } from 'node:crypto';
 import type { Node } from '@xyflow/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';

@@ -1,3 +1,6 @@
+/**
+ * episodeAssetService — 回归测试：本集候选提取与显式保存。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const generateText = vi.hoisted(() => vi.fn());
 const copyGlobalDramaAssetsToProject = vi.hoisted(() => vi.fn());

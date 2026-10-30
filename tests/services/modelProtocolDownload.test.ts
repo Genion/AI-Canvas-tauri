@@ -1,3 +1,6 @@
+/**
+ * modelProtocolDownload — 回归测试：declarative task result download。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ModelExecutionProtocolV2 } from '../../src/types/aiTypes';
 import {

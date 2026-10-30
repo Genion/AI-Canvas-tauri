@@ -1,3 +1,6 @@
+/**
+ * directorRuntimeRegistry — 回归测试：directorRuntimeRegistry。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 type ProtocolMessage = {

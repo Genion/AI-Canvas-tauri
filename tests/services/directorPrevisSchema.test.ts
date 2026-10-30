@@ -1,3 +1,6 @@
+/**
+ * directorPrevisSchema — 回归测试：cinematic previs scene contract。
+ */
 import { describe, expect, it } from 'vitest';
 import { createDefaultPrevisScene, normalizeDirectorPrevisScene, parseDirectorPrevisJson, PREVIS_MAX_BYTES } from '../../src/services/directorPrevisSchema';
 

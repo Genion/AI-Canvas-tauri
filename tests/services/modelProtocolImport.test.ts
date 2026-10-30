@@ -1,3 +1,6 @@
+/**
+ * modelProtocolImport — 回归测试：model protocol document import。
+ */
 import { describe, expect, it } from 'vitest';
 import {
   analyzeModelProtocolDocument,

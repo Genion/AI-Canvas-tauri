@@ -1,3 +1,6 @@
+/**
+ * fileServiceSaveAs — 回归测试：saveNodeOutputToFile。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({

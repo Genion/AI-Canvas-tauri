@@ -1,3 +1,6 @@
+/**
+ * pluginVideoReplicaAudioService — 回归测试：视频复刻分段音频。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({

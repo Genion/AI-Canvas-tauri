@@ -1,3 +1,6 @@
+/**
+ * imageLosslessCompression — 回归测试：图片节点无损压缩副本。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Node } from '@xyflow/react';
 import type { BaseNodeData } from '../../src/types';

@@ -1,3 +1,6 @@
+/**
+ * performanceModeRuntime — 回归测试：performance mode config projection。
+ */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   getPerformanceModeBudget,

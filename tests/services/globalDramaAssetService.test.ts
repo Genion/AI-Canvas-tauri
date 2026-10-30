@@ -1,3 +1,6 @@
+/**
+ * globalDramaAssetService — 回归测试：全局创作资产持久化。
+ */
 import { IDBFactory } from 'fake-indexeddb';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DramaCharacter, DramaScene } from '../../src/types/dramaAssets';

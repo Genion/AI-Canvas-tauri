@@ -1,3 +1,6 @@
+/**
+ * imageSingleRequestBatch — 回归测试：单次仅一张的普通图片模型批量。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppConfig, BaseNodeData } from '../../src/types';
 

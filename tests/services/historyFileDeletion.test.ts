@@ -1,3 +1,6 @@
+/**
+ * historyFileDeletion — 回归测试：history file recycling。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mock = vi.hoisted(() => ({ exists: vi.fn(), lstat: vi.fn(), invoke: vi.fn() }));
 vi.mock('@tauri-apps/plugin-fs', () => ({ exists: mock.exists, lstat: mock.lstat, mkdir: vi.fn(), rename: vi.fn() }));

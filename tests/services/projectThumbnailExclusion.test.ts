@@ -1,3 +1,6 @@
+/**
+ * projectThumbnailExclusion — 回归测试：project thumbnail directories stay outside asset scans。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CanvasProject } from '../../src/types';
 import type { AssetFileEntry } from '../../src/services/fs/core';

@@ -1,3 +1,6 @@
+/**
+ * generateVideo — 回归测试：RelayOnAPI 视频渠道与原任务交付。
+ */
 import type { Node } from '@xyflow/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {

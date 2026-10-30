@@ -1,3 +1,6 @@
+/**
+ * pluginUiWindowService — 回归测试：pluginUiWindowService。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { InstalledPlugin, PluginNodeToolManifest, PluginUiWindowBinding, PluginUiWindowEvent } from '../../src/types/plugin';
 

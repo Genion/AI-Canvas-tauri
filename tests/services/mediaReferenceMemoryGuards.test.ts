@@ -1,3 +1,6 @@
+/**
+ * mediaReferenceMemoryGuards — 回归测试：媒体引用内存守卫接线。
+ */
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 

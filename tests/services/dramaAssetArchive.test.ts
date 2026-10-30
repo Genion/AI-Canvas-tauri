@@ -1,3 +1,6 @@
+/**
+ * dramaAssetArchive — 回归测试：creative asset archive filesystem boundary。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const io = vi.hoisted(() => ({ mkdir: vi.fn(), remove: vi.fn(), rename: vi.fn(), write: vi.fn(), stat: vi.fn(),
   invoke: vi.fn(), copy: vi.fn(), download: vi.fn(), readData: vi.fn() }));

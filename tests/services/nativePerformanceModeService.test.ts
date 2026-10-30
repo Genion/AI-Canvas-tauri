@@ -1,3 +1,6 @@
+/**
+ * nativePerformanceModeService — 回归测试：native performance mode。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({

@@ -1,3 +1,6 @@
+/**
+ * mcpControlService — 回归测试：MCP on-demand discovery。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   handleMcpBridgeRequest,

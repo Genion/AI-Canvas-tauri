@@ -1,3 +1,6 @@
+/**
+ * imageRequestContracts — 回归测试：built-in image request contracts。
+ */
 import { describe, expect, it } from 'vitest';
 import { resolveBuiltInImageRequestContract, validateBuiltInImageResponse } from '../../src/services/ai/imageRequestContracts';
 import { getProviderDefinition } from '../../src/services/ai/providerCatalogService';

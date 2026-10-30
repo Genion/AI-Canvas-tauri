@@ -1,3 +1,6 @@
+/**
+ * projectSnapshotService — 回归测试：projectSnapshotService。
+ */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Node } from '@xyflow/react';
 import type { BaseNodeData } from '../../src/types';

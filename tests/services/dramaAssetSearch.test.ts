@@ -1,3 +1,6 @@
+/**
+ * dramaAssetSearch — 回归测试：创作资产搜索与排序。
+ */
 import { describe, expect, it } from 'vitest';
 import type { DramaAsset, DramaCharacter, DramaScene } from '../../src/types/dramaAssets';
 import { dramaAssetIdentityKey, matchesDramaAssetQuery, sortDramaAssets } from '../../src/services/dramaAssetSearch';

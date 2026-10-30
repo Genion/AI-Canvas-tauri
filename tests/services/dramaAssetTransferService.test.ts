@@ -1,3 +1,6 @@
+/**
+ * dramaAssetTransferService — 回归测试：project creative asset packages。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DramaAsset } from '../../src/types/dramaAssets';
 import { setLocale, type Locale } from '../../src/i18n';

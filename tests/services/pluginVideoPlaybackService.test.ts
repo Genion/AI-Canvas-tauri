@@ -1,3 +1,6 @@
+/**
+ * pluginVideoPlaybackService — 回归测试：plugin continuous video playback。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({

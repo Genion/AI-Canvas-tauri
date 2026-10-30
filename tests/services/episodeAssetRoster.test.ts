@@ -1,3 +1,6 @@
+/**
+ * episodeAssetRoster — 回归测试：本集资产清单格式。
+ */
 import { createStore } from 'zustand/vanilla';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppState } from '../../src/store/useAppStore';

@@ -1,3 +1,6 @@
+/**
+ * presetFolderStorage — 回归测试：快捷指令分类持久化。
+ */
 import { IDBFactory } from 'fake-indexeddb';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PresetFolder } from '../../src/types';

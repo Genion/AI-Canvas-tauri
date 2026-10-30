@@ -1,3 +1,6 @@
+/**
+ * generationRuntime — 回归测试：media generation cancellation。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ApiProviderConfig, GeneralModelConfig, WorkflowDefinition } from '../../src/types';
 import type { MediaTaskContext, MediaTaskReceipt } from '../../src/types/aiTypes';

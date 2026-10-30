@@ -1,3 +1,6 @@
+/**
+ * mcpToolCatalog — 回归测试：MCP tool catalog。
+ */
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
   clearAgentToolRegistryForTests,

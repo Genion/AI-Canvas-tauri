@@ -1,3 +1,6 @@
+/**
+ * promptPolishService — 回归测试：节点提示词润色。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { StreamingCallOptions } from '../../src/services/ai/assistantStream';
 import type { UserSkill } from '../../src/types';

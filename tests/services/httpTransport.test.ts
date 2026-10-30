@@ -1,3 +1,6 @@
+/**
+ * httpTransport — 回归测试：CORS-safe AI HTTP transport。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { corsSafeFetch, logAiRequest } from '../../src/services/ai/httpTransport';
 import { parseResponseError } from '../../src/services/ai/httpUtils';

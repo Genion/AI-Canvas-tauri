@@ -1,3 +1,6 @@
+/**
+ * providerCatalogService — 回归测试：厂商定义与接线策略。
+ */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   fetchProviderModelCatalog,

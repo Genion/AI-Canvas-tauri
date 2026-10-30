@@ -1,3 +1,6 @@
+/**
+ * pluginUiFrameBootstrap — 回归测试：embedded plugin locale bridge。
+ */
 import { readFileSync } from 'node:fs';
 import { Script } from 'node:vm';
 import { describe, expect, it, vi } from 'vitest';
