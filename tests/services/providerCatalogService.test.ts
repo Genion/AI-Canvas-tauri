@@ -739,7 +739,7 @@ describe('CCC API 内置厂商目录', () => {
       defaultBaseUrl: 'https://cccapi.cn/v1',
       modelsPath: '/models',
       allowCustomBaseUrl: false,
-      externalUrl: 'https://cccapi.cn/keys',
+      externalUrl: 'https://cccapi.cn/register?aff=F9JX9AZRDCB8',
     });
 
     const models = definition?.models ?? [];

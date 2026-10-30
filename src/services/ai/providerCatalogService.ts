@@ -289,7 +289,7 @@ const BUILT_IN_PROVIDER_DEFINITIONS: ProviderDefinition[] = ([
     defaultBaseUrl: CCCAPI_BASE_URL,
     modelsPath: '/models',
     allowCustomBaseUrl: false,
-    externalUrl: 'https://cccapi.cn/keys',
+    externalUrl: 'https://cccapi.cn/register?aff=F9JX9AZRDCB8',
     credentials: [
       { ...API_KEY_FIELD, placeholder: 'sk-...' },
     ],
