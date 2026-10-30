@@ -199,7 +199,7 @@ async function historyRows(session: PreparedProjectImport, records: ProjectSaveD
       for (const message of payload.messages) {
         if (!conversations.has(message.conversationId)) continue;
         rows.push({ store: 'chatMessages', value: { id: messages.get(message.id)!, archiveOriginId: await origin('message', message), projectId, conversationId: conversations.get(message.conversationId)!,
-          sequence: message.sequence, role: message.role, content: message.content, status: 'completed', createdAt: message.createdAt, updatedAt: message.updatedAt } });
+          sequence: message.sequence, role: message.role, content: message.content, status: 'done', createdAt: message.createdAt, updatedAt: message.updatedAt } });
       }
     }
     if (options.appendMemories) for (const memory of payload.memories) rows.push({ store: 'projectMemories', value: {

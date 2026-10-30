@@ -30,7 +30,8 @@ export function safeExchangePath(path: string): string {
 }
 function media(asset: ArchiveAssetDigest): ProjectExchangeMedia {
   const extension = asset.path.split('.').pop()?.toLowerCase() ?? 'bin';
-  return { id: asset.sha256, sha256: asset.sha256, bytes: asset.bytes, extension: /^[a-z0-9]{1,16}$/.test(extension) ? extension : 'bin',
+  const normalizedExtension = /^[a-z0-9]{1,16}$/.test(extension) ? extension : 'bin';
+  return { id: `${asset.sha256}_${normalizedExtension}`, sha256: asset.sha256, bytes: asset.bytes, extension: normalizedExtension,
     kind: /^(png|jpe?g|webp|gif|bmp|avif)$/.test(extension) ? 'image' : /^(mp4|webm|mov|mkv)$/.test(extension) ? 'video'
       : /^(mp3|wav|ogg|flac|m4a|aac)$/.test(extension) ? 'audio' : 'file' };
 }
@@ -158,11 +159,14 @@ export function captureExchangeSnapshot(records: readonly ProjectSaveData[], ass
       if (key === 'relativePath' || key === 'imageRelativePath') return value ? fileToken(value) : undefined;
       if (mediaUrls.has(key) && (/^(blob:|data:|asset:|https?:\/\/(?:asset\.localhost|tauri\.localhost)|[a-z]:[\\/])/i.test(value))) return undefined;
       if (key === 'status' && ['loading', 'generating', 'running', 'pending', 'polling'].includes(value)) return 'idle';
+      if (/(?:paths?|directory|folder)$/i.test(key) && /^(?:[a-z]:[\\/]|\\\\|\/)/i.test(value)) {
+        throw new Error('项目包含尚未适配的本机路径字段，无法生成可迁移的完整快照');
+      }
       if (/@asset\{/.test(value)) throw new Error('提示词含本机文件引用，请改用项目内节点引用后导出');
       return value;
     }
     if (value === null || typeof value === 'boolean' || typeof value === 'number') return value;
-    if (Array.isArray(value)) return value.map((item) => clean(item) ?? null);
+    if (Array.isArray(value)) return value.map((item) => clean(item, key) ?? null);
     if (!exchangeObject(value)) throw new Error('项目存在无法迁移的运行期对象');
     const result: ProjectExchangeObject = {};
     if (!value.relativePath && typeof value.filePath === 'string') result.relativePath = fileToken(relativeFile(value.filePath));
@@ -221,8 +225,8 @@ export function captureExchangeSnapshot(records: readonly ProjectSaveData[], ass
     data.nodesIds = Array.isArray(nodes) ? nodes.map((node) => (node as { id: string }).id) : [];
     data.edgesIds = Array.isArray(edges) ? edges.map((edge) => (edge as { id: string }).id) : [];
     data.groupsIds = Array.isArray(groups) ? groups.map((group) => (group as { id: string }).id) : [];
-    if (!record.parentId && dramaAssets) for (const [field, kind] of [['characters', 'character'], ['scenes', 'scene'], ['props', 'prop']] as const) {
-      data[field + 'Ids'] = (dramaAssets[field] ?? []).map((asset) => add(kind, root, asset as unknown as Record<string, unknown>));
+    if (!record.parentId) for (const [field, kind] of [['characters', 'character'], ['scenes', 'scene'], ['props', 'prop']] as const) {
+      data[field + 'Ids'] = (dramaAssets?.[field] ?? []).map((asset) => add(kind, root, asset as unknown as Record<string, unknown>));
     }
   }
   // 项目文件资产包含未被节点引用的原稿与附件；失败发布的孤儿 imports 目录不纳入新基线。
