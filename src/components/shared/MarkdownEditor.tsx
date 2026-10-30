@@ -1,3 +1,6 @@
+/**
+ * MarkdownEditor — 提供Markdown 编辑与预览界面与交互。
+ */
 import { useDeferredValue, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Icon } from '@iconify/react';
 import { renderMarkdown } from '../../utils/renderMarkdown';

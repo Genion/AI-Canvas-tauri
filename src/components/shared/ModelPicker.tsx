@@ -1,3 +1,6 @@
+/**
+ * ModelPicker — 提供模型分组与选择界面与交互。
+ */
 import { useId, useLayoutEffect, useEffect, useRef, useState, useCallback, type KeyboardEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useT } from '../../i18n';

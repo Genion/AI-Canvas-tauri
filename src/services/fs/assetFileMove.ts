@@ -1,3 +1,6 @@
+/**
+ * assetFileMove — 移动资产文件并导入到指定资产目录。
+ */
 import { stat } from '@tauri-apps/plugin-fs';
 import { copyAssetFileToFolder, finishAssetFileMove, type FileTransferOptions } from '../fileService';
 import { completeMediaRelocation, pendingMediaRelocations, persistMediaRelocation, type MediaRelocation } from '../indexedDb/mediaRelocations';

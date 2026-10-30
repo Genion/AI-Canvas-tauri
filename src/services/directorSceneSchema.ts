@@ -1,3 +1,6 @@
+/**
+ * directorSceneSchema — 校验导演场景、结果清单与资源绑定合同。
+ */
 import type {
   DirectorCamera,
   DirectorCameraKeyframe,

@@ -1,3 +1,6 @@
+/**
+ * FileUploadButton — 提供文件上传入口界面与交互。
+ */
 import { useRef, type InputHTMLAttributes } from 'react';
 import { Icon } from '@iconify/react';
 import { useT } from '../../i18n';

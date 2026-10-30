@@ -1,3 +1,6 @@
+/**
+ * relayonProviderGroups — 维护 Relayon 分组目录与模型、价格筛选。
+ */
 import type { ApiProviderConfig, ProviderModelSelection } from '../../types';
 
 /** 官网分组快照，候选不代表 Key 已验证或具有全部权限。 */

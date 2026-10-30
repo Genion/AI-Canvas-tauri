@@ -1,3 +1,6 @@
+/**
+ * CanvasImagePreview — 提供画布图片预览界面与交互。
+ */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { convertFileSrc } from '@tauri-apps/api/core';

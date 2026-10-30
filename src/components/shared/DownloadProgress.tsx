@@ -1,3 +1,6 @@
+/**
+ * DownloadProgress — 提供下载进度界面与交互。
+ */
 import { useT } from '../../i18n';
 import { formatSize } from '../../utils/assetFormat';
 

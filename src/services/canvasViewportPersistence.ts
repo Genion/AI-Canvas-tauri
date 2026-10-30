@@ -1,3 +1,6 @@
+/**
+ * canvasViewportPersistence — 保存并恢复项目画布视口。
+ */
 import type { Viewport } from '@xyflow/react';
 import type { AppConfig } from '../types';
 import { getCanvasLockedZoom, normalizeCanvasZoom } from '../utils/canvasViewportPreferences';

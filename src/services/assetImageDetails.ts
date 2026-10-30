@@ -1,3 +1,6 @@
+/**
+ * assetImageDetails — 读取图片资产详情、生成历史与提示词引用。
+ */
 import { getLocale } from '../i18n';
 import { findImageHistoryByReferences, getAssetCleanupTime, getNodeHistoryEntries, getProjectById, imageHistoryReferenceKey, type HistoryRecord } from './indexedDbService';
 import { getFileCategory, type AssetFileEntry } from './fileService';

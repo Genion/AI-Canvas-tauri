@@ -1,3 +1,6 @@
+/**
+ * useDramaAssetList — 派生短剧资产的筛选与排序列表。
+ */
 import { useMemo, useState } from 'react';
 import type { DramaAsset } from '../types/dramaAssets';
 import { dramaAssetIdentityKey, matchesDramaAssetQuery, sortDramaAssets, type DramaAssetSortBy } from '../services/dramaAssetSearch';

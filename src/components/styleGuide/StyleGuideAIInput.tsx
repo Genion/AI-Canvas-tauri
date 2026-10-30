@@ -1,3 +1,6 @@
+/**
+ * StyleGuideAIInput — 提供AI 输入框样式示例界面与交互。
+ */
 import { lazy, Suspense, useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '@iconify/react';

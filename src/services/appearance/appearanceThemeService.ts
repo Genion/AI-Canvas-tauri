@@ -1,3 +1,6 @@
+/**
+ * appearanceThemeService — 管理外观预设与主题图片的保存、导入和导出。
+ */
 import type { AppearanceTheme } from '../../types';
 import { APPEARANCE_CANVAS_PANEL_IDS, normalizeAppearanceTheme } from './appearanceDefaults';
 import { deleteAppearanceThemeFromDb, getAllAppearanceThemes, saveAppearanceThemeToDb } from '../indexedDb/catalogRepository';

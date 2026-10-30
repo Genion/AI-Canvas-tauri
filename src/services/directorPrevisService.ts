@@ -1,3 +1,6 @@
+/**
+ * directorPrevisService — 编排 AI 镜头预演的生成、加载与打开请求。
+ */
 import type { DirectorPrevisReference, DirectorPrevisScene } from '../types/directorPrevis';
 import type { BaseNodeData } from '../types';
 import { generateId, useAppStore } from '../store/useAppStore';

@@ -1,3 +1,6 @@
+/**
+ * assetRepair — 扫描不可用资产并生成修复与清理候选。
+ */
 import { lstat, mkdir, stat } from '@tauri-apps/plugin-fs';
 import { open } from '@tauri-apps/plugin-dialog';
 import { t } from '../../i18n';

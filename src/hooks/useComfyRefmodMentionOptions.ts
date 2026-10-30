@@ -1,3 +1,6 @@
+/**
+ * useComfyRefmodMentionOptions — 订阅 RefMod 目录并派生提示词引用候选。
+ */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '../store/useAppStore';

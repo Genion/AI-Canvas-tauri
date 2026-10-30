@@ -1,3 +1,6 @@
+/**
+ * canvasDisplayScheduler — 调度画布媒体显示任务并控制交互期间的暂停与并发。
+ */
 import { getPerformanceModeBudget, type CanvasDisplayBudget } from './performanceModeRuntime';
 
 export interface CanvasDisplayClock {

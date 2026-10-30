@@ -1,3 +1,6 @@
+/**
+ * canvasNodeLodRuntime — 管理画布节点远景展示与保活状态。
+ */
 import { CANVAS_DISPLAY_BUDGET, createCanvasDisplayScheduler, type CanvasDisplayClock } from './canvasDisplayScheduler';
 import { getPerformanceModeBudget } from './performanceModeRuntime';
 

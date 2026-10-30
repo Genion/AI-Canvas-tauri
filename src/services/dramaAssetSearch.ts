@@ -1,3 +1,6 @@
+/**
+ * dramaAssetSearch — 按分类、查询与排序选项派生短剧资产列表。
+ */
 import type { DramaAsset, DramaAssetCategory } from '../types/dramaAssets';
 
 /** 武器保留 prop 领域身份，展示分类使用固定子类型。 */

@@ -1,3 +1,6 @@
+/**
+ * directorPrevisSchema — 限制并规范化 AI 镜头预演场景 JSON。
+ */
 import type {
   DirectorPrevisScene, PrevisCameraKeyframe, PrevisObject, PrevisObjectKeyframe,
   PrevisPrimitive, PrevisVector,

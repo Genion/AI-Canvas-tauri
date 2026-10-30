@@ -1,3 +1,6 @@
+/**
+ * useComfyRefmodBindingRequest — 管理 ComfyUI RefMod 槽位绑定请求。
+ */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ComfyRefmodBindingRequest, ComfyRefmodBindingResolver, ComfyRefmodSelection } from '../types/comfyRefmod';
 

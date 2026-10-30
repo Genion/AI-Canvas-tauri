@@ -1,3 +1,6 @@
+/**
+ * comfyH3Memory — 识别 H3 工作流并应用本次执行的显存选项。
+ */
 import type { ComfyH3MemoryApplication, ComfyH3MemoryOverride, ComfyH3MemorySettings } from '../types/comfyLaunch';
 import { comfyH3MemoryFingerprint, DEFAULT_COMFY_H3_MEMORY_SETTINGS, isValidComfyH3MemorySettings } from '../types/comfyLaunch';
 import { getComfyLaunchSettings } from './comfyLaunchSettingsService';

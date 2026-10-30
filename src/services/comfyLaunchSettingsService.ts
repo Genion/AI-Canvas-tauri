@@ -1,3 +1,6 @@
+/**
+ * comfyLaunchSettingsService — 规范化并读写 ComfyUI 启动配置。
+ */
 import { invoke } from '@tauri-apps/api/core';
 import type { ComfyUILaunchSettings } from '../types/comfyLaunch';
 import { DEFAULT_COMFY_LAUNCH_SETTINGS, isValidComfyLaunchSettings } from '../types/comfyLaunch';

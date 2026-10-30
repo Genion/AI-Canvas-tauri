@@ -1,3 +1,6 @@
+/**
+ * aiAppTools — 向 Agent 工具注册表注册 AI 应用节点能力。
+ */
 import { useAppStore } from '../../../store/useAppStore';
 import type { AiAppJson } from '../../../types/aiApp';
 import { registerAgentTool, type AgentToolContext, type AgentToolExecutionResult } from '../toolRegistry';

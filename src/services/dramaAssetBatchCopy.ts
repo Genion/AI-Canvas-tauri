@@ -1,3 +1,6 @@
+/**
+ * dramaAssetBatchCopy — 复制选中的短剧资产并处理关联资源。
+ */
 import { t } from '../i18n';
 import { useAppStore } from '../store/useAppStore';
 import { seriesOwnerId } from '../store/store.utils';

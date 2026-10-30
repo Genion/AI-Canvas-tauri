@@ -1,3 +1,6 @@
+/**
+ * comfyRefmodNodeService — 将 RefMod 引用追加到视频节点。
+ */
 import { useAppStore } from '../store/useAppStore';
 import type { ComfyRefmodBindingResolver, ComfyRefmodSelection } from '../types/comfyRefmod';
 import { comfyRefmodKey, normalizeCharacterRefmods, normalizeComfyRefmodSelections } from '../utils/comfyRefmod';

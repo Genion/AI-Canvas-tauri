@@ -1,3 +1,6 @@
+/**
+ * VideoThumbnail — 提供视频缩略图界面与交互。
+ */
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from '@iconify/react';
 import { useViewportMediaSource } from '../../hooks/useViewportMediaSource';

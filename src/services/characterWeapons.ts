@@ -1,3 +1,6 @@
+/**
+ * characterWeapons — 扩展角色武器依赖并重映射武器标识。
+ */
 import { t } from '../i18n';
 import type { DramaAsset } from '../types/dramaAssets';
 import { MAX_CHARACTER_WEAPONS, normalizeCharacterWeaponIds } from '../types/dramaAssets';

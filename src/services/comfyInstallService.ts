@@ -1,3 +1,6 @@
+/**
+ * comfyInstallService — 连接 ComfyUI 便携包的选择、安装与取消接口。
+ */
 import { Channel, invoke } from '@tauri-apps/api/core';
 import portableRelease from '../../src-tauri/resources/comfyui-portable.json';
 import type { ComfyInstallInfo, ComfyInstallProgress, ComfyInstallResult, ComfyInstallTarget } from '../types/comfyInstall';

@@ -1,3 +1,6 @@
+/**
+ * NodeOutputDownloadDialog — 提供节点输出下载界面与交互。
+ */
 import { useT } from '../../i18n';
 import { useAppStore } from '../../store/useAppStore';
 import DownloadProgress from './DownloadProgress';

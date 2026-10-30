@@ -1,3 +1,6 @@
+/**
+ * volcengineAssetLabels — 将方舟素材状态转换为界面文案。
+ */
 import { t } from '../../i18n';
 
 const STATUS_LABELS: Record<string, string> = {

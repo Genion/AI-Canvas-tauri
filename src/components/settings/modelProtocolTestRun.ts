@@ -1,3 +1,6 @@
+/**
+ * modelProtocolTestRun — 构造模型协议试运行场景并校验真实请求变量。
+ */
 import type { ProviderModelSelection } from '../../types';
 import type { MediaReference, ModelProtocolPresetId, NormalizedModelExecutionProtocol, ProtocolJsonValue } from '../../types/aiTypes';
 import { parseModelExecutionProtocol, type ModelProtocolVariables } from '../../services/ai/modelProtocol';

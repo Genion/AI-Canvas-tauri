@@ -1,3 +1,6 @@
+/**
+ * ProviderBadge — 提供厂商标识界面与交互。
+ */
 import { lazy, Suspense } from 'react';
 import type { ApiProviderConfig } from '../../types';
 import { getProviderDefinition } from '../../services/ai/providerCatalogService';

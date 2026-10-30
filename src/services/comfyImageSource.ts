@@ -1,3 +1,6 @@
+/**
+ * comfyImageSource — 读取原生 ComfyUI 图片并管理 Blob URL 租约。
+ */
 import { corsSafeFetch } from './ai/httpTransport';
 import { shouldLoadNativeComfyMedia } from './comfyMediaSource';
 

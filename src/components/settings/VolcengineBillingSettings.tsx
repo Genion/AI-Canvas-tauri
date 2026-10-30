@@ -1,3 +1,6 @@
+/**
+ * VolcengineBillingSettings — 提供方舟用量账本设置界面与交互。
+ */
 import { getLocale, t as translate, useT } from '../../i18n';
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { Icon } from '@iconify/react';

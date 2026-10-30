@@ -1,3 +1,6 @@
+/**
+ * dramaAssetArchive — 管理短剧资产归档的临时工作区与清理。
+ */
 import { mkdir, remove, rename, stat, writeFile } from '@tauri-apps/plugin-fs';
 import { invoke } from '@tauri-apps/api/core';
 import { assertDramaAssetWriteCurrent, type DramaAssetWriteOptions } from '../../types/dramaAssets';

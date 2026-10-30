@@ -1,3 +1,6 @@
+/**
+ * comfyDomImageSource — 为 DOM 图片绑定 ComfyUI 媒体来源与资源释放。
+ */
 import { acquireComfyImageSource, shouldLoadNativeComfyImage, type ComfyImageSourceLease } from './comfyImageSource';
 import { COMFY_IMAGE_SOURCE_ATTRIBUTE } from '../utils/comfyMediaUrl';
 

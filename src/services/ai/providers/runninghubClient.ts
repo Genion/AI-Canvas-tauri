@@ -1,3 +1,6 @@
+/**
+ * runninghubClient — 封装 RunningHub 请求、错误与媒体上传。
+ */
 import { isLocalMediaUrl } from '../../../utils/mediaUrl';
 import type { RunningHubConnection, RunningHubMediaKind } from '../../../types/runninghub';
 import { corsSafeFetch } from '../httpTransport';

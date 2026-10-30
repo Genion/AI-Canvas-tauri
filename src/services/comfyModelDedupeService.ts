@@ -1,3 +1,6 @@
+/**
+ * comfyModelDedupeService — 连接原生 ComfyUI 模型扫描、去重与历史接口。
+ */
 import { Channel, invoke } from '@tauri-apps/api/core';
 import type {
   ComfyModelDedupeBatchRequest, ComfyModelDedupeHistory, ComfyModelDedupeProgress, ComfyModelDedupeRecovery, ComfyModelDedupeRequest,

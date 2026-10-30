@@ -1,3 +1,6 @@
+/**
+ * assetVideoDetails — 读取并整理视频资产的生成历史信息。
+ */
 import { getLocale, t } from '../i18n';
 import { findVideoHistoryByReferences, type HistoryRecord } from './indexedDbService';
 

@@ -1,3 +1,6 @@
+/**
+ * skillTools — 向 Agent 工具注册表注册 Skill 读取能力。
+ */
 import { estimateTokens } from '../tokenEstimate';
 /**
  * 注册 Skill 的发现、按需加载与附属资料受限读取工具。

@@ -1,3 +1,6 @@
+/**
+ * appearanceDefaults — 创建、复制并规范化内置与用户外观预设。
+ */
 import type { AppearanceTheme, AppearanceMode, AppearanceButtonColors, AppearanceBackgroundImage, AppearanceCanvasPanels, AppearancePanelBackground } from '../../types';
 import { isEmbeddedThemeImage, isThemeImageReference } from '../fs/themeAssets';
 

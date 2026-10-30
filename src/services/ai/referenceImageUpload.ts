@@ -1,3 +1,6 @@
+/**
+ * referenceImageUpload — 准备参考图片上传并保持处理顺序。
+ */
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { parseRasterImageDimensions } from '../rasterImageDimensions';
 

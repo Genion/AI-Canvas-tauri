@@ -1,3 +1,6 @@
+/**
+ * skillReadService — 分页读取 Skill 内容并管理任务读取预算。
+ */
 import { estimateTokens } from './tokenEstimate';
 
 /** Runtime-only reservations shared by concurrent reads in one model round. */

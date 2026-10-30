@@ -1,3 +1,6 @@
+/**
+ * usePluginSpeechModels — 识别并加载插件需要的本地语音模型。
+ */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { t } from '../i18n';
 import { confirmAction } from '../services/confirmDialog';

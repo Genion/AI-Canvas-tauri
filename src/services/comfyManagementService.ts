@@ -1,3 +1,6 @@
+/**
+ * comfyManagementService — 连接 ComfyUI 安装选择、版本与仓库管理接口。
+ */
 import { Channel, invoke } from '@tauri-apps/api/core';
 import type {
   ComfyCatalogEntry,

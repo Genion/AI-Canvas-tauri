@@ -1,3 +1,6 @@
+/**
+ * assetImageBatchReverse — 筛选带提示词的图片并编排批量反推任务。
+ */
 import type { AssetFileEntry, FileTransferOptions } from './fileService';
 import type { AssetImageBatchEntry, AssetImageBatchStatus, AssetImageRecord, AssetImageSaveInput } from '../types/assetImage';
 import { getAssetImageRecords, getAssetIndexById, getAssetMetaById } from './indexedDbService';

@@ -1,10 +1,11 @@
-import { useT } from '../../../i18n';
 /**
  * settings/providerConnection/VideoCapabilityEditor — 视频模型的固定能力编辑器。
  *
  * 这里勾选的值会直接约束画布上视频节点的可选项，所以编辑器只做「声明」：
  * 未填写的字段一律保持 undefined，绝不替用户猜测默认值。
  */
+import { useT } from '../../../i18n';
+
 import Select from '../../shared/Select';
 import NumberStepper from '../../shared/NumberStepper';
 import { Icon } from '@iconify/react';

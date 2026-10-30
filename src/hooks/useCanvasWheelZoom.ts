@@ -1,3 +1,6 @@
+/**
+ * useCanvasWheelZoom — 绑定画布滚轮事件并处理缩放与平移分流。
+ */
 import { useEffect, type RefObject } from 'react';
 import type { Viewport } from '@xyflow/react';
 

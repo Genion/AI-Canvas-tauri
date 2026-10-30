@@ -1,3 +1,6 @@
+/**
+ * OnnxModelStorageManager — 提供本地 ONNX 模型存储管理界面与交互。
+ */
 import { useEffect, useState } from 'react';
 import { Icon } from '@iconify/react';
 import { useAppStore } from '../../store/useAppStore';

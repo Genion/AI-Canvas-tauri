@@ -1,3 +1,6 @@
+/**
+ * volcengineAssetLibrary — 请求方舟素材分组、素材列表与详情。
+ */
 import { parseResponseError } from '../httpUtils';
 import { corsSafeFetch } from '../httpTransport';
 import { signVolcengineRequest } from './volcengineSigner';

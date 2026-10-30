@@ -1,3 +1,6 @@
+/**
+ * StyleGuideGenerationEffects — 提供生成动效样式示例界面与交互。
+ */
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useReducedMotion } from 'framer-motion';
 import type { OrbSize, OrbState } from '../../vendor/generation-effects/thinking-orbs/src';

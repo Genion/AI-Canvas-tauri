@@ -1,3 +1,6 @@
+/**
+ * cloudWorkflowParameterControls — 将云工作流参数定义转换为通用控件语义。
+ */
 export type CloudWorkflowParameterSemantic = 'ratio' | 'resolution' | 'duration' | 'other';
 export type CloudWorkflowParameterValue = string | number | boolean;
 

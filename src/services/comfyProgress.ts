@@ -1,3 +1,6 @@
+/**
+ * comfyProgress — 解析 ComfyUI 进度事件并维护执行会话。
+ */
 import { useAppStore } from '../store/useAppStore';
 import type { ComfyNodeProgressStage } from '../types/comfyProgress';
 import { comfyFetch } from './comfyPolling';

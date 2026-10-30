@@ -1,3 +1,6 @@
+/**
+ * Timeline — 提供时间轴刻度与片段界面与交互。
+ */
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState,
   type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 import { MoveHorizontal, PanelBottom, RotateCcw, Trash2, ZoomIn, ZoomOut } from 'lucide-react';

@@ -1,3 +1,6 @@
+/**
+ * qwenSpeechSettings — 解析 Qwen 语音工作流字段并应用语音设置。
+ */
 import type { WorkflowDefinition } from '../../types';
 import type { AudioSpeechParameterValue, AudioSpeechSettings, AudioSpeechWorkflowControls, QwenSpeechControls, QwenSpeechField } from '../../types/aiTypes';
 

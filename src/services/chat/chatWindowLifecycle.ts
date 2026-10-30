@@ -1,3 +1,6 @@
+/**
+ * chatWindowLifecycle — 管理独立聊天窗口打开时的状态交接。
+ */
 import { invoke } from '@tauri-apps/api/core';
 import { useAppStore } from '../../store/useAppStore';
 import { sanitizeDomainText } from './subAgentMaterials';

@@ -1,3 +1,6 @@
+/**
+ * ReferenceContentPreview — 提供引用内容预览界面与交互。
+ */
 import { useCallback, useEffect, useState } from 'react';
 import { Icon } from '@iconify/react';
 import type { ReferencePreviewContent, ReferencePreviewSource } from '../../types/referencePreview';

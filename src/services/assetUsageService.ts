@@ -1,3 +1,6 @@
+/**
+ * assetUsageService — 查询资产在项目中的使用位置并定位关联节点。
+ */
 import { t } from '../i18n';
 import type { AssetUsageLocation, AssetUsageReport, AssetUsageTarget } from '../types/assetUsage';
 import { parseDramaMentionId, type DramaAssetKind } from '../types/dramaAssets';

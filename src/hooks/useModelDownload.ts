@@ -1,3 +1,6 @@
+/**
+ * useModelDownload — 管理模型下载的状态、进度与取消。
+ */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { downloadModel, type ModelDownloadProgress } from '../services/onnxService';
 

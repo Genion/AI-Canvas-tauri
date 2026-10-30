@@ -1,3 +1,6 @@
+/**
+ * EpisodeNameDialog — 提供分集名称编辑界面与交互。
+ */
 import { useId, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useT } from '../../i18n';

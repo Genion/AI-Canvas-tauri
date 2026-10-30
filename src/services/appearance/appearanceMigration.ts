@@ -1,3 +1,6 @@
+/**
+ * appearanceMigration — 将旧主题配置迁移为完整外观配置。
+ */
 import type { AppConfig, AppearanceTheme } from '../../types';
 import { getBuiltinAppearanceTheme } from './appearanceDefaults';
 

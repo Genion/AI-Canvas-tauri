@@ -1,3 +1,6 @@
+/**
+ * useComfyRuntime — 订阅并控制托管 ComfyUI 运行状态。
+ */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getComfyRuntimeSnapshot } from '../services/comfyRuntimeService';
 import type { ComfyRuntimeLine, ComfyRuntimeSnapshot } from '../types/comfyRuntime';

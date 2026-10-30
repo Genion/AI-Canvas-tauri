@@ -1,3 +1,6 @@
+/**
+ * SendShortcutMenu — 提供发送快捷键选择界面与交互。
+ */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '@iconify/react';

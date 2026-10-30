@@ -1,3 +1,6 @@
+/**
+ * ResourceVideoPreview — 提供资源视频浮层预览界面与交互。
+ */
 import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '@iconify/react';

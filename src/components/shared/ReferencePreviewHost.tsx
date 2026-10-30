@@ -1,3 +1,6 @@
+/**
+ * ReferencePreviewHost — 提供引用预览宿主界面与交互。
+ */
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import type { ReferencePreviewContent, ReferencePreviewSource } from '../../types/referencePreview';

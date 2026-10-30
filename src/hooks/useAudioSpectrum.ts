@@ -1,3 +1,6 @@
+/**
+ * useAudioSpectrum — 分析音频频谱并管理分析器生命周期。
+ */
 import { useCallback, useEffect, useRef, type RefObject } from 'react';
 
 /** One controller owns one media element. Never reconnect a disposed element to a new context. */

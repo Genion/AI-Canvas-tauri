@@ -1,3 +1,6 @@
+/**
+ * conversationExecutionController — 编排消息提交、任务续跑与会话审批。
+ */
 import { sanitizeDomainText } from './subAgentMaterials';
 import { subscribeAgentLifecycle } from './agentLifecycle';
 /**

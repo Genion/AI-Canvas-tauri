@@ -1,3 +1,6 @@
+/**
+ * ReferencePreviewBody — 提供引用预览内容界面与交互。
+ */
 import { Children, createElement, isValidElement, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '../../store/useAppStore';

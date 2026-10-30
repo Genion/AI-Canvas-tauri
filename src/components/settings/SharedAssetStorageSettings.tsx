@@ -1,3 +1,6 @@
+/**
+ * SharedAssetStorageSettings — 提供共享资产存储设置界面与交互。
+ */
 import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, Cloud, Save } from 'lucide-react';
 import { useT } from '../../i18n';

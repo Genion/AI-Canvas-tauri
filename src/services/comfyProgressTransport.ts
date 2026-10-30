@@ -1,3 +1,6 @@
+/**
+ * comfyProgressTransport — 连接原生 ComfyUI 进度通道。
+ */
 import { Channel, invoke } from '@tauri-apps/api/core';
 
 type NativeProgressEvent =

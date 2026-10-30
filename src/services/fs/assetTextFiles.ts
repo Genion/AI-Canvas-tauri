@@ -1,3 +1,6 @@
+/**
+ * assetTextFiles — 读取资产文本快照并保存文本修改。
+ */
 import { lstat, open, writeFile } from '@tauri-apps/plugin-fs';
 import { getFileCategory, invalidateTextPreview, isTauriEnv, notifyProjectDiskChanged, stripVerbatimPrefix } from './core';
 

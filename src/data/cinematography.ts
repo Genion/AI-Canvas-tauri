@@ -1,3 +1,6 @@
+/**
+ * cinematography — 提供摄影机、镜头、效果与胶片的内置创作目录。
+ */
 import type { CinemaCamera, CinemaEffect, CinemaLens } from '../types/cinematography';
 
 /** 常用焦段子集；用途是创作建议，覆盖按具体记录窗口复核。目录来源核对于 2026-10-30。 */

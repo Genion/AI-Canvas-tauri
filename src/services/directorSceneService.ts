@@ -1,3 +1,6 @@
+/**
+ * directorSceneService — 管理导演场景与结果清单的不可变项目文件。
+ */
 import type {
   DirectorProjectFileReference,
   DirectorResultArtifact,

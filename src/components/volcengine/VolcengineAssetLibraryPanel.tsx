@@ -1,3 +1,6 @@
+/**
+ * VolcengineAssetLibraryPanel — 提供方舟素材库界面与交互。
+ */
 import { useT } from '../../i18n';
 import { getVolcengineAssetStatusLabel } from './volcengineAssetLabels';
 import { useCallback, useEffect, useMemo, useState } from 'react';

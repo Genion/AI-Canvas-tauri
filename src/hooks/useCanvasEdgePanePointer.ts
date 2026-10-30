@@ -1,3 +1,6 @@
+/**
+ * useCanvasEdgePanePointer — 协调画布背景与连线层的指针处理。
+ */
 import { createContext, useLayoutEffect, useMemo, useRef, type MouseEvent, type PointerEvent, type RefObject } from 'react';
 import { useStoreApi } from '@xyflow/react';
 

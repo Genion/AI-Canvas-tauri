@@ -1,3 +1,6 @@
+/**
+ * appearanceWindowSync — 同步主窗口与样式预览窗口的外观快照。
+ */
 import type { AppearanceTheme, AppearanceUiSnapshot } from '../../types';
 import { STYLE_GUIDE_WINDOW_LABEL } from '../../utils/styleGuideWindow';
 import { normalizeAppearanceTheme } from './appearanceDefaults';

@@ -1,3 +1,6 @@
+/**
+ * pluginPackageFiles — 选择本地插件目录并读取安装包。
+ */
 import type { PluginPackageResourcePayload } from '../../types/plugin';
 import { parsePluginBundle, parsePluginManifest } from '../plugins/pluginManifest';
 

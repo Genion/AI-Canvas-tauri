@@ -1,3 +1,6 @@
+/**
+ * videoThumbnailSource — 解析视频缩略图封面来源。
+ */
 import { localMediaUrlToPath } from '../../utils/mediaUrl';
 
 const IMAGE_SUFFIX = /\.(?:avif|bmp|gif|ico|jpe?g|png|svg|webp)$/i;

@@ -1,3 +1,6 @@
+/**
+ * aiAppService — 管理 AI 应用节点、项目文件定义与输入资源快照。
+ */
 import type { Node } from '@xyflow/react';
 import type { BaseNodeData } from '../../types';
 import type { AiAppDefinition, AiAppReference, AiAppResourceSnapshot } from '../../types/aiApp';

@@ -1,3 +1,6 @@
+/**
+ * CanvasAudioPreview — 提供画布音频预览与播放界面与交互。
+ */
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Music2, Pause, Play, SkipBack, SkipForward, Volume2, VolumeX } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';

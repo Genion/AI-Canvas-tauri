@@ -1,3 +1,6 @@
+/**
+ * mediaDownloadAccess — 规范化媒体下载凭据与请求并清理结果 URL。
+ */
 import type { MediaDownloadAccess, ModelProtocolAuthConfig } from '../../types/aiTypes';
 import { applyQueryAuthentication, renderRequestHeaders } from './modelProtocolRequest';
 import { validateAuthentication } from './modelProtocolValidation';

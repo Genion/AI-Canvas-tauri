@@ -1,3 +1,6 @@
+/**
+ * imageSourceBlob — 在来源与体积限制内读取图片 Blob。
+ */
 import { corsSafeFetch } from '../ai/httpTransport';
 import { estimateMediaDataUrlBytesAsync } from '../fileService';
 import { decodeDataUrlBytesAsync, MEDIA_DATA_URL_BYTE_LIMITS } from '../mediaDataUrl';

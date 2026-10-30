@@ -1,3 +1,6 @@
+/**
+ * StyleGuideReferencePreview — 提供引用预览样式示例界面与交互。
+ */
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import type { ReferencePreviewContent } from '../../types/referencePreview';
 import ReferenceContentPreview from '../shared/ReferenceContentPreview';

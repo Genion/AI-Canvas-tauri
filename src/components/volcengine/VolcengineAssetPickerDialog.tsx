@@ -1,3 +1,6 @@
+/**
+ * VolcengineAssetPickerDialog — 提供方舟素材选择界面与交互。
+ */
 import { useT } from '../../i18n';
 import { getVolcengineAssetStatusLabel } from './volcengineAssetLabels';
 import { useCallback, useEffect, useMemo, useState } from 'react';

@@ -1,3 +1,6 @@
+/**
+ * aiAppCreation — 限制 AI 应用节点的创建与复制入口。
+ */
 import type { Node } from '@xyflow/react';
 import type { BaseNodeData } from '../../types';
 

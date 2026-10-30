@@ -1,3 +1,6 @@
+/**
+ * comfyRefmodWorkflow — 解析工作流 RefMod 加载器并应用本次模型绑定。
+ */
 import type { WorkflowDefinition } from '../types';
 import type { ComfyRefmodCatalog, ComfyRefmodLoaderType, ComfyRefmodSelection, ComfyRefmodSlotSchema } from '../types/comfyRefmod';
 import { loadComfyRefmodCatalog, resolveComfyRefmodServerIdentity } from './comfyRefmodService';

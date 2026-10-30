@@ -1,3 +1,6 @@
+/**
+ * aiAppSchema — 限制并规范化 AI 应用定义、JSON 与输入标识。
+ */
 import type { AgentToolSchema } from '../chat/agentToolSchemas';
 import type { AiAppAction, AiAppDefinition, AiAppJson, AiAppReference } from '../../types/aiApp';
 import { assertProjectFileReference } from '../fs/projectFiles';

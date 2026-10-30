@@ -1,3 +1,6 @@
+/**
+ * useAppVersion — 读取桌面应用版本并提供显示值。
+ */
 import { useEffect, useState } from 'react';
 import { getVersion } from '@tauri-apps/api/app';
 import { version } from '../../package.json';

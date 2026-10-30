@@ -1,3 +1,6 @@
+/**
+ * referencePrompt — 将视频参考媒体编译为请求提示词。
+ */
 import type { MediaReference } from '../../types/aiTypes';
 import type { PromptCharacterBinding, PromptMediaReferences } from './promptResolver';
 import { getMediaReferenceUrl } from './connectedReferenceMedia';

@@ -1,3 +1,6 @@
+/**
+ * comfyRuntimeService — 连接托管 ComfyUI 的启动、停止与状态接口。
+ */
 import { invoke } from '@tauri-apps/api/core';
 import type { ComfyRuntimeSnapshot, ComfyRuntimeStartResult } from '../types/comfyRuntime';
 

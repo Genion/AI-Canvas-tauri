@@ -1,3 +1,6 @@
+/**
+ * useDramaAssetImportDialog — 管理短剧资产导入弹窗及其导入结果。
+ */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import DramaAssetImportDialog from '../components/assets/DramaAssetImportDialog';
 import type { DramaAssetIdentity, DramaAssetImportPreview } from '../services/dramaAssetTransferFormat';

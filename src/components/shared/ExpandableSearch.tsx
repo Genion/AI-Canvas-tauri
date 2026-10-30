@@ -1,3 +1,6 @@
+/**
+ * ExpandableSearch — 提供可展开搜索框界面与交互。
+ */
 import { Icon } from '@iconify/react';
 import { useId, useLayoutEffect, useRef, type KeyboardEventHandler } from 'react';
 import { useT } from '../../i18n';

@@ -1,3 +1,6 @@
+/**
+ * chatReferencePreviewService — 路由主窗口与独立聊天窗口的引用预览请求。
+ */
 import { useAppStore } from '../../store/useAppStore';
 import type { ReferencePreviewContent, ReferencePreviewSource } from '../../types/referencePreview';
 import {

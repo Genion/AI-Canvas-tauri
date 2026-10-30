@@ -1,3 +1,6 @@
+/**
+ * StyleGuideDialogs — 提供弹窗样式示例界面与交互。
+ */
 import { useCallback, useState, type FormEvent } from 'react';
 import ModalOverlay from '../shared/ModalOverlay';
 import PopupCloseButton from '../shared/PopupCloseButton';

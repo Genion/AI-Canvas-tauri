@@ -1,3 +1,6 @@
+/**
+ * ViewportVideo — 提供视口视频加载界面与交互。
+ */
 import {
   forwardRef,
   useCallback,

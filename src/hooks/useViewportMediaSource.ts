@@ -1,3 +1,6 @@
+/**
+ * useViewportMediaSource — 按视口可见性获取与释放媒体来源。
+ */
 import { useEffect, useState, type RefObject } from 'react';
 import { getPerformanceModeBudget, getPerformanceModeEnabled, subscribePerformanceMode } from '../services/performanceModeRuntime';
 

@@ -1,3 +1,6 @@
+/**
+ * comfyMediaSource — 识别原生 ComfyUI 媒体并管理读取租约。
+ */
 import { convertFileSrc, invoke } from '@tauri-apps/api/core';
 import { useAppStore } from '../store/useAppStore';
 import { DEFAULT_COMFY_URL } from './comfyServers';

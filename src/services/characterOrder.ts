@@ -1,3 +1,6 @@
+/**
+ * characterOrder — 按资产库顺序排列角色并处理局部拖拽重排。
+ */
 import type { DramaCharacter } from '../types/dramaAssets';
 
 /** 旧库保留原排序；有手动顺序后，新角色排在已有角色后面。 */

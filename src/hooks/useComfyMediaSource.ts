@@ -1,3 +1,6 @@
+/**
+ * useComfyMediaSource — 将 ComfyUI 媒体租约接入视口媒体加载。
+ */
 import { acquireComfyMediaSource, isNativeComfyMediaSource, shouldLoadNativeComfyMedia } from '../services/comfyMediaSource';
 import { useComfySourceLease } from './useComfyImageSource';
 

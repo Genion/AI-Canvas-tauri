@@ -1,3 +1,6 @@
+/**
+ * useDialogFocus — 管理弹窗焦点约束与关闭后的焦点恢复。
+ */
 import { useEffect, useRef, type RefObject } from 'react';
 
 interface DialogFocusOptions {

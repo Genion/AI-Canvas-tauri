@@ -1,3 +1,6 @@
+/**
+ * assetImageMetadata — 计算图片身份并管理图片提示词与参考图元数据。
+ */
 import { exists, lstat, open as openFile, stat } from '@tauri-apps/plugin-fs';
 import { open } from '@tauri-apps/plugin-dialog';
 import { copyAssetImageReference, type AssetFileEntry, type FileTransferOptions } from '../fileService';

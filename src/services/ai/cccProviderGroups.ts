@@ -1,3 +1,6 @@
+/**
+ * cccProviderGroups — 维护 CCC 分组目录与模型筛选。
+ */
 import type { ApiProviderConfig, ProviderModelSelection } from '../../types';
 
 /** CCC 控制台公开的分组名称；权限与模型目录始终以该分组的 Key 返回值为准。 */

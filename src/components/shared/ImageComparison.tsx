@@ -1,3 +1,6 @@
+/**
+ * ImageComparison — 提供图片对比界面与交互。
+ */
 import { useCallback, useEffect, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 import { useImageViewportGesture } from '../../hooks/useImageViewportGesture';

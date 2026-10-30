@@ -1,3 +1,6 @@
+/**
+ * ViewportAudio — 提供视口音频加载界面与交互。
+ */
 import { forwardRef, useCallback, useEffect, useRef, type AudioHTMLAttributes } from 'react';
 import { useViewportMediaSource } from '../../hooks/useViewportMediaSource';
 import { useComfyMediaSource } from '../../hooks/useComfyMediaSource';

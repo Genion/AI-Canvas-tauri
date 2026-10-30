@@ -1,3 +1,6 @@
+/**
+ * useCanvasViewportPreferences — 应用画布视口偏好、缩放范围与视图恢复。
+ */
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { useReactFlow, type FitViewOptions, type Viewport } from '@xyflow/react';
 import { useAppStore } from '../store/useAppStore';

@@ -1,3 +1,6 @@
+/**
+ * runninghubWorkflow — 执行 RunningHub 工作流并解析、保存产物。
+ */
 import { useAppStore } from '../../../store/useAppStore';
 import type { RunningHubConnection, RunningHubMediaKind, RunningHubOutput, RunningHubWorkflowManifest } from '../../../types/runninghub';
 import { resolveRunningHubParameters, runningHubFieldValue, runningHubParameterKey, validateRunningHubManifest, isRecord } from '../../runninghubWorkflowService';

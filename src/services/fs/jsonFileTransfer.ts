@@ -1,3 +1,6 @@
+/**
+ * jsonFileTransfer — 限制 JSON 文件的读取体积并提供导入导出。
+ */
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeFile } from '@tauri-apps/plugin-fs';
 import { isTauriEnv } from './core';

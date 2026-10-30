@@ -1,3 +1,6 @@
+/**
+ * volcenginePricing — 按价格快照估算方舟图片与视频费用。
+ */
 export const VOLCENGINE_PRICE_VERSION = 'user-price-document-2026-09-26';
 
 export type PriceQuote = {

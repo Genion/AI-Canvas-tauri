@@ -1,3 +1,6 @@
+/**
+ * aiAppRuntime — 校验 AI 应用候选并管理隔离界面会话与动作。
+ */
 import type { AiAppDefinition, AiAppJson, AiAppUiSession, AiAppUiSnapshot } from '../../types/aiApp';
 import { useAppStore } from '../../store/useAppStore';
 import { validateAgentToolInput } from '../chat/agentToolSchemas';

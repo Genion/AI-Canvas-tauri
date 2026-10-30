@@ -1,3 +1,6 @@
+/**
+ * useComfyImageSource — 获取并释放原生 ComfyUI 图片来源租约。
+ */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { acquireComfyImageSource, shouldLoadNativeComfyImage } from '../services/comfyImageSource';
 import type { ComfyMediaSourceLease } from '../services/comfyMediaSource';

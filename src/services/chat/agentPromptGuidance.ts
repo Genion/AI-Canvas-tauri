@@ -1,3 +1,6 @@
+/**
+ * agentPromptGuidance — 组装媒体生成与助手工具使用的提示说明。
+ */
 import type { AgentMode } from '../../types/agent';
 import { buildSkillCatalogPrompt } from './skillCatalog';
 import { buildSubAgentCatalogPrompt } from './subAgentProfileService';

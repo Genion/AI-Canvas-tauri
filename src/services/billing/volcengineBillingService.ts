@@ -1,3 +1,6 @@
+/**
+ * volcengineBillingService — 连接原生用量账本并提供查询、配置与导出接口。
+ */
 import { invoke } from '@tauri-apps/api/core';
 import { mkdir } from '@tauri-apps/plugin-fs';
 import { getBaseDir, isTauriEnv, joinPath } from '../fs/core';

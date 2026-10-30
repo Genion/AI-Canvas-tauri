@@ -1,3 +1,6 @@
+/**
+ * directorPrevisRenderer — 采样预演场景并创建 Three.js 渲染器。
+ */
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import type { DirectorPrevisScene, DirectorPrevisView, PrevisCameraKeyframe, PrevisObject, PrevisObjectKeyframe, PrevisVector } from '../types/directorPrevis';

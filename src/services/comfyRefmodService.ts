@@ -1,3 +1,6 @@
+/**
+ * comfyRefmodService — 读取 ComfyUI RefMod 目录与资源详情。
+ */
 import type {
   ComfyRefmodAsset,
   ComfyRefmodCatalog,

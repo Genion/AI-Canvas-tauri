@@ -1,3 +1,6 @@
+/**
+ * VideoPlayer — 提供通用视频播放界面与交互。
+ */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type VideoHTMLAttributes } from 'react';
 import { Icon } from '@iconify/react';
 import { releaseViewportVideoElement } from './viewportVideoResource';

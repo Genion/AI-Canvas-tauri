@@ -1,3 +1,6 @@
+/**
+ * audioSpeechSettings — 规范化语音设置并解析参考音色与工作流参数。
+ */
 import type { BaseNodeData, WorkflowDefinition } from '../../types';
 import type { AudioSpeechReference, AudioSpeechSettings, AudioSpeechWorkflowControls } from '../../types/aiTypes';
 import type { DramaAsset, DramaAssetLibrary } from '../../types/dramaAssets';

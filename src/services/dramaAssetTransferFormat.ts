@@ -1,3 +1,6 @@
+/**
+ * dramaAssetTransferFormat — 校验并转换短剧资产归档的数据与媒体清单。
+ */
 import type { DramaAsset, DramaAssetCategory, DramaCharacter } from '../types/dramaAssets';
 import { MAX_CHARACTER_WEAPONS, MAX_DRAMA_REFERENCE_IMAGES, normalizeCharacterWeaponIds } from '../types/dramaAssets';
 import { localMediaUrlToPath } from '../utils/mediaUrl';

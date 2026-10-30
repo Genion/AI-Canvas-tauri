@@ -1,3 +1,6 @@
+/**
+ * agentRoundExecutor — 执行 Agent 模型轮次、工具调用与结果回传。
+ */
 import { estimateTokens } from './tokenEstimate';
 /**
  * 执行 Agent 的单个模型轮次，串联上下文、流式响应、工具提案与执行结果。

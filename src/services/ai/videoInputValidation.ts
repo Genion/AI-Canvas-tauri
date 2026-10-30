@@ -1,3 +1,6 @@
+/**
+ * videoInputValidation — 探测视频参考媒体并校验输入约束与体积。
+ */
 import type {
   NumericInputConstraint,
   VideoGenerationReferenceInput,

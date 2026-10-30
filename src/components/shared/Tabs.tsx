@@ -1,3 +1,6 @@
+/**
+ * Tabs — 提供通用标签页切换界面与交互。
+ */
 import { useEffect, useRef, type KeyboardEvent, type ReactNode } from 'react';
 import { animate, motion, useReducedMotion } from 'framer-motion';
 import { springGentle } from '../../utils/motion';

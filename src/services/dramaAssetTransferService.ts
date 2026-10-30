@@ -1,3 +1,6 @@
+/**
+ * dramaAssetTransferService — 编排项目与全局短剧资产包的导入导出。
+ */
 import { open, save } from '@tauri-apps/plugin-dialog';
 import type { Node } from '@xyflow/react';
 import type { BaseNodeData } from '../types';

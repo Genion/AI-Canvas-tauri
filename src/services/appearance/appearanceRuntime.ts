@@ -1,3 +1,6 @@
+/**
+ * appearanceRuntime — 解析外观配置并将主题变量应用到窗口。
+ */
 import type { AppearanceBackgroundImage, AppearanceCanvasPanelId, AppearanceMode, AppearancePanelBackground, AppearanceTheme } from '../../types';
 import { APPEARANCE_CANVAS_PANEL_IDS, getBuiltinAppearanceTheme, normalizeAppearanceBackgroundImage, normalizeAppearanceTheme } from './appearanceDefaults';
 import { resolveThemeImageSource } from '../fs/themeAssets';
