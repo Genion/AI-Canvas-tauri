@@ -1,3 +1,6 @@
+/**
+ * toapisModelManifest — 回归测试：ToAPIs 已核对的渠道合同。
+ */
 import { describe, expect, it } from 'vitest';
 import { TOAPIS_MODEL_MANIFEST, TOAPIS_TEXT_MODEL_IDS, assertToapisImageInput, assertToapisVideoInput,
   matchToapisCatalog, resolveToapisImageModelContract, toapisImageReferences, toapisVideoVariables } from '../../src/services/ai/providers/toapisModelManifest';

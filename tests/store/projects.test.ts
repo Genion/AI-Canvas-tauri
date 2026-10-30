@@ -1,3 +1,6 @@
+/**
+ * projects — 回归测试：project bootstrap lifetime。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BaseNodeData } from '../../src/types';
 import type { ProjectDataDirRenameResult } from '../../src/services/fs/core';

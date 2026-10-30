@@ -1,3 +1,6 @@
+/**
+ * runninghubClient — 回归测试：RunningHub 自有素材上传。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { uploadRunningHubMedia } from '../../src/services/ai/providers/runninghubClient';
 import type { RunningHubMediaKind } from '../../src/types/runninghub';

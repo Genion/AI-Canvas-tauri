@@ -1,3 +1,6 @@
+/**
+ * storageHealth — 回归测试：storage health accounting and cleanup。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CanvasProject } from '../../src/types';
 

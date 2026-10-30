@@ -1,3 +1,6 @@
+/**
+ * videoEditorComposite — 回归测试：needsCompositing。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Input } from 'mediabunny';
 

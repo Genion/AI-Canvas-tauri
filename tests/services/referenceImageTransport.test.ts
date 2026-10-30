@@ -1,3 +1,6 @@
+/**
+ * referenceImageTransport — 回归测试：共享参考图压缩的实际请求边界。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({ transport: vi.fn(), invoke: vi.fn(), native: false, optimizerNative: true }));

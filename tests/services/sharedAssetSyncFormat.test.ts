@@ -1,3 +1,6 @@
+/**
+ * sharedAssetSyncFormat — 回归测试：共享项目资产格式。
+ */
 import { describe, expect, it } from 'vitest';
 import type { DramaAssetLibrary, DramaCharacter, DramaProp } from '../../src/types/dramaAssets';
 import type { SharedSyncFilePayload, SharedSyncMedia, SharedSyncRevision } from '../../src/types/assetSync';

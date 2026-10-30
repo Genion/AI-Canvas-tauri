@@ -1,3 +1,6 @@
+/**
+ * sharedAssetSync — 回归测试：手动项目资产同步协调。
+ */
 import { webcrypto } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AssetIndexRecord } from '../../src/services/indexedDbService';

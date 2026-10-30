@@ -1,3 +1,6 @@
+/**
+ * renderMarkdown — 回归测试：renderMarkdown URL sanitization。
+ */
 import { describe, expect, it } from 'vitest';
 import { renderMarkdown, renderMarkdownWithInlineSlots, renderTextWithInlineSlots } from '../../src/utils/renderMarkdown';
 

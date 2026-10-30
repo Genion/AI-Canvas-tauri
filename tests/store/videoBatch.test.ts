@@ -1,3 +1,6 @@
+/**
+ * videoBatch — 回归测试：requires H3 service preflight and rejects a changed inherited policy before persisting a batch。
+ */
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { VideoBatch } from '../../src/types/videoBatch';
 import type { ComfyH3MemorySettings } from '../../src/types/comfyLaunch';

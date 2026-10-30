@@ -1,3 +1,6 @@
+/**
+ * relayonModelManifest — 回归测试：RelayOnAPI 已核对文本目录。
+ */
 import { assert, describe, expect, it } from 'vitest';
 import type { ProviderModelSelection } from '../../src/types';
 import {

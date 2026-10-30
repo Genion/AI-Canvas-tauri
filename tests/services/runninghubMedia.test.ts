@@ -1,3 +1,6 @@
+/**
+ * runninghubMedia — 回归测试：RunningHub 标准媒体执行。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAppStore } from '../../src/store/useAppStore';
 import { buildRunningHubModelRequest, executeRunningHubModel, parseRunningHubModelOutputs, queryRunningHubModel } from '../../src/services/ai/providers/runninghubMedia';

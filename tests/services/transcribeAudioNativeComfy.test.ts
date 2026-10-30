@@ -1,3 +1,6 @@
+/**
+ * transcribeAudioNativeComfy — 回归测试：ComfyUI audio transcription source。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({ matches: vi.fn(), nativeFetch: vi.fn(), transcribe: vi.fn() }));

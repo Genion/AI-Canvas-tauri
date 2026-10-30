@@ -1,3 +1,6 @@
+/**
+ * runninghubMediaRouting — 回归测试：RunningHub 本轮节点提示词与媒体入口。
+ */
 import type { Node } from '@xyflow/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BaseNodeData } from '../../src/types';

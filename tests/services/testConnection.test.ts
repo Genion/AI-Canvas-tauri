@@ -1,3 +1,6 @@
+/**
+ * testConnection — 回归测试：provider connection tests。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const transportMocks = vi.hoisted(() => ({

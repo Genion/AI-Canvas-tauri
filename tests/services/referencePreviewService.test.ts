@@ -1,3 +1,6 @@
+/**
+ * referencePreviewService — 回归测试：引用大屏内容读取。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BaseNodeData } from '../../src/types';
 import type { DramaCharacter } from '../../src/types/dramaAssets';

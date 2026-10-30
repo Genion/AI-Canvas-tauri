@@ -1,3 +1,6 @@
+/**
+ * canvasEdgeModels — 回归测试：canvas edge model selector。
+ */
 import { describe, expect, it, vi } from 'vitest';
 import { ConnectionMode, Position, type Edge, type InternalNode, type ReactFlowState } from '@xyflow/react';
 import type { CanvasEdgeGeometry, CanvasSharedEdgeModel } from '../../src/types/canvasEdges';

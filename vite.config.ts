@@ -1,3 +1,6 @@
+/**
+ * vite.config — 配置前端构建、开发服务与画布连线适配插件。
+ */
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import {

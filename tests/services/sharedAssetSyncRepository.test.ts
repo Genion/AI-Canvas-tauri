@@ -1,3 +1,6 @@
+/**
+ * sharedAssetSyncRepository — 回归测试：共享资产下载原子提交。
+ */
 import { IDBFactory } from 'fake-indexeddb';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SharedAssetMapping, SharedAssetOutboxEntry } from '../../src/types/assetSync';

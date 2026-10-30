@@ -1,3 +1,6 @@
+/**
+ * cinematography — 回归测试：摄影设定。
+ */
 import { describe, expect, it } from 'vitest';
 import { CINEMA_CAMERAS, CINEMA_EFFECTS, CINEMA_LENSES } from '../../src/data/cinematography';
 import { buildGenerationCameraPrompt, cinemaMinT, cinematographyCompatibility, editableGenerationCinematography, resolveCinematography, supportsCinemaFocal } from '../../src/utils/cinematography';

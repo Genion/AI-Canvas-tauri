@@ -1,3 +1,6 @@
+/**
+ * runninghubWorkflowService — 回归测试：RunningHub 导入与参数合同。
+ */
 import { describe, expect, it } from 'vitest';
 import { importRunningHubDefinition, parseRunningHubId, parseRunningHubJson, resolveRunningHubParameters, runningHubFieldValue, validateRunningHubManifest } from '../../src/services/runninghubWorkflowService';
 import { runningHubConnection, workflowExecution } from '../../src/services/workflowExecutionService';

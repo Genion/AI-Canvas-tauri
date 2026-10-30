@@ -1,3 +1,6 @@
+/**
+ * videoReferenceConfirmation — 回归测试：手动视频生成的参考素材确认。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AIVideoGenParams } from '../../src/types/aiTypes';
 

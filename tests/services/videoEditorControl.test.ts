@@ -1,3 +1,6 @@
+/**
+ * videoEditorControl — 回归测试：MCP 剪辑工程。
+ */
 import { IDBFactory, IDBKeyRange } from 'fake-indexeddb';
 import type { Node } from '@xyflow/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';

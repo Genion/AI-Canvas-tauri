@@ -1,3 +1,6 @@
+/**
+ * recentAssets — 回归测试：最近使用持久化与资产解析。
+ */
 import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AssetIndexRecord } from '../../src/services/indexedDbService';

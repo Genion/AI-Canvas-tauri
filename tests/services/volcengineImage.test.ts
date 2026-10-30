@@ -1,3 +1,6 @@
+/**
+ * volcengineImage — 回归测试：Volcengine Seedream image requests。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const transportMocks = vi.hoisted(() => ({

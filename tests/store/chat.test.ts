@@ -1,3 +1,6 @@
+/**
+ * chat — 回归测试：chat conversation restoration。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ChatConversation, ChatMessage } from '../../src/types/chat';
 

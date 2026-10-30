@@ -1,3 +1,6 @@
+/**
+ * presetParameterPresentation — 回归测试：快捷指令内容用途。
+ */
 import { afterEach, describe, expect, it } from 'vitest';
 import { setLocale, t } from '../../src/i18n';
 import type { PresetAdvancedConfig, PresetParameterDefinition } from '../../src/types';

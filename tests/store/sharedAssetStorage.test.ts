@@ -1,3 +1,6 @@
+/**
+ * sharedAssetStorage — 回归测试：项目 S3 状态投影与操作租约。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createStore } from 'zustand/vanilla';
 import type { AppState } from '../../src/store/useAppStore';

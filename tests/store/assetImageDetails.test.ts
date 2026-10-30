@@ -1,3 +1,6 @@
+/**
+ * assetImageDetails — 回归测试：asset image save action。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { StoreApi } from 'zustand';
 import type { AppState } from '../../src/store/useAppStore';

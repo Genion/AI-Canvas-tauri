@@ -1,3 +1,6 @@
+/**
+ * videoBatchPlanning — 回归测试：captures only the effective H3 policy fingerprint during service preflight。
+ */
 import { beforeEach, it, expect, vi } from 'vitest';
 import type { ComfyH3MemorySettings } from '../../src/types/comfyLaunch';
 import { comfyH3MemoryFingerprint, DEFAULT_COMFY_H3_MEMORY_SETTINGS } from '../../src/types/comfyLaunch';

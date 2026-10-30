@@ -1,3 +1,6 @@
+/**
+ * canvasRenderProjection — 回归测试：canvas render projection。
+ */
 import { describe, expect, it } from 'vitest';
 import type { Edge, Node, NodeChange } from '@xyflow/react';
 import type { BaseNodeData } from '../../src/types';

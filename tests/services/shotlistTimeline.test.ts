@@ -1,3 +1,6 @@
+/**
+ * shotlistTimeline — 回归测试：分镜表推送时间轴。
+ */
 import { IDBFactory } from 'fake-indexeddb';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 

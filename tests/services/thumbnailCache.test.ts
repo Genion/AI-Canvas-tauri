@@ -1,3 +1,6 @@
+/**
+ * thumbnailCache — 回归测试：prepareProjectThumbnail platform and project routing。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({

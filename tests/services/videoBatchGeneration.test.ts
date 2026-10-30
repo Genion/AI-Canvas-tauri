@@ -1,3 +1,6 @@
+/**
+ * videoBatchGeneration — 回归测试：uses each node duration and waits for output history before completing。
+ */
 import { beforeEach, it, expect, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({ generate: vi.fn(), persist: vi.fn() }));
 vi.mock('../../src/services/aiService', () => ({ generateVideo: mocks.generate }));

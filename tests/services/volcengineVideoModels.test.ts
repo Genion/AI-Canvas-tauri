@@ -1,3 +1,6 @@
+/**
+ * volcengineVideoModels — 回归测试：volcengine Seedance capability。
+ */
 import { describe, expect, it } from 'vitest';
 import {
   getVolcengineSeedanceCapability,

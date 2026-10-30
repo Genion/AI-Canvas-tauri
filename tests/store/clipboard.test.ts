@@ -1,3 +1,6 @@
+/**
+ * clipboard — 回归测试：canvas clipboard。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Edge, Node } from '@xyflow/react';
 import { createCanvasNoteData, type BaseNodeData, type NodeType } from '../../src/types';

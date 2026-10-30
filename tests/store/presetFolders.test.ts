@@ -1,3 +1,6 @@
+/**
+ * presetFolders — 回归测试：快捷指令文件夹与保存队列。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppState } from '../../src/store/useAppStore';
 import type { PresetFolder, UserPreset } from '../../src/types';

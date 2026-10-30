@@ -1,3 +1,6 @@
+/**
+ * config — 回归测试：config hydration guard。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppConfig } from '../../src/types';
 import type { ConfigSaveOptions, LoadedConfig } from '../../src/services/storageService';

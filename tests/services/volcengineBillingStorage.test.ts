@@ -1,3 +1,6 @@
+/**
+ * volcengineBillingStorage — 回归测试：billing storage follows the file save root。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const driver = vi.hoisted(() => ({

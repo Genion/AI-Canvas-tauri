@@ -1,3 +1,6 @@
+/**
+ * dramaAssets — 回归测试：创作资产包批量导入。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Edge, Node } from '@xyflow/react';
 import { useAppStore } from '../../src/store/useAppStore';

@@ -1,3 +1,6 @@
+/**
+ * sora2uVideoRuntime — 回归测试：Sora2U 通用视频运行时映射。
+ */
 import { describe, expect, it } from 'vitest';
 import {
   assertVideoReferenceLimits,

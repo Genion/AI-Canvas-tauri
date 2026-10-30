@@ -1,3 +1,6 @@
+/**
+ * videoRequestResolver — 回归测试：resolveVideoSubmissionControls。
+ */
 import { describe, expect, it } from 'vitest';
 import type {
   AIVideoGenParams,

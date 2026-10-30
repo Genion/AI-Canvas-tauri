@@ -1,3 +1,6 @@
+/**
+ * videoBatchRunner — 回归测试：waits for each execution and its durable status update, continuing after failure。
+ */
 import { it, expect, vi } from 'vitest';
 import { runVideoBatch, recoverVideoBatches, type VideoBatchRunnerPorts } from '../../src/services/videoBatchRunner';
 import type { VideoBatch } from '../../src/types/videoBatch';

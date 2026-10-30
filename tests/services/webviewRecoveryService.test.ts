@@ -1,3 +1,6 @@
+/**
+ * webviewRecoveryService — 回归测试：WebContent recovery。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({ getState: vi.fn(), lastProject: vi.fn(), confirm: vi.fn(), invoke: vi.fn() }));

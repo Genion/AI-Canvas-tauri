@@ -1,3 +1,6 @@
+/**
+ * comfyRefmodMention — 回归测试：ComfyUI 角色提示词引用。
+ */
 import { describe, expect, it } from 'vitest';
 import type { ComfyRefmodSelection } from '../../src/types/comfyRefmod';
 import {

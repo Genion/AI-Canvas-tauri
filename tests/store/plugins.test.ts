@@ -1,3 +1,6 @@
+/**
+ * plugins — 回归测试：插件由用户安装。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppState } from '../../src/store/useAppStore';
 import type { InstalledPlugin } from '../../src/types/plugin';

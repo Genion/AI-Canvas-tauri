@@ -1,3 +1,6 @@
+/**
+ * uploadServiceMemory — 回归测试：uploadService 内存上传治理。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({

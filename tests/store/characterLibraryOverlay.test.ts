@@ -1,3 +1,6 @@
+/**
+ * characterLibraryOverlay — 回归测试：character library overlay above the asset library。
+ */
 import { describe, expect, it } from 'vitest';
 import { createStore } from 'zustand/vanilla';
 import { createUISlice } from '../../src/store/store.ui';

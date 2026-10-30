@@ -1,3 +1,6 @@
+/**
+ * shotlist — 回归测试：分镜表行状态判定。
+ */
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_SHOT_DURATION,

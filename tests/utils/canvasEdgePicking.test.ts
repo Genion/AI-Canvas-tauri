@@ -1,3 +1,6 @@
+/**
+ * canvasEdgePicking — 回归测试：nearest canvas edge picking。
+ */
 import { describe, expect, it } from 'vitest';
 import type { CanvasSharedEdgeModel } from '../../src/types/canvasEdges';
 import { canvasEdgePointer, createCanvasEdgePicker } from '../../src/utils/canvasEdgePicking';

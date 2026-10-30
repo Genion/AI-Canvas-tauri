@@ -1,3 +1,6 @@
+/**
+ * canvasEdgeStroke — 回归测试：Canvas edge stroke compatibility。
+ */
 import { MarkerType, type Edge } from '@xyflow/react';
 import { describe, expect, it } from 'vitest';
 import type { CanvasSharedEdgeModel } from '../../src/types/canvasEdges';

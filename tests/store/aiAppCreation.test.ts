@@ -1,3 +1,6 @@
+/**
+ * aiAppCreation — 回归测试：AI 应用创建入口。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createStore, type StoreApi } from 'zustand/vanilla';
 import type { Node } from '@xyflow/react';

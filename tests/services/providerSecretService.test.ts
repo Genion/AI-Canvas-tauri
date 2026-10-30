@@ -1,3 +1,6 @@
+/**
+ * providerSecretService — 回归测试：provider secret persistence。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const tauriMocks = vi.hoisted(() => ({

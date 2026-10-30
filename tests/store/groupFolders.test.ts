@@ -1,3 +1,6 @@
+/**
+ * groupFolders — 回归测试：展开分组内创建和拖入空节点。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Node } from '@xyflow/react';
 import type { BaseNodeData } from '../../src/types';

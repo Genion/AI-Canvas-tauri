@@ -1,3 +1,6 @@
+/**
+ * nativeDropPosition — 回归测试：%s 在倍率 %s 下将原生落点转换为 client 坐标。
+ */
 import { afterEach, expect, it, vi } from 'vitest';
 import { nativeDropClientPosition } from '../../src/utils/nativeDropPosition';
 

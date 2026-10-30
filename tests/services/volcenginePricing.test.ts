@@ -1,3 +1,6 @@
+/**
+ * volcenginePricing — 回归测试：Volcengine price catalog。
+ */
 import { describe, expect, it } from 'vitest';
 import { quoteVolcengineImage, quoteVolcengineVideo } from '../../src/services/billing/volcenginePricing';
 import { sanitizeBillingError } from '../../src/services/billing/volcengineBillingService';

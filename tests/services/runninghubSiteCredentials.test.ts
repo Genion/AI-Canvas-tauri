@@ -1,3 +1,6 @@
+/**
+ * runninghubSiteCredentials — 回归测试：RunningHub 国内与国际凭据隔离。
+ */
 import { describe, expect, it } from 'vitest';
 import { buildRunningHubSiteProviders, hydrateRunningHubAliases, runningHubCredentialId, runningHubSiteDrafts } from '../../src/services/runninghubSiteCredentials';
 import { runningHubConnection } from '../../src/services/workflowExecutionService';

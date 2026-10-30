@@ -1,3 +1,6 @@
+/**
+ * videoEditorMediaService — 回归测试：createResilientReader。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const native = vi.hoisted(() => ({ matches: vi.fn(() => false), fetch: vi.fn() }));

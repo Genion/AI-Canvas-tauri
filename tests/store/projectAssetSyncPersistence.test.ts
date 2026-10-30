@@ -1,3 +1,6 @@
+/**
+ * projectAssetSyncPersistence — 回归测试：共享资产应用与项目保存屏障。
+ */
 import { createStore } from 'zustand/vanilla';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppState } from '../../src/store/useAppStore';

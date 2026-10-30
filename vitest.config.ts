@@ -1,3 +1,6 @@
+/**
+ * vitest.config — 配置测试环境、测试入口与画布连线适配插件。
+ */
 import { defineConfig } from 'vitest/config';
 import { canvasEdgeLayerPlugin } from './scripts/viteCanvasEdgeLayer';
 

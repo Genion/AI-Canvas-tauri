@@ -1,3 +1,6 @@
+/**
+ * assetSort — 回归测试：资产文件排序。
+ */
 import { describe, expect, it } from 'vitest';
 import type { AssetFileEntry } from '../../src/services/fileService';
 import { sortAssetFiles } from '../../src/utils/assetSort';

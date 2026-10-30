@@ -1,3 +1,6 @@
+/**
+ * shotlistProductionService — 回归测试：镜头制作准备。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAppStore } from '../../src/store/useAppStore';
 import { prepareShotlistProduction } from '../../src/services/shotlistProductionService';

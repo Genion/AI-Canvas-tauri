@@ -1,3 +1,6 @@
+/**
+ * sharedAssetStorage — 回归测试：项目 S3 连接边界。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SharedAssetStorageSnapshot, SharedStorageConnectionInput } from '../../src/types/assetSync';
 

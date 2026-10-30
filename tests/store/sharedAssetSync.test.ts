@@ -1,3 +1,6 @@
+/**
+ * sharedAssetSync — 回归测试：手动项目资产同步协调边界。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createStore } from 'zustand/vanilla';
 import type { AppState } from '../../src/store/useAppStore';

@@ -1,3 +1,6 @@
+/**
+ * comfyRefmodMentionOptions — 回归测试：ComfyUI @ 参考包候选。
+ */
 import { describe, expect, it } from 'vitest';
 import type { ComfyRefmodAsset, ComfyRefmodCatalog, ComfyRefmodLoaderSchema, ComfyRefmodSelection } from '../../src/types/comfyRefmod';
 import type { DramaCharacter } from '../../src/types/dramaAssets';

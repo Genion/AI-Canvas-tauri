@@ -1,3 +1,6 @@
+/**
+ * comfyModelDedupeSelection — 回归测试：模型批量替换选择。
+ */
 import { describe, expect, it } from 'vitest';
 import type { ComfyDuplicateModelGroup } from '../../src/types/comfyModelDedupe';
 import { defaultComfyModelSelection, selectedComfyModelGroups } from '../../src/utils/comfyModelDedupeSelection';

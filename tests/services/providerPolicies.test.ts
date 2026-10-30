@@ -1,3 +1,6 @@
+/**
+ * providerPolicies — 回归测试：厂商接线策略。
+ */
 import { describe, expect, it } from 'vitest';
 import { getProviderPolicy, resolveProviderCatalogId } from '../../src/services/ai/providerPolicies';
 

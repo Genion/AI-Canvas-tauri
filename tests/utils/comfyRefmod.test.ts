@@ -1,3 +1,6 @@
+/**
+ * comfyRefmod — 回归测试：RefMod 持久化引用边界。
+ */
 import { describe, expect, it } from 'vitest';
 import {
   comfyRefmodKey,

@@ -1,3 +1,6 @@
+/**
+ * historyOperationLabels — 回归测试：从快照差异推断操作名。
+ */
 import { describe, expect, it } from 'vitest';
 import {
   describeCanvasChange,

@@ -1,3 +1,6 @@
+/**
+ * canvasGuideLayout — 回归测试：canvas entry guide placement。
+ */
 import { describe, expect, it } from 'vitest';
 import { getCanvasGuideLayout } from '../../src/utils/canvasGuideLayout';
 

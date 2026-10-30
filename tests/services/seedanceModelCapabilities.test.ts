@@ -1,3 +1,6 @@
+/**
+ * seedanceModelCapabilities — 回归测试：Seedance capability templates。
+ */
 import { describe, expect, it } from 'vitest';
 import {
   applySeedanceTemplateDefaults,

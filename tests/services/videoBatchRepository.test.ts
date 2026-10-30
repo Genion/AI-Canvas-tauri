@@ -1,3 +1,6 @@
+/**
+ * videoBatchRepository — 回归测试：persists isolated project queues, bounds history and removes records with a project。
+ */
 import { IDBFactory } from 'fake-indexeddb';
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { VideoBatch } from '../../src/types/videoBatch';

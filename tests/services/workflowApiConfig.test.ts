@@ -1,3 +1,6 @@
+/**
+ * workflowApiConfig — 回归测试：工作流 API 配置与目录。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { parseConnectionShare, serializeConnection } from '../../src/services/ai/providerConnectionTransfer';
 import { getProviderDefinition, fetchProviderModelCatalog } from '../../src/services/ai/providerCatalogService';

@@ -1,3 +1,6 @@
+/**
+ * videoModelCapabilityResolver — 回归测试：videoModelCapabilityResolver。
+ */
 import { describe, expect, it } from 'vitest';
 import { resolveVideoModelCapability } from '../../src/services/ai/videoModelCapabilityResolver';
 import { useAppStore } from '../../src/store/useAppStore';

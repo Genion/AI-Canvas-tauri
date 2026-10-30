@@ -1,3 +1,6 @@
+/**
+ * historyRecord — 回归测试：project output history。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OutputHistoryEntry } from '../../src/types';
 import type { HistoryPage, HistoryRecord } from '../../src/services/indexedDbService';

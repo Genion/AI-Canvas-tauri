@@ -1,3 +1,6 @@
+/**
+ * workflowApiAdapter — 回归测试：AutoDL 工作流输入合同。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAppStore } from '../../src/store/useAppStore';
 import { createAutodlH3WorkflowManifest } from '../../src/services/workflowApi/autodlWorkflowManifest';

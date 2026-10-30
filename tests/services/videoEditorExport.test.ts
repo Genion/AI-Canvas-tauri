@@ -1,3 +1,6 @@
+/**
+ * videoEditorExport — 回归测试：MCP 后台合成。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { VideoEditorProjectRecord } from '../../src/types/videoEditor';
 const mocks = vi.hoisted(() => ({

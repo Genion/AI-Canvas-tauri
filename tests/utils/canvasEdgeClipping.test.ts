@@ -1,3 +1,6 @@
+/**
+ * canvasEdgeClipping — 回归测试：canvas edge geometry clipping。
+ */
 import { describe, expect, it } from 'vitest';
 import { createCanvasEdgeClipper, type CanvasEdgeClipRect } from '../../src/utils/canvasEdgeClipping';
 

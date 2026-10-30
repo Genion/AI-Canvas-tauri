@@ -1,3 +1,6 @@
+/**
+ * referenceImageUpload — 回归测试：APIMart 参考图大小与 PNG 无损压缩。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { compressImageLosslessly, mapReferenceImagesInOrder, prepareApimartImageUpload, prepareReferenceImageUpload } from '../../src/services/ai/referenceImageUpload';

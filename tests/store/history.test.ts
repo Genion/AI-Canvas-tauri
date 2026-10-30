@@ -1,3 +1,6 @@
+/**
+ * history — 回归测试：shotlist photography history。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Edge, Node } from '@xyflow/react';
 import type { BaseNodeData, NodeGroup, ShotRow } from '../../src/types';

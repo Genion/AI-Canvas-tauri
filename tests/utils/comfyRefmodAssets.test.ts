@@ -1,3 +1,6 @@
+/**
+ * comfyRefmodAssets — 回归测试：RefMod 资源元数据与搜索。
+ */
 import { describe, expect, it } from 'vitest';
 import type { ComfyRefmodAsset, ComfyRefmodSelection } from '../../src/types/comfyRefmod';
 import { comfyRefmodKey } from '../../src/utils/comfyRefmod';

@@ -1,3 +1,6 @@
+/**
+ * updateService — 回归测试：downloadAndInstallUpdate。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DownloadEvent } from '@tauri-apps/plugin-updater';
 import type { AppUpdateProgress } from '../../src/services/updateService';

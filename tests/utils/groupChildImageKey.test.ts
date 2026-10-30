@@ -1,3 +1,6 @@
+/**
+ * groupChildImageKey — 回归测试：分组封面共享索引。
+ */
 import { describe, expect, it, vi } from 'vitest';
 import type { Node } from '@xyflow/react';
 import type { BaseNodeData } from '../../src/types';

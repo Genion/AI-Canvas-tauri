@@ -1,3 +1,6 @@
+/**
+ * seriesAssetExtractionService — 回归测试：全剧剧本资产提取。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const generateText = vi.hoisted(() => vi.fn());

@@ -1,3 +1,6 @@
+/**
+ * workflowsPersistence — 回归测试：工作流持久化顺序。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppState } from '../../src/store/useAppStore';
 import type { WorkflowDefinition } from '../../src/types';

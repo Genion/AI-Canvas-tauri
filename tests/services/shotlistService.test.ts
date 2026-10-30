@@ -1,3 +1,6 @@
+/**
+ * shotlistService — 回归测试：本集与镜头行操作。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({ generateText: vi.fn() }));
 vi.mock('../../src/services/ai/generateText', () => ({ generateText: mocks.generateText }));

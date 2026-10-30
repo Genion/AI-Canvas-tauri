@@ -1,3 +1,6 @@
+/**
+ * shotlistPromptService — 回归测试：分镜表精确镜头提示词。
+ */
 import { describe, expect, it } from 'vitest';
 import type { BaseNodeData } from '../../src/types';
 import { buildShotlistRowMentionId, parseShotlistRowMentionId } from '../../src/types/shotlist';

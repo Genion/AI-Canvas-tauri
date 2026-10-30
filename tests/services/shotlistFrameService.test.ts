@@ -1,3 +1,6 @@
+/**
+ * shotlistFrameService — 回归测试：补空镜。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({ generate: vi.fn(), persist: vi.fn() }));
 vi.mock('../../src/services/ai/generateImage', () => ({ generateImage: mocks.generate }));
