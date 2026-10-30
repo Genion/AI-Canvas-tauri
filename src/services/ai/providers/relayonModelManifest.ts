@@ -7,7 +7,7 @@
 import type { ProviderModelSelection } from '../../../types';
 import type { ImageModelCapability, ModelExecutionProfile, NormalizedModelExecutionProtocol, ProtocolJsonValue, VideoModelCapability } from '../../../types/aiTypes';
 import type { ModelProtocolVariables } from '../modelProtocolTypes';
-import { resolveModelExecutionProfile } from '../modelProtocol';
+import { comparableProtocol } from '../modelProtocol';
 
 export const RELAYON_BASE_URL = 'https://relayonapi.com/v1';
 
@@ -194,18 +194,6 @@ export function matchRelayonCatalog(models: readonly ProviderModelSelection[]): 
     seen.add(remote.id);
     return [{ ...structuredClone(known), provider: remote.provider }];
   });
-}
-
-function comparableProtocol(profile: ModelExecutionProfile | undefined): string | undefined {
-  try {
-    const protocol = resolveModelExecutionProfile(profile);
-    return protocol ? JSON.stringify(protocol, (_key, value: unknown) => (
-      value && typeof value === 'object' && !Array.isArray(value)
-        ? Object.fromEntries(Object.entries(value).sort(([left], [right]) => left.localeCompare(right))) : value
-    )) : undefined;
-  } catch {
-    return undefined;
-  }
 }
 
 /** 只转换完整命中的内置媒体合同；用户修改的协议不冒充厂商快照。 */

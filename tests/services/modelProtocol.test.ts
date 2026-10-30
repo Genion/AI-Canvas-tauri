@@ -1,10 +1,11 @@
 /**
- * modelProtocol — 回归测试：structured submission failures。
+ * modelProtocol — 回归测试：声明式协议、共享基础规则与执行边界。
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ModelExecutionProtocol } from '../../src/types/aiTypes';
+import { beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
+import type { ModelExecutionProfile, ModelExecutionProtocol, ProtocolJsonValue } from '../../src/types/aiTypes';
 import {
   buildModelProtocolRequest,
+  comparableProtocol,
   executeModelProtocol,
   getDefaultCustomProtocol,
   getModelProtocolPreset,
@@ -25,6 +26,8 @@ import {
 import { useAppStore } from '../../src/store/useAppStore';
 import { createWorkflowApiDraft } from '../../src/services/workflowApi/workflowApiDefinition';
 import { readModelProtocolPathValues } from '../../src/services/ai/modelProtocolResponse';
+import { isRecord } from '../../src/services/ai/modelProtocolShared';
+import { serializeModelProtocolBody } from '../../src/services/ai/modelProtocolBody';
 import {
   fetchSameOriginResultUrls, ModelProtocolHttpError, pcmS16LeToWav,
   readBinaryModelProtocolResult, redactModelProtocolError,
@@ -3060,5 +3063,62 @@ describe('undeliverable reference media', () => {
       category: 'video',
       variables: { model: 'lec-seed-2-0-900', prompt: '释放法术', imageUrls: [] },
     })).rejects.not.toThrow('没有完整接收参考图');
+  });
+});
+
+describe('协议共享基础规则', () => {
+  it('比较完整规范协议时忽略对象键序，保留数组顺序且不改写输入', () => {
+    const base = getDefaultCustomProtocol('image');
+    const profile = (body: ProtocolJsonValue): ModelExecutionProfile => ({
+      preset: 'custom', protocol: { ...structuredClone(base), submit: { ...base.submit, body } },
+    });
+    const original = profile({ model: '{{model}}', prompt: '{{prompt}}', nested: { z: 2, a: 1 }, refs: ['A', 'B'] });
+    const reordered = profile({ refs: ['A', 'B'], nested: { a: 1, z: 2 }, prompt: '{{prompt}}', model: '{{model}}' });
+    const changed = profile({ refs: ['B', 'A'], nested: { a: 1, z: 2 }, prompt: '{{prompt}}', model: '{{model}}' });
+    const before = structuredClone(original);
+    const comparable = comparableProtocol(original);
+    expect(comparable).toBeDefined();
+    expect(comparableProtocol(reordered)).toBe(comparable);
+    expect(comparableProtocol(changed)).not.toBe(comparable);
+    expect(original).toEqual(before);
+  });
+
+  it('未配置、无自定义协议及原生文本协议均不产生比较键', () => {
+    const profiles: Array<ModelExecutionProfile | undefined> = [
+      undefined, { preset: 'custom' }, { preset: 'anthropic-chat' }, { preset: 'gemini-chat' },
+    ];
+    for (const profile of profiles) expect(comparableProtocol(profile)).toBeUndefined();
+  });
+
+  it('已知 JSON 保留成员类型，未知对象的成员仍是 unknown', () => {
+    const known = JSON.parse('{"value":[1]}') as ProtocolJsonValue | undefined;
+    if (!isRecord(known)) throw new Error('JSON 对象未被识别');
+    expectTypeOf(known).toEqualTypeOf<Record<string, ProtocolJsonValue>>();
+    expect(known.value).toEqual([1]);
+
+    const unknownValue: unknown = { value: () => 'callable' };
+    if (!isRecord(unknownValue)) throw new Error('对象未被识别');
+    expectTypeOf(unknownValue).toEqualTypeOf<Record<string, unknown>>();
+    expect(typeof unknownValue.value).toBe('function');
+    expect(isRecord(null)).toBe(false);
+    expect(isRecord([])).toBe(false);
+  });
+
+  it.each(['__proto__', 'prototype', 'constructor'])('校验与响应读取均拒绝自身危险字段 %s', (segment) => {
+    const payload: unknown = JSON.parse(`{"data":{"${segment}":{"url":"https://cdn.example/result.png"}}}`);
+    const path = `data.${segment}.url`;
+    expect(readModelProtocolPathValues(payload, path)).toEqual([]);
+    const protocol = getDefaultCustomProtocol('image');
+    protocol.response.result = { urlPath: path };
+    expect(validateModelExecutionProtocol(protocol).some((error) => error.includes('不允许的路径片段'))).toBe(true);
+  });
+
+  it.each(['image/png\r\nInjected: yes', 'image', 'image/png; charset=utf-8'])('校验与 multipart 编码均拒绝无效 MIME %s', (mimeType) => {
+    const protocol = getDefaultCustomProtocol('image');
+    protocol.response.result = { base64Path: 'data.0.b64_json', mimeType };
+    expect(validateModelExecutionProtocol(protocol).some((error) => error.includes('MIME'))).toBe(true);
+    expect(() => serializeModelProtocolBody({
+      file: { $file: 'data:image/png;base64,AA==', contentType: mimeType },
+    }, 'multipart', {})).toThrow('contentType 无效');
   });
 });

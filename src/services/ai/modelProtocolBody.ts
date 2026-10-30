@@ -5,16 +5,11 @@
  * 同时提供 multipart 预览脱敏（Base64 只显示字节数，不泄露正文）。
  */
 import type { ModelProtocolBodyEncoding, ProtocolJsonValue } from '../../types/aiTypes';
-
-const MIME_TYPE_RE = /^[a-zA-Z0-9][a-zA-Z0-9!#$&^_.+-]*\/[a-zA-Z0-9][a-zA-Z0-9!#$&^_.+-]*$/;
+import { MIME_TYPE_RE, isRecord } from './modelProtocolShared';
 
 interface ParsedDataUrl {
   mimeType: string;
   bytes: Uint8Array;
-}
-
-function isRecord(value: unknown): value is Record<string, ProtocolJsonValue> {
-  return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
 function findHeaderName(headers: Record<string, string>, target: string): string | undefined {

@@ -23,6 +23,7 @@ import {
   submitModelProtocol,
   type ModelProtocolVariables,
 } from './modelProtocol';
+import { isRecord } from './modelProtocolShared';
 import { getHttpResponseError } from './httpUtils';
 import { PollTaskFailedError, isPollTimeoutError } from '../pollTask';
 import { REFERENCE_PROTOCOL_VARIABLES } from './modelProtocolVariables';
@@ -122,10 +123,6 @@ function readBatchCount(value: ProtocolJsonValue | undefined): number {
   return typeof value === 'number' && Number.isFinite(value)
     ? Math.max(1, Math.floor(value))
     : 1;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
 function readReferenceStrings(value: unknown): string[] {

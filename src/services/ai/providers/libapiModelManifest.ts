@@ -7,7 +7,7 @@ import type { ProviderModelSelection } from '../../../types';
 import type { AudioModelCapability, AudioOutputFormat, ImageModelCapability, ModelExecutionProfile, NormalizedModelExecutionProtocol, ProtocolJsonValue, VideoModelCapability } from '../../../types/aiTypes';
 import type { ModelProtocolVariables } from '../modelProtocolTypes';
 import type { CanonicalVideoRequest } from '../videoRequestResolver';
-import { resolveModelExecutionProfile } from '../modelProtocol';
+import { comparableProtocol } from '../modelProtocol';
 
 interface ParameterSnapshot {
   enum?: string[];
@@ -271,18 +271,6 @@ export const LIBAPI_MODEL_MANIFEST: readonly ProviderModelSelection[] = SNAPSHOT
     : model.type === 'video' ? videoModel(model) : audioModel(model)
 ));
 const MODEL_BY_ID = new Map(LIBAPI_MODEL_MANIFEST.map((model) => [model.id, model]));
-
-function comparableProtocol(profile: ModelExecutionProfile | undefined): string | undefined {
-  try {
-    const protocol = resolveModelExecutionProfile(profile);
-    return protocol ? JSON.stringify(protocol, (_key, value: unknown) => (
-      value && typeof value === 'object' && !Array.isArray(value)
-        ? Object.fromEntries(Object.entries(value).sort(([left], [right]) => left.localeCompare(right))) : value
-    )) : undefined;
-  } catch {
-    return undefined;
-  }
-}
 
 /** 只有完整命中内置合同，执行层才可做厂商字段转换；用户改过的协议原样保留。 */
 export function usesLibapiModelProtocol(modelId: string, profile?: ModelExecutionProfile): boolean {

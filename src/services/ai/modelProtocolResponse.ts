@@ -5,8 +5,7 @@
  * （Base64 结果脱敏为字符数）。
  */
 import type { NormalizedModelExecutionProtocol, ProtocolJsonValue } from '../../types/aiTypes';
-
-const BLOCKED_PATH_SEGMENTS = new Set(['__proto__', 'prototype', 'constructor']);
+import { BLOCKED_PATH_SEGMENTS, isRecord } from './modelProtocolShared';
 
 export interface ModelProtocolResponsePreviewEntry {
   id: string;
@@ -14,10 +13,6 @@ export interface ModelProtocolResponsePreviewEntry {
   path: string;
   matchCount: number;
   values: string[];
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
 export function readModelProtocolPathValues(value: unknown, path: string): unknown[] {

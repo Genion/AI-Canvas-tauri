@@ -10,6 +10,7 @@ import type {
   ProtocolJsonValue,
 } from '../../types/aiTypes';
 import { validateModelExecutionProtocol } from './modelProtocol';
+import { BLOCKED_PATH_SEGMENTS as BLOCKED_LITERAL_KEYS, isRecord } from './modelProtocolShared';
 import {
   IMAGE_ARRAY_FIELDS,
   IMAGE_SINGLE_FIELDS,
@@ -100,7 +101,6 @@ const FULL_PROTOCOL_TEMPLATE_RE = /^{{\s*([a-zA-Z][a-zA-Z0-9_]*(?:\.[a-zA-Z0-9_-
 const REFERENCE_PROTOCOL_VARIABLE_ROOTS = new Set(REFERENCE_PROTOCOL_VARIABLES);
 const URL_VALUE_RE = /^(?:https?:\/\/|data:[^;,]+;base64,)/i;
 const GENERATE_CONTENT_PATH_RE = /\/models\/[^/]+:generateContent\/?$/i;
-const BLOCKED_LITERAL_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
 const REVIEW_REQUIRED_WARNING_PREFIX = '需要人工确认：';
 
 class LooseLiteralParser {
@@ -241,10 +241,6 @@ class LooseLiteralParser {
       break;
     }
   }
-}
-
-function isRecord(value: unknown): value is Record<string, ProtocolJsonValue> {
-  return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
 function unique<T>(values: T[]): T[] {

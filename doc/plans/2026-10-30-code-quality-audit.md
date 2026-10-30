@@ -1,6 +1,6 @@
 # 全仓代码质量审查与精简建议
 
-日期：2026-10-30。状态：静态审查完成；Q01 自动回归与部分桌面交互已验证，真实生成等场景待验收；Q02 与 Q03 运行时保护已实现、尚未运行测试；Q04 闲置模块及专属样式已清理，Q05 音视频工具栏预设执行、Q06 历史筛选、Q07 参考媒体串行处理已合并，均待用户验收；Q08～Q11 尚未实施。
+日期：2026-10-30。状态：静态审查完成；Q01 自动回归与部分桌面交互已验证，真实生成等场景待验收；Q02 与 Q03 运行时保护已实现、尚未运行测试；Q04 闲置模块及专属样式已清理，Q05 音视频工具栏预设执行、Q06 历史筛选、Q07 参考媒体串行处理、Q08 模型协议基础逻辑已合并，均待用户验收；Q09～Q11 尚未实施。
 
 建议先收敛模型默认值和节点几何计算，再清理闲置模块、合并同领域重复函数。前两项已经存在实现差异；全仓建立通用抽象或批量拆分大文件的收益较低，影响面更难控制。
 
@@ -179,7 +179,7 @@ Tauri 桌面验收（准备两个有现存生成历史的项目，当前项目�
 - 现有 [referenceImageUpload.ts](../../src/services/ai/referenceImageUpload.ts) 的最多两项并发、[batchUtils.ts](../../src/services/ai/batchUtils.ts) 的部分成功合同均继续独立使用；它们不替代本项串行路径。请求级 Data URL 总预算、上传限制、模型提交、轮询与暂停恢复不变，无依赖或数据迁移。
 - 新增 [referenceMediaPreparation.test.ts](../../tests/services/referenceMediaPreparation.test.ts) 的 6 个回归场景，覆盖前项等待、重复输入及下标、失败停止且不重试、开始前／项间取消及原因透传、空输入、逐张图片解析与厂商／信号传递。用例已编写，尚未执行。
 
-本次未运行测试，待用户验收；未执行 Q07 ESLint、类型检查、构建或桌面实测。仅完成调用链、迁移文本、UTF-8／原 BOM 与换行及差异空白静态核对。
+Q07 已提交为 `ff5b5d57`，提交钩子完成 4 个 TS 文件的定向 ESLint。回归用例尚未运行，类型检查、构建与桌面实测仍待用户验收；实现阶段仅完成调用链、迁移文本、UTF-8／原 BOM 与换行及差异空白静态核对。
 
 Tauri 桌面验收（准备测试项目、已有的通用视频模型协议与 APIMart 配置、两张可区分图片及视频／音频参考素材，优先使用可控测试接口）：
 
@@ -194,12 +194,29 @@ Tauri 桌面验收（准备测试项目、已有的通用视频模型协议与 A
 
 ### Q08 P3 模型协议基础逻辑未完全收口
 
-- [relayonModelManifest.ts:199](../../src/services/ai/providers/relayonModelManifest.ts#L199) 与 [libapiModelManifest.ts:275](../../src/services/ai/providers/libapiModelManifest.ts#L275) 的 `comparableProtocol` 完全相同，可复用协议解析与稳定比较逻辑。
-- [modelProtocolShared.ts:29](../../src/services/ai/modelProtocolShared.ts#L29) 已定义危险路径段，但 [modelProtocolResponse.ts:9](../../src/services/ai/modelProtocolResponse.ts#L9) 再次定义同一集合。
-- [modelProtocolShared.ts:48](../../src/services/ai/modelProtocolShared.ts#L48) 与 [modelProtocolBody.ts:9](../../src/services/ai/modelProtocolBody.ts#L9) 重复定义 MIME 正则。
-- `isRecord` 在协议子模块中重复；其中返回类型有 `unknown` 与 `ProtocolJsonValue` 的区别，合并前必须核对类型收窄，不能只替换函数名。
+原问题：RelayOn／LIBAPI 的规范协议比较函数相同；Shared／Response 重复声明危险路径集合，Body 重复 MIME 正则；对象形状判断散落在多个子模块，其中 JSON 成员与 unknown 成员的类型收窄不同。本批进一步确认 Import 的危险字面量键集合也与共享集合完全相同。
 
-建议优先复用已有共享模块，不建立全仓通用校验框架。厂商各自的旧合同兼容分支继续保留；不能把“比较函数相同”解释为“厂商合同相同”。
+2026-10-30 已实现：
+
+- [modelProtocol.ts](../../src/services/ai/modelProtocol.ts) 承接原样迁入的 `comparableProtocol`，复用既有解析入口，递归排序对象键后比较完整规范协议；数组顺序仍有意义，无法解析或不适用的协议继续返回 undefined。[RelayOn](../../src/services/ai/providers/relayonModelManifest.ts)／[LIBAPI](../../src/services/ai/providers/libapiModelManifest.ts) 仅改为导入，型号识别、严格合同匹配、旧模板兼容和用户自定义分支均保留。
+- [modelProtocolShared.ts](../../src/services/ai/modelProtocolShared.ts) 保留唯一 MIME 正则和危险路径集合；[Body](../../src/services/ai/modelProtocolBody.ts)／[Response](../../src/services/ai/modelProtocolResponse.ts) 直接复用，[Import](../../src/services/ai/modelProtocolImport.ts) 将危险键集合以原局部名导入。常量内容不变，路径的自身属性检查、multipart 元数据处理及原错误分支不变。
+- 共享 `isRecord` 保留原运行时对象形状检查，增加已知 `ProtocolJsonValue | undefined` 与 unknown 输入的两个类型重载。Body／Import 的输入已经是 JSON 域类型，继续保留 JSON 成员收窄；Response／[Runtime](../../src/services/ai/modelProtocolRuntime.ts) 的未知数据仍只得到 unknown 成员，不借浅层对象判断递归认定 JSON 合法性。四处本地实现已移除，无新增泛型断言或宽泛类型转换。
+- 比较函数留在已依赖解析器的协议入口，共享基础模块不反向依赖入口；未新增文件、依赖、厂商合同、鉴权策略或数据迁移。
+- 在现有 [modelProtocol.test.ts](../../tests/services/modelProtocol.test.ts) 补充 9 个回归场景，覆盖对象键序／数组顺序、输入不被改写、无法比较的配置、JSON／unknown 成员类型、三个危险路径段，以及校验与 multipart 编码对三种非法 MIME 的拒绝。用例已编写，尚未执行；类型断言仍待测试类型检查。
+
+本次未运行测试，待用户验收；未执行 Q08 ESLint、类型检查、构建、厂商调用或桌面实测。仅完成引用、调用链、迁移文本、UTF-8／原 BOM 与混合换行及差异空白静态核对。
+
+Tauri 桌面验收（准备已有的 RelayOn／LIBAPI 测试模型配置、自定义协议与可控测试接口）：
+
+1. 打开既有内置模型的协议编辑入口，仅调整 JSON 对象字段顺序，核对原能力及生成变量转换仍能识别；改变引用数组顺序时保留新顺序。修改提交路径、响应路径或其他合同内容后，预期按用户自定义协议处理，不被内置快照覆盖。
+2. 回归已保存的 RelayOn 旧模板及 LIBAPI 型号别名，核对原兼容行为；未配置或缺少自定义协议时沿用原拒绝／未识别结果，不误用某一厂商合同。
+3. 使用响应预览和协议校验，分别输入含 `__proto__`、`prototype`、`constructor` 的路径；预期均被拒绝或无匹配，普通自身字段、数组通配和数字下标继续可用。
+4. 导入既有 cURL／Fetch／JSON 示例并预览 JSON、form-urlencoded 与 multipart 请求；核对变量、文件名、凭据／Base64 脱敏及危险字段处理。合法 MIME 正常编码，含换行、缺少子类型或夹带参数的非法声明不被接受。
+5. 使用可控接口回归同步结果、异步查询、参考媒体、取消与暂停恢复；错误和未知响应不因共享对象判断而被当作成功结果。
+
+自动回归由用户在仓库根目录执行：`npx vitest run tests/services/modelProtocol.test.ts tests/services/modelProtocolImport.test.ts tests/services/relayonModelManifest.test.ts tests/services/libapiModelManifest.test.ts`；类型检查可执行 `npm run typecheck` 与 `npm run test:typecheck`。以上命令本批均未运行。
+
+回滚：恢复现有协议入口、Shared、Body／Response／Runtime／Import、两个厂商清单中的本批差异，以及相应回归与文档状态；无数据回滚。
 
 ### Q09 P3 其他适合顺手合并的小重复
 
@@ -250,19 +267,19 @@ Tauri 桌面验收（准备测试项目、已有的通用视频模型协议与 A
 
 文件头处理共 936 个文件：新增 927 处职责或回归用例说明，将 9 处已有说明移到 import 前。第三方与生成文件未改。保留 UTF-8、BOM、原换行方式和脚本 shebang。
 
-最初文件头整理的静态核对确认：移除新增注释、将搬移注释放回原处后，原始文件字节摘要一致，差异空白检查通过。该批只改注释；后续 Q01～Q07 修改与验收缺口见上文。
+最初文件头整理的静态核对确认：移除新增注释、将搬移注释放回原处后，原始文件字节摘要一致，差异空白检查通过。该批只改注释；后续 Q01～Q08 修改与验收缺口见上文。
 
 以下为全仓剩余验收，未执行全仓检查或原生检查；Q01 的定向结果见上文：
 
 1. 在仓库根目录执行 `npm run check`，检查前端 lint、源码与测试类型及现有回归；若出现仓库规则记录的 ESLint 工具链错误，单独记录，不修改依赖绕过。
 2. 在 `src-tauri/` 执行 `cargo check --lib`，确认原生源码与构建脚本编译。
 3. 使用既有 Tauri 开发入口打开画布、文本／音频节点、资产库、ComfyUI 管理和插件设置；确认页面可打开、交互与原版本一致，文件头不会进入产品显示内容。
-4. Q01 继续补齐上述桌面剩余场景，Q02／Q03 按各自步骤执行尺寸、父链与布局验收，Q04 回归项目切换、公共视频播放器、RunningHub 入口与吉祥物加载态，Q05 回归音视频工具栏普通及顺序预设，Q06 回归历史面板筛选、分页及导出，Q07 回归参考媒体准备顺序、取消、失败与预算边界；不能用静态核对替代功能验收。
+4. Q01 继续补齐上述桌面剩余场景，Q02／Q03 按各自步骤执行尺寸、父链与布局验收，Q04 回归项目切换、公共视频播放器、RunningHub 入口与吉祥物加载态，Q05 回归音视频工具栏普通及顺序预设，Q06 回归历史面板筛选、分页及导出，Q07 回归参考媒体准备顺序、取消、失败与预算边界，Q08 回归合同比较、协议导入／编码和安全校验；不能用静态核对替代功能验收。
 
 ## 建议实施批次
 
 1. **默认模型与几何行为收敛**：Q01 自动回归与部分桌面交互已验证，真实生成等场景仍待验收；Q02 与 Q03 运行时保护已实现、尚未运行测试；归档坏父链的入口策略仍待独立处理，保留源码与测试的独立回退点。
-2. **闲置入口与局部重复清理**：Q04 闲置模块与专属样式清理、Q05 音视频工具栏预设执行合并、Q06 历史筛选共享、Q07 参考媒体串行准备共享已实现，尚未运行测试；Q08～Q09 待实施，每批保持同一业务领域。
+2. **闲置入口与局部重复清理**：Q04 闲置模块与专属样式清理、Q05 音视频工具栏预设执行合并、Q06 历史筛选共享、Q07 参考媒体串行准备共享、Q08 协议基础逻辑收口已实现，尚未运行测试；Q09 待实施，每批保持同一业务领域。
 3. **低收益统一与热点重构**：处理 Q10、Q11；大模块只有在具体维护需求或性能证据出现时再按职责拆分。
 
-除已明确实施的 Q01、Q02、Q03 运行时保护、Q04 闲置模块清理、Q05 预设执行合并、Q06 历史筛选共享与 Q07 参考媒体串行准备共享外，其余均为建议，不构成架构改动、删除文件、新增依赖或运行测试的授权。
+除已明确实施的 Q01、Q02、Q03 运行时保护、Q04 闲置模块清理、Q05 预设执行合并、Q06 历史筛选共享、Q07 参考媒体串行准备共享与 Q08 协议基础逻辑收口外，其余均为建议，不构成架构改动、删除文件、新增依赖或运行测试的授权。

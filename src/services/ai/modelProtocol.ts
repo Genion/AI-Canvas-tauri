@@ -126,6 +126,19 @@ export function resolveModelExecutionProfile(
   return getModelProtocolPreset(profile.preset);
 }
 
+/** 规范化完整协议的稳定比较键；无可解析协议时返回 undefined。 */
+export function comparableProtocol(profile: ModelExecutionProfile | undefined): string | undefined {
+  try {
+    const protocol = resolveModelExecutionProfile(profile);
+    return protocol ? JSON.stringify(protocol, (_key, value: unknown) => (
+      value && typeof value === 'object' && !Array.isArray(value)
+        ? Object.fromEntries(Object.entries(value).sort(([left], [right]) => left.localeCompare(right))) : value
+    )) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function submitModelProtocol(
   options: SubmitModelProtocolOptions,
 ): Promise<SubmittedModelProtocol> {
