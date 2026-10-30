@@ -37,6 +37,19 @@ function SecondaryClickProbe(expanded = true) {
 }
 
 describe('分组右键命中', () => {
+  it.each(['.prompt-editor .prompt-chip', '.mention-dropdown'])('引用胶囊及其菜单的右键交给编辑器：%s', (match) => {
+    const test = SecondaryClickProbe();
+    test.doc.elementFromPoint.mockReturnValue({
+      closest: (selector: string) => selector.split(', ').includes(match) ? {} : null,
+    } as never);
+    test.rightClick(500, 300);
+    expect(test.openNodeMenu).not.toHaveBeenCalled();
+    expect(test.openCanvasMenu).not.toHaveBeenCalled();
+    const contextmenu = new Event('contextmenu', { cancelable: true });
+    test.doc.dispatchEvent(contextmenu);
+    expect(contextmenu.defaultPrevented).toBe(false);
+  });
+
   it('选中展开分组后，内部空白处仍打开画布新建菜单', () => {
     const test = SecondaryClickProbe();
     test.rightClick(500, 300);
@@ -60,7 +73,9 @@ describe('分组右键命中', () => {
 
   it('组内真实节点优先于选中的分组', () => {
     const test = SecondaryClickProbe();
-    test.doc.elementFromPoint.mockReturnValue({ closest: () => ({ getAttribute: () => 'child' }) } as never);
+    test.doc.elementFromPoint.mockReturnValue({
+      closest: (selector: string) => selector === '.react-flow__node' ? { getAttribute: () => 'child' } : null,
+    } as never);
     test.rightClick(500, 300);
     expect(test.openNodeMenu).toHaveBeenCalledWith(expect.anything(), { id: 'child' });
     expect(test.openCanvasMenu).not.toHaveBeenCalled();

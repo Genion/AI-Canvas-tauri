@@ -70,6 +70,8 @@ export function useCanvasSecondaryClickMenu({
 
       const element = document.elementFromPoint(event.clientX, event.clientY) as HTMLElement | null;
       if (!element) return;
+      // 可编辑引用胶囊由编辑器处理；避免 pointerup 先打开画布/节点菜单。
+      if (element.closest('.prompt-editor .prompt-chip, .mention-dropdown')) return;
 
       const nodeElement = element.closest('.react-flow__node');
       if (nodeElement) {

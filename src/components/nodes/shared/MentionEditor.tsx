@@ -18,6 +18,7 @@ import { readMentionPreviewSource, resolveDramaMentionPreview, type MentionChipP
 import { AnimatePresence, motion } from 'framer-motion';
 import PopupCloseButton from '../../shared/PopupCloseButton';
 import MentionPicker, { type MentionPickerChip, type MentionPickerItem } from '../../shared/MentionPicker';
+import MentionChipMenu from './MentionChipMenu';
 import ViewportImage from '../../shared/ViewportImage';
 import VideoThumbnail from '../../shared/VideoThumbnail';
 import { useDialogFocus } from '../../../hooks/useDialogFocus';
@@ -97,6 +98,13 @@ interface RefmodEditSession {
   workflow: WorkflowDefinition;
   nodeSnapshot: string;
   prompt: string;
+}
+
+interface MentionChipTarget {
+  chip: HTMLElement;
+  prompt: string;
+  projectId: string | null;
+  nodeId?: string;
 }
 
 // 无缩略图时的卡片占位图标
@@ -282,6 +290,8 @@ const MentionEditor = forwardRef<MentionEditorHandle, MentionEditorProps>(functi
   const composingRef = useRef(false);
   const [compositionRevision, setCompositionRevision] = useState(0);
   const savedMentionRangeRef = useRef<Range | null>(null);
+  const replacementChipRef = useRef<MentionChipTarget | null>(null);
+  const [chipMenu, setChipMenu] = useState<{ target: MentionChipTarget; x: number; y: number } | null>(null);
   const selectFirstMentionRef = useRef<(() => void) | null>(null);
   const lastFocusedWfValueRef = useRef<HTMLSpanElement | null>(null);
   const cancelChipDragRef = useRef<(() => void) | null>(null);
@@ -311,6 +321,11 @@ const MentionEditor = forwardRef<MentionEditorHandle, MentionEditorProps>(functi
     && editorOwnerRef.current.projectId === currentProjectId
     && editorOwnerRef.current.nodeId === nodeId
   ), [currentProjectId, nodeId]);
+  const isCurrentChipTarget = useCallback((target: MentionChipTarget) => {
+    const root = editorRef.current;
+    return !disabledRef.current && isCurrentEditorOwner() && target.projectId === currentProjectId
+      && target.nodeId === nodeId && !!root && root.contains(target.chip) && serializeDOM(root) === target.prompt;
+  }, [currentProjectId, nodeId, isCurrentEditorOwner]);
   useEffect(() => {
     const history = historyRef.current;
     return () => history.clear();
@@ -336,6 +351,7 @@ const MentionEditor = forwardRef<MentionEditorHandle, MentionEditorProps>(functi
     editorRef.current?.blur();
     refmodSessionRef.current = undefined;
     savedMentionRangeRef.current = null;
+    replacementChipRef.current = null;
   }, [disabled]);
   const [assetList, setAssetList] = useState<AssetFileEntry[]>([]);
   const [assetFolderEntries, setAssetFolderEntries] = useState<AssetFolderEntry[]>([]);
@@ -390,6 +406,8 @@ const MentionEditor = forwardRef<MentionEditorHandle, MentionEditorProps>(functi
     if (ownerChanged) {
       composingRef.current = false;
       savedMentionRangeRef.current = null;
+      replacementChipRef.current = null;
+      setChipMenu(null);
       setShowMention(false);
       setShowAssetPicker(false);
       setMentionQuery('');
@@ -439,6 +457,12 @@ const MentionEditor = forwardRef<MentionEditorHandle, MentionEditorProps>(functi
       ? saveCursor(el) : null;
     cancelChipDragRef.current?.();
     cancelChipDragRef.current = null;
+    if (replacementChipRef.current) {
+      replacementChipRef.current = null;
+      setShowMention(false);
+      setShowAssetPicker(false);
+    }
+    setChipMenu(null);
     el.innerHTML = '';
     for (const node of renderPromptToNodes(prompt, nodeMetaMap)) {
       el.appendChild(node);
@@ -488,6 +512,8 @@ const MentionEditor = forwardRef<MentionEditorHandle, MentionEditorProps>(functi
     syncedPromptRef.current = snapshot.prompt;
     lastFocusedWfValueRef.current = (document.activeElement as HTMLElement | null)?.closest<HTMLSpanElement>('.prompt-chip-wf-value') ?? null;
     savedMentionRangeRef.current = null;
+    replacementChipRef.current = null;
+    setChipMenu(null);
     setShowMention(false);
     onChange(snapshot.prompt, previousPrompt);
   }, [nodeMetaMap, onChange]);
@@ -598,7 +624,10 @@ const MentionEditor = forwardRef<MentionEditorHandle, MentionEditorProps>(functi
   // ── Clear saved range when both mention menu and asset picker are closed ──
   // （@ 菜单切到资产弹窗时需保留光标范围，供选中资产后插入芯片）
   useEffect(() => {
-    if (!showMention && !showAssetPicker) savedMentionRangeRef.current = null;
+    if (!showMention && !showAssetPicker) {
+      savedMentionRangeRef.current = null;
+      replacementChipRef.current = null;
+    }
   }, [showMention, showAssetPicker]);
 
   // ── Track last focused workflow chip value area ──
@@ -632,17 +661,34 @@ const MentionEditor = forwardRef<MentionEditorHandle, MentionEditorProps>(functi
   }, [showMention]);
 
   // ── Helpers ──
-  /** 删除光标前的 @ 及后续查询字（如 `@主角` → 整段删掉再插入芯片） */
+  /** 选择完成后移除待替换胶囊，或删除光标前的 @ 查询；失效目标阻止后续插入。 */
   const deleteAtChar = useCallback(() => {
+    if (disabledRef.current) return false;
     const sel = window.getSelection();
-    if (!sel || !sel.rangeCount) return;
+    if (!sel || !sel.rangeCount) return false;
+    const replacement = replacementChipRef.current;
+    if (replacement) {
+      replacementChipRef.current = null;
+      if (!isCurrentChipTarget(replacement)) {
+        setShowMention(false);
+        setShowAssetPicker(false);
+        return false;
+      }
+      const range = document.createRange();
+      range.selectNode(replacement.chip);
+      range.deleteContents();
+      range.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(range);
+      return true;
+    }
     const range = sel.getRangeAt(0);
     const container = range.startContainer;
-    if (!container || container.nodeType !== Node.TEXT_NODE) return;
+    if (!container || container.nodeType !== Node.TEXT_NODE) return true;
     const cursor = range.startOffset;
     const textBefore = (container.textContent || '').slice(0, cursor);
     const atIdx = textBefore.lastIndexOf('@');
-    if (atIdx < 0) return;
+    if (atIdx < 0) return true;
     const r = document.createRange();
     r.setStart(container, atIdx);
     r.setEnd(container, cursor);
@@ -650,7 +696,8 @@ const MentionEditor = forwardRef<MentionEditorHandle, MentionEditorProps>(functi
     r.collapse(true);
     sel.removeAllRanges();
     sel.addRange(r);
-  }, []);
+    return true;
+  }, [isCurrentChipTarget]);
 
   const closeRefmodSettings = useCallback(() => {
     refmodSessionRef.current = undefined;
@@ -665,6 +712,11 @@ const MentionEditor = forwardRef<MentionEditorHandle, MentionEditorProps>(functi
       const node = state.nodes.find((item) => item.id === nodeId);
       if (!node) throw new Error(translate('视频节点已不存在，请重新打开提示词'));
       if (node.data.role === 'source' || node.data.status === 'loading') throw new Error(translate('源视频或正在生成的视频不能修改角色引用'));
+      const replacement = replacementChipRef.current;
+      if (!chip && replacement) {
+        if (!isCurrentChipTarget(replacement)) return;
+        chip = replacement.chip;
+      }
       const currentPrompt = serializeDOM(root);
       const token = chip?.getAttribute('data-refmod-raw') || undefined;
       const initial = manualIndex === undefined ? (token ? parseComfyRefmodMentions(token).mentions[0]?.selection : undefined) : node.data.comfyRefmods?.[manualIndex];
@@ -682,10 +734,11 @@ const MentionEditor = forwardRef<MentionEditorHandle, MentionEditorProps>(functi
         nodeSnapshot: JSON.stringify([node.data.workflowId, node.data.provider, node.data.comfyRefmods]),
       };
       refmodSessionRef.current = session;
+      replacementChipRef.current = null;
       setRefmodSession(session); setRefmodUiError('');
       setShowMention(false); setMentionQuery('');
     } catch (cause) { setRefmodUiError(cause instanceof Error ? cause.message : translate('读取 ComfyUI 角色引用失败')); }
-  }, [nodeId, localComfyWorkflow, canMentionRefmod, currentProjectId]);
+  }, [nodeId, localComfyWorkflow, canMentionRefmod, currentProjectId, isCurrentChipTarget]);
 
   const editRefmodChip = useCallback((chip: HTMLElement) => {
     try {
@@ -739,13 +792,13 @@ const MentionEditor = forwardRef<MentionEditorHandle, MentionEditorProps>(functi
     if (!caret) throw new Error(translate('无法恢复提示词光标，请重新打开设置'));
     let range: Range;
     if (session.chip) {
-      if (!root.contains(session.chip) || session.chip.getAttribute('data-refmod-raw') !== session.token) throw new Error(translate('角色胶囊已变化，请重新选择'));
+      if (!root.contains(session.chip) || (session.chip.getAttribute('data-refmod-raw') || undefined) !== session.token) throw new Error(translate('角色胶囊已变化，请重新选择'));
       session.chip.replaceWith(chip);
       range = document.createRange();
     } else {
       if (!session.range || !root.contains(session.range.startContainer) || !root.contains(session.range.endContainer)) throw new Error(translate('插入位置已变化，请重新输入 @ 选择'));
       caret.removeAllRanges(); caret.addRange(session.range);
-      deleteAtChar();
+      if (!deleteAtChar()) throw new Error(translate('插入位置已变化，请重新输入 @ 选择'));
       range = caret.rangeCount ? caret.getRangeAt(0) : session.range;
       const element = range.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer as Element : range.startContainer.parentElement;
       const workflowChip = element?.closest('[data-wf-id]');
@@ -901,7 +954,7 @@ const MentionEditor = forwardRef<MentionEditorHandle, MentionEditorProps>(functi
           sel.addRange(saved);
         }
       }
-      deleteAtChar();
+      if (!deleteAtChar()) return;
       insertChipAtCursor(refNodeId, refLabel);
       setShowMention(false);
       setMentionQuery('');
@@ -925,7 +978,7 @@ const MentionEditor = forwardRef<MentionEditorHandle, MentionEditorProps>(functi
           sel.addRange(saved);
         }
       }
-      deleteAtChar();
+      if (!deleteAtChar()) return;
       insertWorkflowChipAtCursor(ioNodeId, ioNodeTitle, ioNodeType);
       setShowMention(false);
       setMentionQuery('');
@@ -990,7 +1043,7 @@ const MentionEditor = forwardRef<MentionEditorHandle, MentionEditorProps>(functi
     ) => {
       if (!isCurrentEditorOwner()) return;
       restoreMentionCursor();
-      deleteAtChar();
+      if (!deleteAtChar()) return;
       insertDramaChipAtCursor(
         buildDramaMentionId(item.id, pick),
         item.name,
@@ -1009,7 +1062,7 @@ const MentionEditor = forwardRef<MentionEditorHandle, MentionEditorProps>(functi
       if (!isCurrentEditorOwner()) return;
       // 资产库始终保留 @drama 身份，绑图节点只用于读取缩略图。
       restoreMentionCursor();
-      deleteAtChar();
+      if (!deleteAtChar()) return;
       let thumb: string | undefined;
       if (item.imageNodeId && !item.id.startsWith('global/')) {
         const n = nodes.find((x) => x.id === item.imageNodeId);
@@ -1126,7 +1179,7 @@ const MentionEditor = forwardRef<MentionEditorHandle, MentionEditorProps>(functi
         const sel = window.getSelection();
         if (sel) { sel.removeAllRanges(); sel.addRange(saved); }
       }
-      deleteAtChar();
+      if (!deleteAtChar()) return;
       insertAssetChipAtCursor(file.path, file.assetUrl);
       setShowAssetPicker(false);
       setShowMention(false);
@@ -1232,6 +1285,7 @@ const MentionEditor = forwardRef<MentionEditorHandle, MentionEditorProps>(functi
   // ── Input handler: detect @ and / ──
   const handleInput = useCallback((event: React.FormEvent<HTMLDivElement>) => {
     if (disabledRef.current) return;
+    replacementChipRef.current = null;
     const el = editorRef.current;
     if (!el) return;
     normalizeChipSlots(el); // 删字后行首化的芯片补回光标落点
@@ -1507,6 +1561,7 @@ const MentionEditor = forwardRef<MentionEditorHandle, MentionEditorProps>(functi
     if (showAssetPicker) setShowAssetPicker(false);
     if (refmodSession) setRefmodSession(undefined);
     if (chipTip) setChipTip(null);
+    if (chipMenu) setChipMenu(null);
   }
   const handleEditorMouseLeave = useCallback(() => {
     if (chipHoverTimer.current !== null) clearTimeout(chipHoverTimer.current);
@@ -1516,7 +1571,7 @@ const MentionEditor = forwardRef<MentionEditorHandle, MentionEditorProps>(functi
     setChipTip(null);
   }, []);
   const handleEditorMouseOver = useCallback((e: React.MouseEvent) => {
-    if (e.buttons !== 0 || chipHoverSuppressedRef.current || editorRef.current?.classList.contains('is-chip-dragging')) {
+    if (chipMenu || showMention || e.buttons !== 0 || chipHoverSuppressedRef.current || editorRef.current?.classList.contains('is-chip-dragging')) {
       handleEditorMouseLeave();
       return;
     }
@@ -1557,7 +1612,58 @@ const MentionEditor = forwardRef<MentionEditorHandle, MentionEditorProps>(functi
         }
       }, 120);
     }
-  }, [currentProjectId, handleEditorMouseLeave, nodeId]);
+  }, [chipMenu, showMention, currentProjectId, handleEditorMouseLeave, nodeId]);
+  const closeChipMenu = useCallback((restoreFocus = false) => {
+    setChipMenu(null);
+    if (restoreFocus) editorRef.current?.focus({ preventScroll: true });
+  }, []);
+  const handleChipContextMenu = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    const root = editorRef.current;
+    if (!root || disabledRef.current || composingRef.current || !isCurrentEditorOwner()) return;
+    const chip = findDraggableMentionChip(root, event.target);
+    if (!chip) return;
+    event.preventDefault();
+    event.stopPropagation();
+    cancelChipDragRef.current?.();
+    cancelChipDragRef.current = null;
+    lastChipClickRef.current = null;
+    handleEditorMouseLeave();
+    historyRef.current.endGroup();
+    historyRef.current.updateSelection(captureMentionEditorSelection(root));
+    replacementChipRef.current = null;
+    setShowMention(false);
+    setChipMenu({ target: { chip, prompt: serializeDOM(root), projectId: currentProjectId, nodeId }, x: event.clientX, y: event.clientY });
+  }, [currentProjectId, nodeId, isCurrentEditorOwner, handleEditorMouseLeave]);
+  const replaceMenuChip = useCallback(() => {
+    closeChipMenu();
+    if (!chipMenu || !isCurrentChipTarget(chipMenu.target)) return;
+    const target = chipMenu.target;
+    replacementChipRef.current = target;
+    const range = document.createRange();
+    range.selectNode(target.chip);
+    savedMentionRangeRef.current = range;
+    focusMentionCursor();
+    setMentionQuery('');
+    setPickerTab(target.chip.hasAttribute('data-drama-id') ? 'assets'
+      : target.chip.hasAttribute('data-wf-id') || target.chip.hasAttribute('data-refmod-raw') ? 'workflow' : 'nodes');
+    setComfySection(target.chip.hasAttribute('data-refmod-raw') ? 'roles' : 'inputs');
+    setShowMention(true);
+  }, [chipMenu, closeChipMenu, isCurrentChipTarget, focusMentionCursor]);
+  const deleteMenuChip = useCallback(() => {
+    closeChipMenu();
+    if (!chipMenu || !isCurrentChipTarget(chipMenu.target)) return;
+    const root = editorRef.current!;
+    const range = document.createRange();
+    range.selectNode(chipMenu.target.chip);
+    range.deleteContents();
+    range.collapse(true);
+    normalizeChipSlots(root);
+    root.focus({ preventScroll: true });
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    emitDOM();
+  }, [chipMenu, closeChipMenu, isCurrentChipTarget, emitDOM]);
   const handleChipPointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     if (disabledRef.current) return;
     const root = editorRef.current;
@@ -1791,7 +1897,7 @@ const MentionEditor = forwardRef<MentionEditorHandle, MentionEditorProps>(functi
         if (isAudioNode) {
           if (!item.voice) return;
           restoreMentionCursor();
-          deleteAtChar();
+          if (!deleteAtChar()) return;
           insertDramaChipAtCursor(buildDramaVoiceMentionId(item.id, item.voice.id), item.voice.label, 'voice');
           setShowMention(false);
           setMentionQuery('');
@@ -1825,7 +1931,7 @@ const MentionEditor = forwardRef<MentionEditorHandle, MentionEditorProps>(functi
         const voice = resolveDramaVoiceRef(drillCharacter, clip.id);
         if (!voice) return;
         restoreMentionCursor();
-        deleteAtChar();
+        if (!deleteAtChar()) return;
         insertDramaChipAtCursor(buildDramaVoiceMentionId(drillCharacter.id, clip.id), voice.label, 'voice');
         setShowMention(false);
         setMentionQuery('');
@@ -1846,7 +1952,7 @@ const MentionEditor = forwardRef<MentionEditorHandle, MentionEditorProps>(functi
           const selected = resolveDramaActionMediaRef(drillCharacter, drillAction.id, media.id);
           if (!selected) return;
           restoreMentionCursor();
-          deleteAtChar();
+          if (!deleteAtChar()) return;
           insertDramaChipAtCursor(
             buildDramaActionMentionId(drillCharacter.id, drillAction.id, media.id),
             selected.label,
@@ -2090,8 +2196,13 @@ const MentionEditor = forwardRef<MentionEditorHandle, MentionEditorProps>(functi
         }}
         onKeyDown={handleKeyDown}
         onPaste={handlePaste}
+        onContextMenu={handleChipContextMenu}
         onPointerDown={handleChipPointerDown}
         onPointerDownCapture={() => {
+          if (replacementChipRef.current) {
+            replacementChipRef.current = null;
+            setShowMention(false);
+          }
           historyRef.current.endGroup();
           if (editorRef.current) historyRef.current.updateSelection(captureMentionEditorSelection(editorRef.current));
         }}
@@ -2113,6 +2224,9 @@ const MentionEditor = forwardRef<MentionEditorHandle, MentionEditorProps>(functi
         }}
         spellCheck={false}
       />
+      {chipMenu && !disabled && chipMenu.target.projectId === currentProjectId && chipMenu.target.nodeId === nodeId
+        && chipMenu.target.prompt === prompt
+        && <MentionChipMenu x={chipMenu.x} y={chipMenu.y} onReplace={replaceMenuChip} onDelete={deleteMenuChip} onClose={closeChipMenu} />}
       {refmodUiError && <p className="ui-alert ui-alert--warning mt-2 text-xs" role="alert">{refmodUiError}</p>}
       {activeRefmodSession && <Suspense fallback={null}><ComfyRefmodMentionSettings key={`${activeRefmodSession.nodeSnapshot}:${refmodOptions.catalog?.fetchedAt ?? 'loading'}`}
         workflow={activeRefmodSession.workflow} asset={activeRefmodSession.asset} initial={activeRefmodSession.initial}

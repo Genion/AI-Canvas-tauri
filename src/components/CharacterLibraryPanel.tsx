@@ -370,6 +370,33 @@ export default function CharacterLibraryPanel() {
   const selectedReference = selectedCharacter?.referenceImages?.find(
     (reference) => reference.id === effectiveReferenceId,
   ) ?? null;
+  const reorderReferences = useCallback(async (ids: string[]) => {
+    const state = useAppStore.getState();
+    if (!open || !selectedCharacter || state.currentProjectId !== currentProjectId
+      || !state.characterLibraryOpen || state.isCreatingProject || state.isReturningToStartPage
+      || state.switchingProjectName !== null || (scope === 'project' && (!currentProjectId || state.projectLoadStatus !== 'ready'))) return false;
+    const character = (scope === 'project' ? state.dramaAssets.characters : state.globalCharacters)
+      .find((item) => item.id === selectedCharacter.id);
+    const references = character?.referenceImages;
+    if (!character || !references || references !== selectedCharacter.referenceImages
+      || ids.length !== references.length || new Set(ids).size !== ids.length
+      || ids.some((id) => !references.some((reference) => reference.id === id))) return false;
+    const version = copyViewVersion.current;
+    return state.saveCharacterCard(scope, {
+      ...character,
+      referenceImages: ids.flatMap((id) => references.find((reference) => reference.id === id) ?? []),
+      primaryReferenceImageId: character.primaryReferenceImageId ?? references[0]?.id,
+      avatarReferenceImageId: character.avatarReferenceImageId ?? references.find((reference) => reference.kind === 'avatar')?.id,
+      updatedAt: Date.now(),
+    }, {
+      assertCurrent: () => {
+        const current = useAppStore.getState();
+        if (copyViewVersion.current !== version || !current.characterLibraryOpen || current.currentProjectId !== currentProjectId
+          || current.isCreatingProject || current.isReturningToStartPage || current.switchingProjectName !== null
+          || (scope === 'project' && current.projectLoadStatus !== 'ready')) throw new Error(t('角色素材保存失败'));
+      },
+    });
+  }, [open, selectedCharacter, currentProjectId, scope, t]);
   const sourceNode = useMemo(() => {
     if (!selectedCharacter || !selectedReference) return null;
     return nodes.find((node) => (
@@ -812,6 +839,7 @@ export default function CharacterLibraryPanel() {
                 selectedId={effectiveReferenceId}
                 onSelect={setSelectedReferenceId}
                 onEdit={(referenceId) => openEditor(selectedCharacter, referenceId)}
+                onReorder={reorderReferences}
                 onStageResize={handleStageResize}
               />
 
@@ -997,7 +1025,6 @@ export default function CharacterLibraryPanel() {
                     <button type="button" data-tooltip={t('绑定角色武器')} aria-label={t('绑定角色武器')}
                       onClick={() => setWeaponTarget({ scope, id: selectedCharacter.id, projectId: currentProjectId })}>
                       <Swords width="16" height="16" aria-hidden="true" />
-                      <span className="text-[10px]">{selectedCharacter.weaponIds?.length ?? 0}</span>
                     </button>
                     {selectedReference ? (
                       <button type="button" data-tooltip={canvasActionLabel} aria-label={canvasActionLabel} onClick={handleCanvasAction}>
