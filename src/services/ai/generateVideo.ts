@@ -56,6 +56,7 @@ import {
 import { savePendingTask, updatePendingTask, removePendingTask, registerNodePolling, cleanupNodePolling, pauseMediaTask, VIDEO_POLL_MAX_DURATION_MS } from '../pollManager';
 import { corsSafeFetch } from './httpTransport';
 import { resolveImageUrlArray } from './imageUtils';
+import { mapSequentially, resolveImageUrlsSequentially } from './referenceMediaPreparation';
 import { resolveMediaReferenceUrl } from '../uploadService';
 import { relayonVideoVariables, usesRelayonModelProtocol } from './providers/relayonModelManifest';
 import {
@@ -83,31 +84,6 @@ import { assertLibapiVideoInput, libapiVideoVariables, usesLibapiModelProtocol }
 import { withSora2uReferenceLimits } from './providers/sora2uModelManifest';
 
 export { compileVideoReferencePrompt } from './referencePrompt';
-
-async function mapSequentially<T, R>(
-  items: readonly T[],
-  mapper: (item: T, index: number) => Promise<R>,
-  signal?: AbortSignal,
-): Promise<R[]> {
-  const results: R[] = [];
-  for (let index = 0; index < items.length; index += 1) {
-    if (signal?.aborted) throw signal.reason ?? new DOMException('请求已取消', 'AbortError');
-    results.push(await mapper(items[index], index));
-  }
-  return results;
-}
-
-function resolveImageUrlsSequentially(
-  urls: readonly string[],
-  provider: string,
-  signal?: AbortSignal,
-): Promise<string[]> {
-  return mapSequentially(
-    urls,
-    async (url) => (await resolveImageUrlArray([url], provider, signal))[0],
-    signal,
-  );
-}
 
 export function resolveVideoGenerationOperation(
   imageUrls: readonly string[],

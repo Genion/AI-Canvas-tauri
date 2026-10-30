@@ -34,34 +34,9 @@ import { getApimartSeedanceCapability, isApimartSeedanceModel } from '../apimart
 import { getMediaReferenceUrl } from '../connectedReferenceMedia';
 import { assertVideoInputConstraints } from '../videoInputValidation';
 import { extractModelName } from '../helpers';
-import { resolveImageUrlArray } from '../imageUtils';
+import { mapSequentially, resolveImageUrlsSequentially } from '../referenceMediaPreparation';
 import { resolveMediaReferenceUrl } from '../../uploadService';
 import type { MediaProviderAdapter } from '../mediaProviderRegistry';
-
-async function mapSequentially<T, R>(
-  items: readonly T[],
-  mapper: (item: T, index: number) => Promise<R>,
-  signal?: AbortSignal,
-): Promise<R[]> {
-  const results: R[] = [];
-  for (let index = 0; index < items.length; index += 1) {
-    if (signal?.aborted) throw signal.reason ?? new DOMException('请求已取消', 'AbortError');
-    results.push(await mapper(items[index], index));
-  }
-  return results;
-}
-
-function resolveImageUrlsSequentially(
-  urls: readonly string[],
-  provider: string,
-  signal?: AbortSignal,
-): Promise<string[]> {
-  return mapSequentially(
-    urls,
-    async (url) => (await resolveImageUrlArray([url], provider, signal))[0],
-    signal,
-  );
-}
 
 function resolveApimartConnection(): { apiKey: string; baseUrl: string } {
   const providerConfig = useAppStore.getState().config.providers.apimart;
