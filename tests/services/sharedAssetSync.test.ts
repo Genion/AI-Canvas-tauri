@@ -8,6 +8,7 @@ import type { DramaAssetLibrary, DramaCharacter } from '../../src/types/dramaAss
 import type { SharedAssetSyncLocalState, SharedSyncDownloadInput, SharedSyncPrepareInput, SharedSyncRemoteAsset } from '../../src/types/assetSync';
 import type { SharedAssetSyncCommitInput } from '../../src/services/indexedDb/sharedAssetSyncRepository';
 import type { AssetImageRecord } from '../../src/types/assetImage';
+import { getAssetUrlFromPath } from '../../src/services/fs/core';
 
 const mocks = vi.hoisted(() => ({
   repo: { mappings: [], outbox: [], conflicts: [] } as SharedAssetSyncLocalState,
@@ -164,6 +165,29 @@ describe('手动项目资产同步协调', () => {
   it('完整扫描失败不把部分项目文件当完整同步成功', async () => {
     mocks.scan.mockResolvedValue({ files: [], complete: false, truncated: true, failedDirectories: 0, failedFiles: 0 });
     await expect(buildSharedAssetSyncPreview(context())).rejects.toThrow('读取不完整');
+    expect(mocks.prepare).not.toHaveBeenCalled(); expect(mocks.publish).not.toHaveBeenCalled();
+  });
+
+  it('Windows 接收端可应用人物本地素材地址，完成后不重复下载或上传', async () => {
+    const asset = remoteFile();
+    asset.head.kind = 'character';
+    asset.revision.payload = { kind: 'character', data: { ...character(), id: asset.head.sharedAssetId,
+      imageUrl: 'aicsync-media:image' } };
+    mocks.cloud = [asset];
+    vi.mocked(getAssetUrlFromPath).mockImplementationOnce(async (path) => `http://asset.localhost/${encodeURIComponent(path)}`);
+    const receiver = context({ version: 2, characters: [], scenes: [], props: [] });
+    const session = await buildSharedAssetSyncPreview(receiver);
+    expect(session.items).toMatchObject([{ kind: 'character', direction: 'download' }]);
+    const execution = commitExecution();
+    await executeSharedAssetSync(session, execution);
+    const input = execution.applyDownload.mock.calls[0][0] as Parameters<SharedAssetSyncExecution['applyDownload']>[0];
+    expect(input.nextLibrary?.characters).toMatchObject([{ id: session.mappings[0].localEntityId,
+      imageUrl: `http://asset.localhost/${encodeURIComponent('/project/owner/.shared-sync/files/remote-file/remote-revision/image.png')}` }]);
+    expect(input.commit.indexes).toHaveLength(1);
+    expect(receiver.onStatus).toHaveBeenLastCalledWith(expect.objectContaining({ stage: 'completed', completed: 1, total: 1 }));
+    await executeSharedAssetSync(session, execution);
+    expect(mocks.download).toHaveBeenCalledOnce();
+    expect(execution.applyDownload).toHaveBeenCalledOnce();
     expect(mocks.prepare).not.toHaveBeenCalled(); expect(mocks.publish).not.toHaveBeenCalled();
   });
 

@@ -5,6 +5,7 @@ import type { SharedSyncCardPayload, SharedSyncDraft, SharedSyncFilePayload, Sha
   SharedSyncMediaKind, SharedSyncMemberKind, SharedSyncRevision } from '../types/assetSync';
 import { DRAMA_ASSET_TRANSFER_FORMAT, DRAMA_ASSET_TRANSFER_VERSION, DRAMA_ASSET_TRANSFER_LIMITS,
   parseDramaAssetTransferDocument } from './dramaAssetTransferFormat';
+import { localMediaUrlToPath } from '../utils/mediaUrl';
 
 export const SHARED_ASSET_SYNC_FORMAT = 'ai-canvas-shared-asset';
 export const SHARED_ASSET_SYNC_VERSION = 1;
@@ -323,7 +324,7 @@ export function restoreSharedDramaAsset(payload: SharedSyncCardPayload, localEnt
   const bind = (token: string | undefined, field: 'imageUrl' | 'audioUrl' | 'url') => {
     if (token === undefined) return {};
     const local = mapping.mediaById.get(tokenId(token));
-    if (!local?.assetId || !local.relativePath || !local.url || /^(?:https?:|data:|blob:)/i.test(local.url)) return fail();
+    if (!local?.assetId || !local.relativePath || !localMediaUrlToPath(local.url)) return fail();
     return { assetId: local.assetId, relativePath: local.relativePath, [field]: local.url };
   };
   Object.assign(asset, bind(asset.imageUrl, 'imageUrl'));

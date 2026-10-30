@@ -2,7 +2,7 @@
  * sharedAssetSyncFormat — 回归测试：共享项目资产格式。
  */
 import { describe, expect, it } from 'vitest';
-import type { DramaAssetLibrary, DramaCharacter, DramaProp } from '../../src/types/dramaAssets';
+import type { DramaAssetLibrary, DramaCharacter, DramaProp, DramaScene } from '../../src/types/dramaAssets';
 import type { SharedSyncFilePayload, SharedSyncMedia, SharedSyncRevision } from '../../src/types/assetSync';
 import { getSharedAssetSyncDependencies, getSharedAssetSyncMediaIds, parseSharedAssetSyncDraft, parseSharedAssetSyncRevision,
   restoreSharedDramaAsset, serializeSharedDramaAsset, sharedSyncMediaToken } from '../../src/services/sharedAssetSyncFormat';
@@ -108,21 +108,54 @@ describe('共享项目资产格式', () => {
     expect(JSON.stringify(source)).toBe(before);
   });
 
-  it('双端映射保留已有本地卡片和子项ID，换图不保留画布来源节点', async () => {
+  it.each(['asset://localhost/', 'http://asset.localhost/', 'https://asset.localhost/', 'file:///'])(
+    '双端映射接受本地地址 %s，保留卡片和子项ID且清理画布来源节点', async (prefix) => {
     const payload = await serializeSharedDramaAsset(character(), 'shared-card', mapping);
     const memberIds = new Map([['referenceImage-ref', 'ref'], ['voiceClip-voice', 'voice'],
       ['action-action', 'action'], ['actionMedia-action-image', 'action-image'], ['actionMedia-action-video', 'action-video']]);
     const restored = restoreSharedDramaAsset(payload, 'local-existing', {
       memberId: (_kind, sharedId) => memberIds.get(sharedId)!,
       mediaById: new Map(media.map((entry) => [entry.id, { assetId: `new-${entry.id}`, relativePath: `Library/${entry.id}.${entry.extension}`,
-        url: `asset://localhost/project/Library/${entry.id}.${entry.extension}` }])),
+        url: `${prefix}project/Library/${entry.id}.${entry.extension}` }])),
     }) as DramaCharacter;
     expect(restored).toMatchObject({ id: 'local-existing', primaryReferenceImageId: 'ref', avatarReferenceImageId: 'ref',
       primaryVoiceClipId: 'voice', assetId: 'new-image' });
     expect(restored.referenceImages![0].id).toBe('ref');
     expect(restored.actions![0].id).toBe('action');
     expect(restored.actions![0].media![1].id).toBe('action-video');
+    expect(restored.imageUrl).toBe(`${prefix}project/Library/image.png`);
+    expect(restored.referenceImages![0].imageUrl).toBe(restored.imageUrl);
+    expect(restored.voiceClips![0].audioUrl).toBe(`${prefix}project/Library/audio.wav`);
+    expect(restored.actions![0].media![0].url).toBe(restored.imageUrl);
+    expect(restored.actions![0].media![1].url).toBe(`${prefix}project/Library/video.mp4`);
     expect(restored.imageNodeId).toBeUndefined(); expect(restored.referenceImages![0].sourceNodeId).toBeUndefined();
+  });
+
+  it.each(['scene', 'prop'] as const)('场景与道具 %s 接受 Windows 编码的本地素材地址', async (kind) => {
+    const source: DramaScene | DramaProp = { id: 'local-card', kind, name: '素材', key: '素材', summary: '', visualNotes: '',
+      importance: 'supporting', source: 'manual', confirmed: true, createdAt: 1, updatedAt: 2,
+      imageUrl: 'asset://localhost/project/image.png', assetId: 'local-image', primaryReferenceImageId: 'ref',
+      referenceImages: [{ id: 'ref', label: '主图', prompt: '', assetId: 'local-image',
+        imageUrl: 'asset://localhost/project/image.png', createdAt: 1, updatedAt: 2 }] };
+    const payload = await serializeSharedDramaAsset(source, 'shared-card', mapping);
+    const url = `http://asset.localhost/${encodeURIComponent('C:\\项目素材\\.shared-sync\\files\\image.png')}`;
+    const restored = restoreSharedDramaAsset(payload, 'other-card', { memberId: (_kind, value) => `other-${value}`,
+      mediaById: new Map([['image', { assetId: 'other-image', relativePath: '.shared-sync/files/image.png', url }]]) });
+    expect(restored).toMatchObject({ kind, id: 'other-card', assetId: 'other-image', imageUrl: url,
+      referenceImages: [{ id: 'other-referenceImage-ref', assetId: 'other-image', imageUrl: url }] });
+  });
+
+  it('接收恢复仍拒绝网络地址、伪装的本地来源、内嵌媒体和缺失映射', async () => {
+    const payload = await serializeSharedDramaAsset(character(), 'shared-card', mapping);
+    for (const url of ['https://example.com/image.png', 'http://asset.localhost.example.com/image.png',
+      'http://asset.localhost@example.com/image.png', 'asset://example.com/image.png',
+      'data:image/png;base64,AAAA', 'blob:http://asset.localhost/image', '']) {
+      expect(() => restoreSharedDramaAsset(payload, 'other-card', { memberId: (_kind, value) => value,
+        mediaById: new Map(media.map((entry) => [entry.id, { assetId: `other-${entry.id}`,
+          relativePath: `Library/${entry.id}.${entry.extension}`, url }])) })).toThrow('项目共享资产格式无效');
+    }
+    expect(() => restoreSharedDramaAsset(payload, 'other-card', { memberId: (_kind, value) => value,
+      mediaById: new Map() })).toThrow('项目共享资产格式无效');
   });
 
   it('真实引用按显式映射保留；未知、本机与全局引用不静默脱为标签', async () => {
