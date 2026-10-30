@@ -1,4 +1,14 @@
 /* Excalidraw-inspired canvas note controls. See doc/licenses/excalidraw-MIT.txt. */
+/* Xiaolai v3.126: https://github.com/lxgw/kose-font/releases/tag/v3.126
+   Full glyph set, converted to WOFF2; copyright and OFL: public/licenses/Xiaolai-OFL.txt. */
+@font-face {
+  font-family: 'Xiaolai';
+  src: url('/fonts/Xiaolai-Regular.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
 .react-flow__panel.canvas-drawing-toolbar-slot.bottom.left {
   bottom: 0;
   left: 0;

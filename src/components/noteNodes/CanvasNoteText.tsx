@@ -15,7 +15,7 @@ interface CanvasNoteTextProps {
 }
 
 const FONT_FAMILIES = {
-  hand: '"Segoe Print", "Bradley Hand", cursive',
+  hand: '"Xiaolai", "Segoe Print", "Bradley Hand", cursive',
   sans: '"Trebuchet MS", sans-serif',
   mono: '"Cascadia Code", "Consolas", monospace',
   serif: '"Georgia", serif',
