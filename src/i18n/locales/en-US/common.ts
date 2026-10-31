@@ -330,8 +330,6 @@ const common = {
   "插件工具": "Plugin tools",
   "删除连线": "Delete connection",
 
-  "正在打开「{name}」": "Opening “{name}”",
-  "正在打开画布": "Opening canvas",
   "AI Canvas 正在启动": "AI Canvas is starting",
   "AI Canvas 正在返回启动页": "AI Canvas is returning to the start page",
   "AI Canvas 正在打开项目": "AI Canvas is opening the project",

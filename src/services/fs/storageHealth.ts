@@ -11,6 +11,8 @@ import {
 } from '../indexedDbService';
 import { localMediaUrlToPath } from '../../utils/mediaUrl';
 import { fingerprintAssetImage } from './assetImageMetadata';
+import { listProjectImportRecoveries } from '../indexedDb/projectImportRepository';
+import { safeExchangePath } from '../projectExchangeDomain';
 
 function pathKey(value: string): string {
   const path = (localMediaUrlToPath(value) ?? value).replace(/\\/g, '/').replace(/^\/\/\?\//, '');
@@ -375,6 +377,11 @@ export async function scanStorageHealth(
       checkAbort(signal);
       roots.set(project.id, root);
       collectReferences(record, references, root ?? undefined);
+      if (!record.parentId) for (const recovery of await listProjectImportRecoveries(project.id)) {
+        checkAbort(signal);
+        collectReferences(recovery.records, references, root ?? undefined);
+        if (root) for (const asset of recovery.assets ?? []) references.add(pathKey(joinPath(root, safeExchangePath(asset.path))));
+      }
       let cursor: HistoryPageCursor | null = null;
       do {
         checkAbort(signal);

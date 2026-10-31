@@ -118,7 +118,7 @@ export default function ProjectImportDialog({ onClose, onImported }: { onClose: 
           <label className="flex items-center gap-2"><input type="radio" name="project-import-mode" checked={mode === 'update'} onChange={() => setMode('update')} />{t('更新已有项目')}</label>
         </fieldset>
         {mode === 'new' ? <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={independent} disabled={busy} onChange={(event) => setIndependent(event.target.checked)} />{t('作为独立副本，开始新的协作来源')}</label>
-          : <div className="flex flex-wrap items-center gap-2"><Select aria-label={t('要更新的项目')} value={targetId} disabled={busy} onChange={(event) => { setTargetId(event.target.value); setPreview(null); setChoices({}); }} className="min-w-0 flex-1">
+          : <div className="flex flex-wrap items-center gap-2"><Select aria-label={t('要更新的项目')} value={targetId} disabled={busy} onChange={(value) => { setTargetId(value); setPreview(null); setChoices({}); }} className="min-w-0 flex-1">
             <option value="">{t('请选择目标项目或整部剧')}</option>{candidates.map((project) => <option key={project.id} value={project.id}>{project.name} · {project.id.slice(0, 8)}</option>)}
           </Select><button type="button" className="ui-btn ui-btn--secondary" disabled={busy || !targetId} onClick={() => void runCompare()}>{t(preview ? '重新对比' : '对比改动')}</button></div>}
         {!session.bundle && <div className="space-y-2"><p className="ui-alert text-xs">{t('旧项目包没有可靠共同版本。更新时每项差异都需要人工选择；请仔细核对分集与删除项。')}</p>

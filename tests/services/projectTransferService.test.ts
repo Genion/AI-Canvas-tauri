@@ -36,8 +36,13 @@ vi.mock('@tauri-apps/plugin-fs', () => ({ remove: mocks.remove }));
 vi.mock('../../src/services/projectArchiveSerialization', () => ({ serializeProjectArchiveEntries: mocks.serializeEntries }));
 // 本文件保留旧包恢复/目录回滚的回归；v3 内核与事务在各自的专用用例覆盖。
 vi.mock('../../src/services/indexedDb/projectExchangeRepository', () => ({ loadProjectExchangeState: async () => ({ headRevisionId: 'export-head', identities: [] }) }));
-vi.mock('../../src/services/projectExchangeDomain', () => ({
+vi.mock('../../src/services/projectExchangeDomain', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../../src/services/projectExchangeDomain')>(),
   materializeExchangeSnapshot: (_snapshot: unknown, _identities: unknown, records: unknown[]) => records,
+}));
+vi.mock('../../src/services/projectArchiveValidation', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../../src/services/projectArchiveValidation')>(),
+  selectArchiveAssets: () => [],
 }));
 vi.mock('../../src/services/projectImportService', () => ({
   prepareExchangeExport: async () => ({ headRevisionId: 'export-head', revisions: [{ revisionId: 'export-head', snapshot: {} }] }),
@@ -78,6 +83,8 @@ import {
   duplicateProjectArchive,
   exportProjectArchive,
   importProjectArchive,
+  restoreProjectArchive,
+  readArchiveChat,
 } from '../../src/services/projectTransferService';
 
 const PROJECT_RECORD = {
@@ -189,11 +196,23 @@ describe('projectTransferService', () => {
     mocks.remove.mockResolvedValue(undefined);
   });
 
+  it('rejects a legacy archive replaced after preview without saving any project', async () => {
+    const texts = archiveTexts({ manifest: { formatVersion: 2 } });
+    const preview = { manifest: JSON.parse(texts['manifest.json']), records: [PROJECT_RECORD],
+      chat: [readArchiveChat(JSON.parse(texts['chat.json']))], assets: [{ path: '镜头1/a.png', bytes: 12, sha256: 'a'.repeat(64) }] };
+    mocks.invoke.mockResolvedValue({ texts, assetPaths: ['镜头1/a.png'], assetBytes: 12,
+      assets: [{ path: '镜头1/a.png', bytes: 12, sha256: 'b'.repeat(64) }] });
+    await expect(restoreProjectArchive('/in/replaced.aicanvas', undefined, { appendChat: false, appendMemories: false }, preview))
+      .rejects.toThrow('预览后发生变化');
+    expect(mocks.saveProject).not.toHaveBeenCalled();
+    expect(mocks.deleteProjectDataDir).toHaveBeenCalledOnce();
+  });
+
   it('packs the project record, chat payload and asset directory', async () => {
     mocks.getProjectById.mockResolvedValue(PROJECT_RECORD);
     mocks.getProjectConversations.mockResolvedValue([{ id: 'conv-1' }]);
     mocks.getConversationMessages.mockResolvedValue({
-      messages: [{ id: 'm2', sequence: 2 }, { id: 'm1', sequence: 1 }],
+      messages: [{ id: 'm2', conversationId: 'conv-1', sequence: 2 }, { id: 'm1', conversationId: 'conv-1', sequence: 1 }],
       total: 2,
     });
     mocks.getProjectMemories.mockResolvedValue([{ id: 'mem-1' }]);
@@ -693,8 +712,8 @@ describe('projectTransferService', () => {
 
     expect(result!.missingAssetCount).toBe(0);
     const savedData = mocks.saveProject.mock.calls[0][0].nodes[0].data;
-    expect(savedData.directorCaptureUrls).toEqual(project.nodes[0].data.directorCaptureUrls);
-    expect(savedData.directorCaptureFilePaths).toEqual(project.nodes[0].data.directorCaptureFilePaths);
+    expect(savedData.directorCaptureUrls).toEqual([]);
+    expect(savedData.directorCaptureFilePaths).toBeUndefined();
     expect(savedData.directorScene).toBeUndefined();
     expect(savedData.directorResultManifest).toBeUndefined();
   });

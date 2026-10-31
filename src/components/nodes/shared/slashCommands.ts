@@ -4,6 +4,7 @@
  */
 import type { ImagePostProcess, NodeType } from '../../../types';
 import { DRAMA_EXTRACT_MARKER } from '../../../types/dramaAssets';
+import { extractPresetTemplateVariables, renderPresetTemplate, CURRENT_PROMPT_VARIABLE, LEGACY_PROMPT_VARIABLE } from '../../../services/presetTemplateService';
 
 export interface SlashCommandItem {
   id: string;
@@ -641,13 +642,12 @@ export function getSlashCommands(nodeType: NodeType): SlashCommandItem[] {
 }
 
 /**
- * 将当前提示词填入模板的 {{ 文章内容 }} 占位符
+ * 填充普通及高级预设共用的当前提示词占位符。
  * 如果模板不含该占位符，则将输入内容拼接到模板最上方
  */
 export function fillTemplate(template: string, currentPrompt: string): string {
-  const placeholder = '{{ 文章内容 }}';
-  if (template.includes(placeholder)) {
-    return template.replace(placeholder, currentPrompt || '');
+  if (extractPresetTemplateVariables(template).some((key) => key === CURRENT_PROMPT_VARIABLE || key === LEGACY_PROMPT_VARIABLE)) {
+    return renderPresetTemplate(template, {}, currentPrompt || '');
   }
   // 无占位符时，把用户输入放到最上方
   return currentPrompt ? `${currentPrompt}\n\n${template}` : template;

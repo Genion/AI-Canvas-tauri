@@ -11,7 +11,7 @@ use flate2::Compression;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fs::{self, File};
-use std::io::{BufReader, BufWriter, Read, Write};
+use std::io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write};
 use std::path::{Component, Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tar::{Archive, Builder, Header};
@@ -28,6 +28,7 @@ const MAX_ARCHIVE_ENTRIES: usize = 200_000;
 const MAX_EXPANDED_BYTES: u64 = 20 * 1024 * 1024 * 1024;
 /// 文本条目（项目 JSON、对话 JSON）解包时的总量上限，避免异常归档撑爆内存。
 const MAX_TEXT_BYTES: u64 = 512 * 1024 * 1024;
+const MAX_EXTENSION_BYTES: u64 = 64 * 1024;
 
 #[derive(Deserialize)]
 pub struct ProjectArchiveTextEntry {
@@ -162,7 +163,8 @@ pub fn publish_project_import_assets<R: Runtime>(webview: Webview<R>, app: AppHa
 /// 校验归档内相对路径：拒绝绝对路径、`..`、盘符和反斜杠，避免解包写到目标目录之外。
 fn normalize_archive_path(path: &Path) -> Result<PathBuf, String> {
     let text = path.to_string_lossy();
-    if text.contains('\\') || text.contains(':') || text.chars().any(|c| c.is_control()) {
+    if text.len() > 1024 || path.components().count() > 64
+        || text.contains('\\') || text.contains(':') || text.chars().any(|c| c.is_control()) {
         return Err(format!("项目归档包含不安全路径: {text}"));
     }
     let mut normalized = PathBuf::new();
@@ -214,6 +216,7 @@ fn append_assets_dir<W: Write>(
     source: &Path,
     archive_dir: &Path,
     stats: &mut AssetStats,
+    selected: Option<&HashSet<String>>,
 ) -> Result<(), String> {
     if archive_dir.components().count() > 65 { return Err("项目素材目录过深".into()); }
     let read_dir =
@@ -234,12 +237,14 @@ fn append_assets_dir<W: Write>(
             if archive_dir == Path::new(ASSETS_PREFIX) && name == ".thumbnail" {
                 continue;
             }
-            append_assets_dir(builder, &entry.path(), &archive_path, stats)?;
+            append_assets_dir(builder, &entry.path(), &archive_path, stats, selected)?;
             continue;
         }
         if !file_type.is_file() {
             continue;
         }
+        let relative = archive_path.strip_prefix(ASSETS_PREFIX).map_err(|_| "素材路径无效")?;
+        if selected.is_some_and(|paths| !paths.contains(&to_archive_text(relative))) { continue; }
 
         stats.count += 1;
         if stats.count > MAX_ARCHIVE_ENTRIES {
@@ -282,8 +287,14 @@ pub fn pack_project_archive<R: Runtime>(
     };
     if assets_root.as_ref().is_some_and(|root| output.starts_with(root)) { return Err("项目包不能导出到被打包的素材目录内".into()); }
 
+    let selected = expected_assets.as_ref().map(|assets| assets.iter().map(|asset| asset.path.clone()).collect::<HashSet<_>>());
+    if let Some(expected) = &expected_assets {
+        if selected.as_ref().map_or(0, HashSet::len) != expected.len() { return Err("导出素材清单重复".into()); }
+        for asset in expected { normalize_archive_path(Path::new(&asset.path))?; }
+    }
     if let (Some(root), Some(expected)) = (&assets_root, &expected_assets) {
         let mut actual = Vec::new(); inspect_assets(root, Path::new(""), &mut actual)?;
+        actual.retain(|asset| selected.as_ref().is_some_and(|paths| paths.contains(&asset.path)));
         let mut expected = expected.clone(); expected.sort_by(|a, b| a.path.cmp(&b.path)); actual.sort_by(|a, b| a.path.cmp(&b.path));
         if actual != expected { return Err("素材在导出前已变化，请重新导出".into()); }
     }
@@ -315,7 +326,7 @@ pub fn pack_project_archive<R: Runtime>(
 
     let mut stats = AssetStats { count: 0, bytes: 0 };
     if let Some(root) = &assets_root {
-        append_assets_dir(&mut builder, root, Path::new(ASSETS_PREFIX), &mut stats)?;
+        append_assets_dir(&mut builder, root, Path::new(ASSETS_PREFIX), &mut stats, selected.as_ref())?;
     }
 
     let encoder = builder
@@ -358,6 +369,24 @@ pub fn pack_project_archive<R: Runtime>(
 }
 
 /// 解包项目归档：`assets/` 下的素材写入 `assets_dir`，其余条目按文本返回。
+// tar 会在暴露普通条目前把 GNU/PAX 扩展读入内存；必须先以 raw 模式限制它们。
+fn validate_archive_stream<R: Read>(reader: R) -> Result<(), String> {
+    let mut archive = Archive::new(reader);
+    let mut total = 0_u64;
+    for (index, item) in archive.entries().map_err(|_| "归档头无效")?.raw(true).enumerate() {
+        if index >= MAX_ARCHIVE_ENTRIES { return Err("项目归档条目超过上限".into()); }
+        let entry = item.map_err(|_| "归档条目无效")?;
+        let kind = entry.header().entry_type();
+        let size = entry.size();
+        if kind.is_gnu_longname() || kind.is_gnu_longlink() || kind.is_pax_local_extensions() || kind.is_pax_global_extensions() {
+            if size > MAX_EXTENSION_BYTES { return Err("归档扩展元数据超过上限".into()); }
+        } else if !kind.is_file() && !kind.is_dir() { return Err("项目归档包含不允许的链接或设备文件".into()); }
+        total = total.checked_add(size).ok_or("归档体积无效")?;
+        if total > MAX_EXPANDED_BYTES + MAX_TEXT_BYTES { return Err("归档展开体积超过上限".into()); }
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub fn unpack_project_archive<R: Runtime>(
     webview: Webview<R>,
@@ -373,8 +402,10 @@ pub fn unpack_project_archive<R: Runtime>(
     }
     if fs::read_dir(&target_dir).map_err(|_| "无法读取导入暂存目录")?.next().is_some() { return Err("项目包只能解压至空目录".into()); }
 
-    let file =
+    let mut file =
         File::open(&archive_file).map_err(|error| format!("打开项目归档失败: {error}"))?;
+    validate_archive_stream(GzDecoder::new(BufReader::new(&mut file)))?;
+    file.seek(SeekFrom::Start(0)).map_err(|_| "无法重新读取已校验的归档")?;
     let decoder = GzDecoder::new(BufReader::new(file));
     let mut archive = Archive::new(decoder);
     let entries = archive
@@ -414,7 +445,7 @@ pub fn unpack_project_archive<R: Runtime>(
             if entry_type.is_dir() {
                 continue;
             }
-            let size = entry.header().size().unwrap_or(0);
+            let size = entry.size();
             text_bytes = text_bytes.saturating_add(size);
             if text_bytes > MAX_TEXT_BYTES {
                 return Err("项目归档中的记录数据超过 512 MB 限制".to_string());
@@ -438,7 +469,7 @@ pub fn unpack_project_archive<R: Runtime>(
             continue;
         }
 
-        asset_bytes = asset_bytes.saturating_add(entry.header().size().unwrap_or(0));
+        asset_bytes = asset_bytes.saturating_add(entry.size());
         if asset_bytes > MAX_EXPANDED_BYTES {
             return Err("项目归档展开后超过 20 GB 限制".to_string());
         }
@@ -462,6 +493,36 @@ pub fn unpack_project_archive<R: Runtime>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rejects_oversized_extensions_before_tar_allocates_them() {
+        for kind in [tar::EntryType::GNULongName, tar::EntryType::XHeader, tar::EntryType::XGlobalHeader] {
+            let mut header = Header::new_gnu();
+            header.set_path("metadata").unwrap(); header.set_entry_type(kind);
+            header.set_size(MAX_EXTENSION_BYTES + 1); header.set_cksum();
+            assert!(validate_archive_stream(header.as_bytes().as_slice()).unwrap_err().contains("扩展"));
+        }
+    }
+
+    #[test]
+    fn selected_export_omits_recovery_files_and_keeps_active_imports() {
+        let directory = std::env::temp_dir().join(format!("ai-canvas-selected-{}-{}", std::process::id(),
+            SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()));
+        fs::create_dir_all(directory.join("imports/active")).unwrap();
+        fs::create_dir_all(directory.join("imports/recovery")).unwrap();
+        fs::write(directory.join("imports/active/a.png"), b"current").unwrap();
+        fs::write(directory.join("imports/recovery/a.png"), b"private-old-content").unwrap();
+        let selected = HashSet::from(["imports/active/a.png".to_string()]);
+        let mut builder = Builder::new(Vec::new()); let mut stats = AssetStats { count: 0, bytes: 0 };
+        append_assets_dir(&mut builder, &directory, Path::new(ASSETS_PREFIX), &mut stats, Some(&selected)).unwrap();
+        let bytes = builder.into_inner().unwrap();
+        let mut archive = Archive::new(bytes.as_slice());
+        let paths: Vec<_> = archive.entries().unwrap().map(|item| to_archive_text(&item.unwrap().path().unwrap())).collect();
+        let resolved = directory.canonicalize().unwrap();
+        assert!(resolved.starts_with(std::env::temp_dir().canonicalize().unwrap()));
+        fs::remove_dir_all(&resolved).unwrap();
+        assert_eq!(paths, ["assets/imports/active/a.png"]); assert_eq!(stats.bytes, 7);
+    }
 
     #[test]
     fn rejects_paths_escaping_the_archive_root() {
@@ -500,6 +561,7 @@ mod tests {
             &directory,
             Path::new(ASSETS_PREFIX),
             &mut stats,
+            None,
         )
         .unwrap();
         let bytes = builder.into_inner().unwrap();

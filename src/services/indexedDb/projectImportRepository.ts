@@ -4,6 +4,7 @@ import type { ProjectExchangeRevision, ProjectExchangeRevisionHeader, ProjectExc
 import { verifyProjectExchangeRevision, verifyProjectExchangeHeader, PROJECT_EXCHANGE_LIMITS } from '../projectExchangeFormat';
 import { configValuesEqual } from '../configPatch';
 import { parseProjectExchangeState } from './projectExchangeRepository';
+import type { ArchiveAssetDigest } from '../projectExchangeDomain';
 import { toProjectSummaryRecord } from './projectSummary';
 import { openDB, STORE_PROJECTS, STORE_PROJECT_SUMMARIES, STORE_METADATA, STORE_PROJECT_EXCHANGE_STATES,
   STORE_PROJECT_EXCHANGE_SNAPSHOTS, STORE_CHAT_CONVERSATIONS, STORE_CHAT_MESSAGES, STORE_PROJECT_MEMORIES } from './schema';
@@ -13,6 +14,7 @@ export interface ProjectImportRecovery {
   id: string; ownerId: string; createdAt: number; operationId: string; records: ProjectSaveData[];
   state: ProjectExchangeState | null; afterEpoch: number; label: string;
   identities?: ProjectExchangeState['identities'];
+  assets?: ArchiveAssetDigest[];
 }
 export interface ProjectImportCommit {
   operationId: string; expectedRecords: ProjectSaveData[]; records: ProjectSaveData[];
@@ -21,6 +23,7 @@ export interface ProjectImportCommit {
   history: ProjectImportHistoryRow[]; label: string;
   recoveryRecords?: ProjectSaveData[];
   recoveryIdentities?: ProjectExchangeState['identities'];
+  recoveryAssets?: ArchiveAssetDigest[];
   assertCurrent?: () => void;
   signal?: AbortSignal;
 }
@@ -99,7 +102,7 @@ export async function commitProjectImport(input: ProjectImportCommit): Promise<v
         if (!configValuesEqual(currentState, expectedState)) throw new Error('协作基线已变化，请重新对比');
         if (input.expectedRecords.length) {
           const recovery: ProjectImportRecovery = { id: `project-import-recovery:${input.operationId}`, ownerId, operationId: input.operationId,
-            createdAt: Date.now(), records: input.recoveryRecords ?? input.expectedRecords, identities: input.recoveryIdentities,
+            createdAt: Date.now(), records: input.recoveryRecords ?? input.expectedRecords, identities: input.recoveryIdentities, assets: input.recoveryAssets,
             state: expectedState, afterEpoch: epoch, label: input.label };
           metadata.put(recovery);
         }

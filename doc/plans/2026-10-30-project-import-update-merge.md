@@ -309,13 +309,13 @@ UI 实施时先查 `src/styles/ui-kit.css` 与样式预览窗口，复用 `Modal
 | P2 提交与恢复 | 隔离预览目录；新素材发布到 `imports/<operationId>/<fileId>/`，不覆盖原件；恢复点媒体也复制到独立目录并核对 SHA-256，随后编辑原文件不会改变恢复点。整部剧 CAS、项目/摘要/协作版本/可选历史/恢复点/完成标记同一严格 IDB 事务。完整项目保存和共享资产提交核对持久化 `exchangeEpoch`，删除留墓碑。 | 原生与数据库不构成同一事务；中断前发布但未提交的文件保留为孤儿，不自动清除。恢复点占用额外磁盘空间；断电/磁盘满与跨实例旧保存待验收。 |
 | P3 交互与追加 | 项目库导入弹窗，新建/更新、目标选择、分页比较、逐项及筛选内批量选择、只读本地媒体预览、依赖错误阻断。旧包可人工对照或补充经用户确认的原始交接包；聊天文本/记忆按稳定来源 ID 追加。右键“导入更新恢复点”恢复整部剧，并为恢复前状态再留恢复点。 | 聊天追加不恢复工具执行、附件运行状态或源机器授权。界面深浅主题、键盘、三方两轮往返待验收。 |
 
-已补 `tests/services/projectExchangeFormat.test.ts`、`tests/services/projectExchangeRepository.test.ts`，并更新现有数据库迁移断言；均未运行。
+已补协议、来源仓库、合并、事务、往返和归档边界回归；2026-10-31 用户授权发布并要求复核导入导出后开始实际自动化检查，最终结果见本节与[发布计划](./2026-10-31-release-0.10.22.md)。
 
 材料上限当前为单快照 64 MiB、交换文本 512 MiB、版本描述/正文合计 256 项、父版本最多 2 个、JSON 深度 32；超限明确失败，不自动丢弃基线、放松路径检查或推断成功。新实体与媒体各有数量/体积预算。当前携带有界完整历史，不自动压缩祖先或清除恢复点；长期保留与整理界面后续单独扩展。
 
 实现复用既有 `files/project_archive.rs` 的路径授权和 tar/gzip 边界，新增主窗口专属摘要与发布命令；没有新增通用脚本执行能力或私有目录，也不放宽现有路径策略。暂存是独立、没有项目数据库记录的数据目录，而非新的不透明原生句柄协议。
 
-新增 `projectMergeService.test.ts`、`projectImportRepository.test.ts`、`projectExchangeRoundTrip.test.ts`；调整既有归档用例的 v3 外层接口，旧包恢复仍单独覆盖。回归材料未运行，P4 仍待用户授权与验收。`85a04567` 提交钩子的定向 ESLint 已实际通过；不据此推断类型、Rust 编译或功能验收通过。
+发布复核补充：导出仅打包当前快照有效素材，恢复点和失败导入残留留在本机；旧包过滤本机路径、任务和凭据，应用前核对预览文件是否被替换。聊天按文本白名单迁移；恢复点保存素材摘要，恢复前复核，存储清理保护其引用；项目改名后恢复不回退到已不存在的旧素材目录。三方合并拒绝孤立、重复归属和循环子实体；超限版本在写基线前拒绝。原生 tar 先限制 GNU/PAX 扩展长度，展开预算使用实际条目大小。
 
 桌面验收顺序：
 
@@ -328,13 +328,11 @@ UI 实施时先查 `src/styles/ui-kit.css` 与样式预览窗口，复用 `Modal
 7. 项目右键“导入更新恢复点”，恢复前一状态，核对所有分集/画布/资产；再恢复“恢复操作前”验证可回到刚才状态。聊天/记忆保留。
 8. 旧 v1/v2 包选择新建、无基线人工更新及确认原始交接包三条路径分别验收；错误目标与不同协作来源不能自动关联。验证浅色、深色、窄窗口、键盘与长中文提示词。
 
-本次未运行测试，待用户验收。实现与两次边界修正提交均已通过提交钩子的定向 ESLint。供用户执行的定向命令（仓库根目录）：`npx vitest run tests/services/projectExchangeFormat.test.ts tests/services/projectExchangeRepository.test.ts tests/services/projectExchangeRoundTrip.test.ts tests/services/projectMergeService.test.ts tests/services/projectImportRepository.test.ts tests/services/projectTransferService.test.ts`。Rust 命令与真实文件行为须另在 Tauri 桌面端验收，不能用该命令替代。
+自动化状态（2026-10-31）：原生 `cargo test --lib project_archive::tests --locked` 5 项通过，`cargo check --lib --locked` 通过。前端完整门禁通过（589 文件、10,161 项测试及生产构建），追加恢复编排 3 项测试通过；真实双机往返、磁盘满、中断重启与跨实例保存仍待 Tauri 验收，不能用单元测试代替。
 
-供用户在仓库根目录执行的定向检查：
+补充异常验收：篡改旧包相对路径、在预览后替换原包、修改恢复点素材后尝试恢复；应拒绝操作且保留原项目。运行存储健康扫描，恢复点素材不得出现在可删除未引用/重复文件中；导出新包后核对其中没有恢复点或失败导入残留。旧开发版中缺少媒体摘要的恢复点不能作完整恢复依据，应保留原文件并使用原始项目包恢复。
 
-`npx vitest run tests/services/projectExchangeFormat.test.ts tests/services/projectExchangeRepository.test.ts tests/services/indexedDbService.test.ts`
-
-必要时由用户执行 `npm run typecheck` 与 `npm run test:typecheck`。Tauri 桌面检查：启动旧 v26 数据目录，确认原项目/分集、S3 连接及待办仍在；原有项目包导出/导入和复制仍按旧入口工作，重复新建导入不覆盖原项目。此批不提供“更新已有项目”交互验收入口。
+定向命令（仓库根目录）：`npx vitest run tests/services/projectArchiveValidation.test.ts tests/services/projectExchangeFormat.test.ts tests/services/projectExchangeRepository.test.ts tests/services/projectExchangeRoundTrip.test.ts tests/services/projectMergeService.test.ts tests/services/projectImportRepository.test.ts tests/services/projectTransferService.test.ts tests/services/storageHealth.test.ts`。
 
 ## 12. 依据
 

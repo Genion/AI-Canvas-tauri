@@ -318,8 +318,6 @@ const common = {
   "插件工具": "플러그인 도구",
   "删除连线": "연결 삭제",
 
-  "正在打开「{name}」": "“{name}” 여는 중",
-  "正在打开画布": "캔버스 여는 중",
   "AI Canvas 正在启动": "AI Canvas 시작 중",
   "AI Canvas 正在返回启动页": "AI Canvas 시작 페이지로 돌아가는 중",
   "AI Canvas 正在打开项目": "AI Canvas에서 프로젝트 여는 중",

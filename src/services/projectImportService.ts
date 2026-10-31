@@ -88,14 +88,16 @@ export async function prepareExchangeExport(records: ProjectSaveData[], assets: 
   if (!configValuesEqual(sorted(records), sorted(await readProjectImportScope(ownerId)))) throw new Error('项目在导出准备期间发生变化，请重新导出');
   const state: ProjectExchangeState = { ownerId, lineageId: captured.snapshot.lineageId, rootProjectId: captured.snapshot.rootProjectId,
     headRevisionId: head.revisionId, stateVersion: (previous?.stateVersion ?? 0) + 1, identities: captured.identities };
-  await saveProjectExchangeCheckpoint({ expectedState: previous, state, revisions: [head] });
   const revisions = [...graph.revisions.filter((revision) => revision.revisionId !== head.revisionId), head];
-  return parseProjectExchangeBundle({ format: 'ai-canvas-project-exchange', version: 1, packageId: crypto.randomUUID(),
+  const bundle = await parseProjectExchangeBundle({ format: 'ai-canvas-project-exchange', version: 1, packageId: crypto.randomUUID(),
     lineageId: state.lineageId, headRevisionId: head.revisionId, revisions, ancestors: graph.ancestors,
     files: head.snapshot.media.map((descriptor) => {
       const entity = head.snapshot.entities.find((item) => item.kind === 'file' && item.data.mediaId === descriptor.id)!;
       return { mediaId: descriptor.id, archivePath: `assets/${captured.files.get(entity.id)!}` };
     }) });
+  // 先确认完整版本材料仍可导出，超限不得把本机协作状态推进到不可读取的版本。
+  await saveProjectExchangeCheckpoint({ expectedState: previous, state, revisions: [head] });
+  return bundle;
 }
 
 /** 旧包只按仍保留的源 ID 人工对照；从不据此宣称找到了共同版本。 */
@@ -225,13 +227,14 @@ async function freezeRecovery(capture: ExchangeCapture, records: ProjectSaveData
   await invoke('publish_project_import_assets', { stagingDir: directory, projectDir: directory, operationId, assets });
   options.signal?.throwIfAborted();
   const identities = capture.identities.map((identity) => identity.kind === 'file' && paths.has(identity.id) ? { ...identity, localId: paths.get(identity.id)! } : { ...identity });
-  return { records: materializeExchangeSnapshot(capture.snapshot, identities, records, records[0].dataFolder ?? records[0].id, paths), identities };
+  return { records: materializeExchangeSnapshot(capture.snapshot, identities, records, records[0].dataFolder ?? records[0].id, paths), identities,
+    assets: assets.map((asset) => ({ path: `imports/${operationId}/${asset.destinationPath}`, bytes: asset.bytes, sha256: asset.sha256 })) };
 }
 
 export async function applyProjectImport(session: PreparedProjectImport, preview: ProjectImportPreview | null,
   choices: Readonly<Record<string, ProjectMergeSide>>, options: ProjectImportOptions, assertCurrent?: () => void): Promise<ProjectImportResult> {
   requireSession(session);
-  if (!preview && !session.bundle) return restoreProjectArchive(session.archivePath, undefined, options);
+  if (!preview && !session.bundle) return restoreProjectArchive(session.archivePath, undefined, options, session);
   if (preview && preview.sessionId !== session.id) throw new Error('预览会话已变化');
   if (preview?.plan.alreadyApplied) throw new Error('该版本已经处理，未重复写入项目');
   const snapshot = preview ? resolveProjectMerge(preview.plan, choices) : session.bundle!.revisions.find((item) => item.revisionId === session.bundle!.headRevisionId)!.snapshot;
@@ -282,7 +285,7 @@ export async function applyProjectImport(session: PreparedProjectImport, preview
   await commitProjectImport({ operationId, expectedRecords: preview?.expectedRecords ?? [], records,
     expectedState: preview?.expectedState ?? null, state, revisions: [...revisions.values()], ancestors: [...headers.values()], history, label: '导入更新前',
     assertCurrent: () => { options.signal?.throwIfAborted(); assertCurrent?.(); }, signal: options.signal,
-    recoveryRecords: recovery?.records, recoveryIdentities: recovery?.identities });
+    recoveryRecords: recovery?.records, recoveryIdentities: recovery?.identities, recoveryAssets: recovery?.assets });
   files.registerProjectFolders(records); files.notifyProjectDiskChanged();
   const record = records[0];
   return { projectId: ownerId, projectName: record.name, createdAt: record.createdAt, updatedAt: record.updatedAt, dataFolder: folder,
@@ -296,8 +299,15 @@ export async function restoreProjectImportRecovery(ownerId: string, recoveryId: 
   const recovery = (await listProjectImportRecoveries(ownerId)).find((item) => item.id === recoveryId);
   if (!recovery) throw new Error('恢复点不存在');
   const expectedRecords = await readProjectImportScope(ownerId), expectedState = await loadProjectExchangeState(ownerId);
+  // 恢复业务内容不回退本机目录定位；项目改名/迁移目录后，旧恢复点仍使用当前素材根。
+  const restoredRecords = recovery.records.map((record) => ({ ...record, dataFolder: expectedRecords[0].dataFolder ?? ownerId }));
   const directory = await files.ensureProjectDataDir(ownerId); if (!directory) throw new Error('无法读取项目素材');
   const assets = await invoke<ArchiveAssetDigest[]>('inspect_project_archive_assets', { assetsDir: directory });
+  const actual = new Map(assets.map((asset) => [asset.path, asset]));
+  if (!recovery.assets && (recovery.identities ?? recovery.state?.identities ?? []).some((item) => item.kind === 'file')) {
+    throw new Error('旧恢复点缺少素材校验信息，请使用原始项目包恢复');
+  }
+  if (recovery.assets?.some((asset) => !configValuesEqual(asset, actual.get(asset.path)))) throw new Error('恢复点素材缺失或已被修改，未恢复项目');
   const graph = expectedState ? await loadProjectExchangeGraph(expectedState.lineageId) : { revisions: [], ancestors: [] };
   const current = await captureProjectSnapshot(expectedRecords, assets, expectedState,
     graph.revisions.find((item) => item.revisionId === expectedState?.headRevisionId)?.snapshot, directory);
@@ -308,15 +318,15 @@ export async function restoreProjectImportRecovery(ownerId: string, recoveryId: 
   if (expectedState) {
     const mappings = recovery.identities ?? recovery.state?.identities ?? [];
     const paths = new Set(mappings.filter((item) => item.kind === 'file').map((item) => item.localId));
-    const captured = await captureProjectSnapshot(recovery.records, mappings.length ? assets.filter((asset) => paths.has(asset.path)) : assets, { ...expectedState,
+    const captured = await captureProjectSnapshot(restoredRecords, mappings.length ? assets.filter((asset) => paths.has(asset.path)) : assets, { ...expectedState,
       identities: [...new Map([...expectedState.identities, ...mappings].map((item) => [JSON.stringify([item.kind, item.scopeId, item.id]), item])).values()] }, undefined, directory);
     const head = await createProjectExchangeRevision(captured.snapshot, [expectedState.headRevisionId]);
     revisions = [...graph.revisions, head]; ancestors = graph.ancestors;
     state = { ...expectedState, stateVersion: expectedState.stateVersion + 1, identities: captured.identities, headRevisionId: head.revisionId };
   }
   assertCurrent?.();
-  await commitProjectImport({ operationId: crypto.randomUUID(), expectedRecords, records: recovery.records,
+  await commitProjectImport({ operationId: crypto.randomUUID(), expectedRecords, records: restoredRecords,
     expectedState, state, revisions, ancestors, history: [], label: '恢复操作前', assertCurrent,
-    recoveryRecords: beforeRestore.records, recoveryIdentities: beforeRestore.identities });
+    recoveryRecords: beforeRestore.records, recoveryIdentities: beforeRestore.identities, recoveryAssets: beforeRestore.assets });
   files.notifyProjectDiskChanged();
 }

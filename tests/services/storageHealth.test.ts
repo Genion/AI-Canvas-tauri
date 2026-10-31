@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   getHistoryEntriesPage: vi.fn(),
   getProjectConversations: vi.fn(),
   getConversationMessages: vi.fn(),
+  listProjectImportRecoveries: vi.fn(),
 }));
 
 vi.mock('@tauri-apps/plugin-fs', () => ({
@@ -44,6 +45,7 @@ vi.mock('../../src/services/indexedDbService', () => ({
   getProjectConversations: mocks.getProjectConversations,
   getConversationMessages: mocks.getConversationMessages,
 }));
+vi.mock('../../src/services/indexedDb/projectImportRepository', () => ({ listProjectImportRecoveries: mocks.listProjectImportRecoveries }));
 
 import { clearTrashDir, scanStorageHealth } from '../../src/services/fs/storageHealth';
 
@@ -69,6 +71,7 @@ describe('storage health accounting and cleanup', () => {
     mocks.getHistoryEntriesPage.mockResolvedValue({ records: [], hasMore: false });
     mocks.getProjectConversations.mockResolvedValue([]);
     mocks.getConversationMessages.mockResolvedValue({ messages: [], total: 0 });
+    mocks.listProjectImportRecoveries.mockResolvedValue([]);
     mocks.readDir.mockImplementation(async (path: string) => {
       const entries = mocks.directories.get(path);
       if (!entries) throw new Error('directory unavailable');
@@ -102,6 +105,17 @@ describe('storage health accounting and cleanup', () => {
         mocks.sizes.delete(path);
       }
     });
+  });
+
+  it('keeps recovery media out of orphan and deletable duplicate lists, failing closed on unreadable recovery records', async () => {
+    addFiles('/a', { 'current.png': 10, 'recovery.png': 10 });
+    mocks.digests.set('/a/current.png', 'same'); mocks.digests.set('/a/recovery.png', 'same');
+    mocks.listProjectImportRecoveries.mockResolvedValue([{ records: [], assets: [{ path: 'recovery.png', bytes: 10, sha256: 'a'.repeat(64) }] }]);
+    const report = await scanStorageHealth([project('a')], new Set(['/a/current.png']));
+    expect(report.orphans).toEqual([]);
+    expect(report.duplicates.flatMap((group) => group.files).filter((file) => file.canDelete)).toEqual([]);
+    mocks.listProjectImportRecoveries.mockRejectedValue(new Error('unavailable'));
+    await expect(scanStorageHealth([project('a')], new Set())).rejects.toThrow('存储引用读取不完整');
   });
 
   it('counts a shared project directory once and retains references from either project', async () => {

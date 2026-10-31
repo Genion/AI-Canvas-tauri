@@ -1,11 +1,19 @@
 /** 真实业务适配的跨设备往返；不依赖归档编排的 mock。 */
 import { webcrypto } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { captureExchangeSnapshot, materializeExchangeSnapshot } from '../../src/services/projectExchangeDomain';
+import { captureExchangeSnapshot, materializeExchangeSnapshot, validateExchangeDomain } from '../../src/services/projectExchangeDomain';
 import type { ProjectSaveData } from '../../src/services/storageService';
 import type { ProjectExchangeIdentity, ProjectExchangeState } from '../../src/types/projectExchange';
 beforeEach(() => vi.stubGlobal('crypto', webcrypto)); afterEach(() => vi.unstubAllGlobals());
 describe('项目规范快照往返', () => {
+  it('拒绝合并后失去父对象的子实体，以及循环子对象列表', () => {
+    const source: ProjectSaveData = { id: 'root', name: '项目', nodes: [], edges: [], createdAt: 1, updatedAt: 1 };
+    const captured = captureExchangeSnapshot([source], [], null);
+    const orphan = { kind: 'action' as const, scopeId: 'root', id: 'orphan', data: {}, references: [] };
+    expect(() => validateExchangeDomain({ ...captured.snapshot, entities: [...captured.snapshot.entities, orphan] })).toThrow('所属对象');
+    const cyclic = { ...orphan, data: { actionsIds: ['orphan'] } };
+    expect(() => validateExchangeDomain({ ...captured.snapshot, entities: [...captured.snapshot.entities, cyclic] })).toThrow('循环');
+  });
   it('旧项目无资产库时，规范化空库后保持相同业务快照', () => {
     const source: ProjectSaveData = { id: 'root', name: '空库', nodes: [], edges: [], createdAt: 1, updatedAt: 2 };
     const captured = captureExchangeSnapshot([source], [], null);

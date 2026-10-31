@@ -83,6 +83,28 @@ export function exchangeReferences(entity: ProjectExchangeEntity, all: readonly 
 export function validateExchangeDomain(snapshot: ProjectExchangeSnapshot): ProjectExchangeSnapshot {
   const entities = snapshot.entities.map((entity) => ({ ...entity, references: exchangeReferences(entity, snapshot.entities, snapshot.rootProjectId) }));
   const parsed = parseProjectExchangeSnapshot({ ...snapshot, entities });
+  const childOwners = new Map<string, string>();
+  for (const entity of entities) for (const [field, kind] of collections) {
+    const ids = entity.data[`${field}Ids`];
+    if (ids === undefined) continue;
+    if (!Array.isArray(ids) || ids.some((id) => typeof id !== 'string') || new Set(ids).size !== ids.length) {
+      throw new Error('子实体列表包含重复或无效身份');
+    }
+    for (const id of ids as string[]) {
+      const key = projectExchangeEntityKey({ kind, scopeId: entity.scopeId, id });
+      if (childOwners.has(key)) throw new Error('同一子实体不能同时属于多个对象');
+      childOwners.set(key, projectExchangeEntityKey(entity));
+    }
+  }
+  for (const entity of entities.filter((item) => collections.some(([, kind]) => kind === item.kind))) {
+    const key = projectExchangeEntityKey(entity), visited = new Set([key]);
+    let owner = childOwners.get(key);
+    if (!owner) throw new Error('子实体缺少所属对象，请统一父对象和新增/删除选择');
+    while (owner) {
+      if (visited.has(owner)) throw new Error('子实体归属存在循环');
+      visited.add(owner); owner = childOwners.get(owner);
+    }
+  }
   for (const project of entities.filter((item) => item.kind === 'project')) {
     if (project.id === snapshot.rootProjectId ? project.data.parentId !== undefined : project.data.parentId !== snapshot.rootProjectId) {
       throw new Error('分集归属不一致，请处理项目结构冲突');
@@ -157,7 +179,7 @@ export function captureExchangeSnapshot(records: readonly ProjectSaveData[], ass
     if (typeof value === 'string') {
       if (['projectId', 'parentProjectId'].includes(key)) return projectIds.get(value) ?? value;
       if (key === 'relativePath' || key === 'imageRelativePath') return value ? fileToken(value) : undefined;
-      if (mediaUrls.has(key) && (/^(blob:|data:|asset:|https?:\/\/(?:asset\.localhost|tauri\.localhost)|[a-z]:[\\/])/i.test(value))) return undefined;
+      if (mediaUrls.has(key) && (/^(blob:|data:|file:|asset:|https?:\/\/(?:asset\.localhost|tauri\.localhost)|[a-z]:[\\/])/i.test(value))) return undefined;
       if (key === 'status' && ['loading', 'generating', 'running', 'pending', 'polling'].includes(value)) return 'idle';
       if (/(?:paths?|directory|folder)$/i.test(key) && /^(?:[a-z]:[\\/]|\\\\|\/)/i.test(value)) {
         throw new Error('项目包含尚未适配的本机路径字段，无法生成可迁移的完整快照');
@@ -171,7 +193,7 @@ export function captureExchangeSnapshot(records: readonly ProjectSaveData[], ass
     const result: ProjectExchangeObject = {};
     if (!value.relativePath && typeof value.filePath === 'string') result.relativePath = fileToken(relativeFile(value.filePath));
     if (!value.relativePath && !value.imageRelativePath && !result.relativePath && [...mediaUrls].some((field) =>
-      typeof value[field] === 'string' && /^(?:asset:|blob:|data:|https?:\/\/(?:asset\.localhost|tauri\.localhost))/i.test(value[field] as string))) {
+      typeof value[field] === 'string' && /^(?:asset:|file:|blob:|data:|https?:\/\/(?:asset\.localhost|tauri\.localhost))/i.test(value[field] as string))) {
       throw new Error('项目包含尚未归档的本地媒体，请先将素材保存到项目目录');
     }
     for (const [field, item] of Object.entries(value)) {

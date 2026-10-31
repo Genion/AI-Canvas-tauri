@@ -40,6 +40,7 @@ vi.mock('../../src/services/indexedDbService', async (importOriginal) => ({
   getAllProjects: mocks.getAllProjects,
   getProjectById: mocks.getProjectById,
 }));
+vi.mock('../../src/services/indexedDb/projectImportRepository', () => ({ listProjectImportRecoveries: async () => [] }));
 vi.mock('../../src/services/fs/core', async (importOriginal) => ({
   ...await importOriginal<typeof import('../../src/services/fs/core')>(),
   isTauriEnv: () => true,

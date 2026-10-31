@@ -1258,8 +1258,6 @@ const nodes = {
   '视频预览': 'Video preview',
 
   // ── VideoNodeControls ──
-  '视频播放控制': 'Video playback controls',
-  '视频进度': 'Video progress',
   '暂停视频': 'Pause video',
   '播放视频': 'Play video',
   '取消静音': 'Unmute',

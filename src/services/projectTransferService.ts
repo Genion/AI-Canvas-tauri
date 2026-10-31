@@ -34,6 +34,9 @@ import { normalizeDramaAssetLibrary } from '../types/dramaAssets';
 import { normalizeEpisodeAssetRoster } from '../types/episodeAssets';
 import type { CanvasProject } from '../types';
 import { serializeProjectArchiveEntries, type ProjectArchiveJsonEntry } from './projectArchiveSerialization';
+import { portableArchiveChat, sanitizeLegacyArchiveProject, selectArchiveAssets } from './projectArchiveValidation';
+import { configValuesEqual } from './configPatch';
+import type { ArchiveAssetDigest } from './projectExchangeDomain';
 
 export const PROJECT_ARCHIVE_EXTENSION = 'aicanvas';
 /** 归档格式版本；解包时拒绝更高版本，避免旧版本误读新结构。 */
@@ -82,6 +85,7 @@ interface UnpackResult {
   texts: Record<string, string>;
   assetPaths: string[];
   assetBytes: number;
+  assets: ArchiveAssetDigest[];
 }
 
 export interface ProjectExportResult {
@@ -228,7 +232,7 @@ async function collectChatPayload(projectId: string): Promise<ProjectArchiveChat
     conversations.map((conversation) => readAllConversationMessages(conversation.id)),
   );
   const memories = await getProjectMemories(projectId);
-  return { conversations, messages: messageGroups.flat(), memories };
+  return portableArchiveChat({ conversations, messages: messageGroups.flat(), memories });
 }
 
 export function readArchiveProject(value: unknown, label: string): ProjectSaveData {
@@ -252,7 +256,7 @@ export function readArchiveChat(value: unknown): ProjectArchiveChatPayload | nul
     || !Array.isArray(value.messages) || !Array.isArray(value.memories)) {
     throw new Error('项目归档中的对话记录已损坏');
   }
-  return value as unknown as ProjectArchiveChatPayload;
+  return portableArchiveChat(value as unknown as ProjectArchiveChatPayload);
 }
 
 /** 先分配整部剧的对话身份，项目记忆可引用稍后恢复的分集对话。 */
@@ -364,7 +368,7 @@ async function packProjectArchive(
     entries,
     assetsDir,
     outputPath,
-    expectedAssets: assets,
+    expectedAssets: selectArchiveAssets(head.snapshot, exchangeState, assets),
   });
   return { ...result, episodeCount: episodes.length };
 }
@@ -461,7 +465,8 @@ async function restoreChatPayload(
 export async function restoreProjectArchive(
   archivePath: string,
   overrideName?: string,
-  historyOptions = { appendChat: true, appendMemories: true },
+  historyOptions: { appendChat: boolean; appendMemories: boolean; signal?: AbortSignal } = { appendChat: true, appendMemories: true },
+  preview?: { manifest: ProjectArchiveManifest; records: ProjectSaveData[]; chat: Array<ProjectArchiveChatPayload | null>; assets: ArchiveAssetDigest[] },
 ): Promise<ProjectImportResult> {
   const projectId = createRecordId();
   const stagingFolder = fileService.buildProjectFolderName('导入中', projectId);
@@ -470,6 +475,7 @@ export async function restoreProjectArchive(
   let stagingCreated = false;
   const createdProjectIds: string[] = [];
   try {
+    historyOptions.signal?.throwIfAborted();
     const stagingDir = await fileService.ensureProjectDataDir(projectId);
     if (!stagingDir) throw new Error('无法创建项目数据目录');
     stagingCreated = true;
@@ -486,14 +492,22 @@ export async function restoreProjectArchive(
     if (manifest.formatVersion > PROJECT_ARCHIVE_FORMAT_VERSION) {
       throw new Error('项目包由更新版本导出，请先升级应用');
     }
-    const source = readArchiveProject(parseJson<unknown>(unpacked.texts[PROJECT_ENTRY], '项目记录'), '项目记录');
+    const source = sanitizeLegacyArchiveProject(readArchiveProject(parseJson<unknown>(unpacked.texts[PROJECT_ENTRY], '项目记录'), '项目记录'));
     if (manifest.projectId !== source.id) {
       throw new Error('项目归档中的项目 ID 与清单不一致');
     }
-    const sourceEpisodes = readArchiveEpisodes(unpacked.texts[EPISODES_ENTRY], manifest, source);
+    const sourceEpisodes = readArchiveEpisodes(unpacked.texts[EPISODES_ENTRY], manifest, source)
+      .map((episode) => ({ ...episode, project: sanitizeLegacyArchiveProject(episode.project) }));
     const chat = unpacked.texts[CHAT_ENTRY]
       ? readArchiveChat(parseJson<unknown>(unpacked.texts[CHAT_ENTRY], '对话记录'))
       : null;
+    historyOptions.signal?.throwIfAborted();
+    if (preview && (!configValuesEqual(manifest, preview.manifest)
+      || !configValuesEqual([source, ...sourceEpisodes.map((episode) => episode.project)], preview.records.map(sanitizeLegacyArchiveProject))
+      || !configValuesEqual([chat, ...sourceEpisodes.map((episode) => episode.chat)], preview.chat)
+      || !Array.isArray(unpacked.assets) || !configValuesEqual([...unpacked.assets].sort((a, b) => a.path.localeCompare(b.path)), [...preview.assets].sort((a, b) => a.path.localeCompare(b.path))))) {
+      throw new Error('项目包在预览后发生变化，请重新选择项目包');
+    }
     const payloads = [chat, ...sourceEpisodes.map((episode) => episode.chat)].map((payload) => payload ? {
       conversations: historyOptions.appendChat ? payload.conversations : [],
       messages: historyOptions.appendChat ? payload.messages : [],
@@ -553,6 +567,7 @@ export async function restoreProjectArchive(
     let conversationCount = 0;
     let memoryCount = 0;
     for (const [index, next] of records.entries()) {
+      historyOptions.signal?.throwIfAborted();
       fileService.registerProjectFolder(next.id, dataFolder);
       detachSourceAssetIdentity(next);
       // 保存失败也可能已部分写入，回滚必须包含正在写入的 ID。

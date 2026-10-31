@@ -187,9 +187,13 @@ describe('project startup page', () => {
     await click(find(render(), (element) => element.type === 'button'
       && Array.isArray(element.props.children) && element.props.children.includes('导入')));
     expect(onClose).not.toHaveBeenCalled();
-    driver.state.importProject = vi.fn(async () => { driver.state.currentProjectId = 'imported'; return 'imported'; });
+    const cancelled = find(render(), (element) => typeof element.props.onImported === 'function');
+    (cancelled.props.onClose as () => void)();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(findAll(render(), (element) => typeof element.props.onImported === 'function')).toHaveLength(0);
     await click(find(render(), (element) => element.type === 'button'
       && Array.isArray(element.props.children) && element.props.children.includes('导入')));
+    (find(render(), (element) => typeof element.props.onImported === 'function').props.onImported as () => void)();
     expect(onClose).toHaveBeenCalledOnce();
   });
 

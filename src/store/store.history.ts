@@ -300,7 +300,7 @@ function restoreStructuralSnapshot(
     if (node.type !== 'group') continue;
     const groupId = node.data.groupId;
     // 只把成员变化的容器与归属一起还原，其他分组仍保留独立布局。
-    const membersChanged = groupId !== undefined
+    const membersChanged = typeof groupId === 'string'
       && !isDeepEqual(targetMembers.get(groupId), currentMembers.get(groupId));
     if (!restoreLayout && !membersChanged) continue;
     layoutGroups.add(node.id);
